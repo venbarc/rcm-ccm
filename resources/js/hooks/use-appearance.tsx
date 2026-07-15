@@ -14,11 +14,11 @@ const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
 const handleSystemThemeChange = () => {
     const currentAppearance = localStorage.getItem('appearance') as Appearance;
-    applyTheme(currentAppearance || 'system');
+    applyTheme(currentAppearance || 'light');
 };
 
 export function initializeTheme() {
-    const savedAppearance = (localStorage.getItem('appearance') as Appearance) || 'system';
+    const savedAppearance = (localStorage.getItem('appearance') as Appearance) || 'light';
 
     applyTheme(savedAppearance);
 
@@ -29,10 +29,10 @@ export function initializeTheme() {
 export function useAppearance() {
     const [appearance, setAppearance] = useState<Appearance>(() => {
         if (typeof window === 'undefined') {
-            return 'system';
+            return 'light';
         }
 
-        return (localStorage.getItem('appearance') as Appearance | null) || 'system';
+        return (localStorage.getItem('appearance') as Appearance | null) || 'light';
     });
 
     const updateAppearance = (mode: Appearance) => {

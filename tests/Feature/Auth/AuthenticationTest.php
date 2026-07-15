@@ -10,11 +10,11 @@ class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_login_screen_can_be_rendered()
+    public function test_login_screen_redirects_to_one_access()
     {
         $response = $this->get('/login');
 
-        $response->assertStatus(200);
+        $response->assertRedirect('http://oneaccess.test/login');
     }
 
     public function test_users_can_authenticate_using_the_login_screen()
@@ -49,6 +49,7 @@ class AuthenticationTest extends TestCase
         $response = $this->actingAs($user)->post('/logout');
 
         $this->assertGuest();
-        $response->assertRedirect('/');
+        $response->assertStatus(409);
+        $response->assertHeader('X-Inertia-Location', 'http://oneaccess.test/login');
     }
 }

@@ -1,0 +1,22 @@
+import { Pagination, type PaginationLink } from '@/components/pagination';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import AppLayout from '@/layouts/app-layout';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Shuffle, UserCheck } from 'lucide-react';
+import { FormEvent, useState } from 'react';
+
+interface UserOption { id: number; name: string; email: string }
+interface Claim { id: number; external_id: string; patient_name: string; balance: string; payer: string | null; date_of_service: string | null }
+interface ClaimPage { data: Claim[]; links: PaginationLink[]; total: number }
+
+export default function Assignments({ claims, assignees }: { claims: ClaimPage; assignees: UserOption[] }) {
+    const [selected, setSelected] = useState<number[]>([]);
+    const [assigneeId, setAssigneeId] = useState('');
+    const distributeForm = useForm<{ user_ids: number[] }>({ user_ids: assignees.map((user) => user.id) });
+    const toggle = (id: number) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
+    const assign = (event: FormEvent) => { event.preventDefault(); router.post('/assignments', { claim_ids: selected, user_id: Number(assigneeId) }, { preserveScroll: true, onSuccess: () => setSelected([]) }); };
+    const distribute = () => distributeForm.post('/assignments/distribute', { preserveScroll: true });
+
+    return <AppLayout breadcrumbs={[{ title: 'Assignments', href: '/assignments' }]}><Head title="Assignments" /><div className="flex flex-1 flex-col gap-5 p-4 md:p-6"><div><h1 className="text-3xl font-semibold tracking-tight">Assign claims</h1><p className="text-sm text-muted-foreground">Route Tricity’s unassigned inventory to approved team members.</p></div><div className="grid gap-4 lg:grid-cols-[1fr_320px]"><Card className="overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground"><tr><th className="w-12 p-4"><input checked={claims.data.length > 0 && selected.length === claims.data.length} onChange={(e) => setSelected(e.target.checked ? claims.data.map((claim) => claim.id) : [])} type="checkbox" /></th><th className="p-4">Claim / patient</th><th className="p-4">DOS</th><th className="p-4">Payer</th><th className="p-4 text-right">Balance</th></tr></thead><tbody className="divide-y">{claims.data.map((claim) => <tr key={claim.id}><td className="p-4"><input checked={selected.includes(claim.id)} onChange={() => toggle(claim.id)} type="checkbox" /></td><td className="p-4"><p className="font-medium">{claim.external_id}</p><p className="text-muted-foreground">{claim.patient_name}</p></td><td className="p-4">{claim.date_of_service ?? '—'}</td><td className="p-4">{claim.payer ?? '—'}</td><td className="p-4 text-right font-medium">${Number(claim.balance).toLocaleString()}</td></tr>)}</tbody></table>{claims.data.length === 0 && <p className="p-12 text-center text-muted-foreground">All claims are assigned.</p>}</div><div className="border-t p-4"><Pagination links={claims.links} /></div></Card><div className="space-y-4"><Card><CardHeader><CardTitle className="text-lg">Manual assignment</CardTitle></CardHeader><CardContent><form className="space-y-3" onSubmit={assign}><p className="text-sm text-muted-foreground">{selected.length} claims selected</p><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" onChange={(e) => setAssigneeId(e.target.value)} value={assigneeId}><option value="">Choose a team member</option>{assignees.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select><Button className="w-full" disabled={selected.length === 0 || !assigneeId} type="submit"><UserCheck /> Assign selected</Button></form></CardContent></Card><Card><CardHeader><CardTitle className="text-lg">Balanced distribution</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Distribute all {claims.total} unassigned claims round-robin across the approved Tricity team.</p><Button className="w-full" disabled={claims.total === 0 || assignees.length === 0 || distributeForm.processing} onClick={distribute} variant="outline"><Shuffle /> Distribute all</Button></CardContent></Card></div></div></div></AppLayout>;
+}

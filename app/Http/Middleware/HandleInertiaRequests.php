@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\AccountType;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -45,10 +46,17 @@ class HandleInertiaRequests extends Middleware
             ],
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
-                'user' => $request->user(),
+                'user' => $request->user() ? [
+                    ...$request->user()->only(['id', 'name', 'email', 'email_verified_at', 'is_admin', 'is_approved', 'can_assign_claims']),
+                    'account_types' => $request->user()->allowedAccountTypes(),
+                ] : null,
             ],
+            'activeAccount' => AccountType::tryFrom((string) $request->session()->get('account_type'))?->value,
+            'accountTypes' => AccountType::options(),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ]);
     }

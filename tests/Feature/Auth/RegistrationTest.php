@@ -9,11 +9,11 @@ class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_screen_can_be_rendered()
+    public function test_registration_screen_redirects_to_one_access()
     {
         $response = $this->get('/register');
 
-        $response->assertStatus(200);
+        $response->assertRedirect('http://oneaccess.test/login');
     }
 
     public function test_new_users_can_register()

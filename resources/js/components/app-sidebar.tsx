@@ -2,33 +2,30 @@ import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import { type NavItem, type SharedData } from '@/types';
+import { Link, usePage } from '@inertiajs/react';
+import { Activity, ArrowLeft, FileSpreadsheet, FileText, LayoutGrid, UserRoundCog, Users } from 'lucide-react';
 import AppLogo from './app-logo';
-
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        url: '/dashboard',
-        icon: LayoutGrid,
-    },
-];
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        url: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        url: 'https://laravel.com/docs/starter-kits',
-        icon: BookOpen,
+        title: 'Back to One Access',
+        url: '/oneaccess',
+        icon: ArrowLeft,
     },
 ];
 
 export function AppSidebar() {
+    const { auth } = usePage<SharedData>().props;
+    const mainNavItems: NavItem[] = [
+        { title: 'Dashboard', url: '/dashboard', icon: LayoutGrid },
+        { title: 'Claims', url: '/claims', icon: FileText },
+        ...(auth.user?.is_admin ? [{ title: 'Import Claims', url: '/claims-import', icon: FileSpreadsheet }] : []),
+        ...(auth.user?.is_admin || auth.user?.can_assign_claims ? [{ title: 'Assignments', url: '/assignments', icon: Users }] : []),
+        { title: 'Activity Logs', url: '/activity-logs', icon: Activity },
+        ...(auth.user?.is_admin ? [{ title: 'User Management', url: '/user-management', icon: UserRoundCog }] : []),
+    ];
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
