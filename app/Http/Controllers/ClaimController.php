@@ -3,42 +3,410 @@
 namespace App\Http\Controllers;
 
 use App\Models\Claim;
-use App\Models\User;
+use App\Models\ClaimActivity;
 use App\Services\ClaimActivityService;
+use App\Services\TeamService;
 use App\Support\CurrentAccount;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ClaimController extends Controller
 {
-    public function __construct(private readonly ClaimActivityService $activities) {}
+    private const FILTERABLE_OPTION_COLUMNS = [
+        'claim_status',
+        'payer_name',
+        'rendering_provider',
+        'denial_reason',
+        'procedure_code',
+        'service_month',
+    ];
+
+    private const WORK_STATUSES = [
+        'draft', 'paid', 'historical_posted_payments', 'rebilled', 'appeal',
+        'pending', 'void', 'corrected', 'patient_balance',
+    ];
+
+    private const SORTABLE_COLUMNS = [
+        'service_date_start', 'service_date_end', 'first_name', 'last_name',
+        'true_charge', 'true_balance', 'payments', 'updated_at',
+    ];
+
+    public function __construct(
+        private readonly ClaimActivityService $activities,
+        private readonly TeamService $teams,
+    ) {}
 
     public function index(Request $request): Response
     {
         $account = CurrentAccount::resolve($request);
-        $query = Claim::query()->with('assignee:id,name,email')->where('account_type', $account->value);
+        $accountValue = $account->value;
+        $matchedClaims = $this->buildMatchedClaimGroupQuery($request, $accountValue);
+        $matchedExternalIds = (clone $matchedClaims)->select('external_id')->distinct();
 
-        $query->when($request->string('search')->trim()->toString(), function ($query, string $search): void {
-            $query->where(function ($nested) use ($search): void {
-                $nested->where('external_id', 'like', "%{$search}%")
-                    ->orWhere('patient_name', 'like', "%{$search}%")
-                    ->orWhere('payer', 'like', "%{$search}%")
-                    ->orWhere('provider', 'like', "%{$search}%");
-            });
-        });
-        $query->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')));
-        $query->when($request->input('assigned_to') === 'unassigned', fn ($query) => $query->whereNull('assigned_to'));
-        $query->when(is_numeric($request->input('assigned_to')), fn ($query) => $query->where('assigned_to', $request->integer('assigned_to')));
+        $search = trim($request->string('search')->toString());
+        $serviceMonth = trim((string) $request->input('service_month', ''));
+        $assignedTo = $request->input('assigned_to');
+        $sortBy = in_array($request->input('sort_by'), self::SORTABLE_COLUMNS, true)
+            ? $request->input('sort_by')
+            : 'updated_at';
+        $sortDirection = $request->input('sort_direction') === 'asc' ? 'asc' : 'desc';
+
+        $claimGroups = Claim::query()
+            ->where('account_type', $accountValue)
+            ->whereIn('external_id', $matchedExternalIds)
+            ->selectRaw('external_id')
+            ->selectRaw('MAX(NULLIF(patient_name, \'\')) as patient_name')
+            ->selectRaw('MAX(NULLIF(first_name, \'\')) as first_name')
+            ->selectRaw('MAX(NULLIF(last_name, \'\')) as last_name')
+            ->selectRaw('MIN(service_date_start) as service_date_start')
+            ->selectRaw('MAX(service_date_end) as service_date_end')
+            ->selectRaw('SUM(COALESCE(payments, 0)) as payments')
+            ->selectRaw('SUM(COALESCE(true_charge, 0)) as true_charge')
+            ->selectRaw('SUM(COALESCE(adjustments, 0)) as adjustments')
+            ->selectRaw('SUM(COALESCE(true_balance, 0)) as true_balance')
+            ->selectRaw('MAX(updated_at) as updated_at')
+            ->selectRaw('COUNT(*) as line_count')
+            ->selectRaw('MAX(CASE WHEN work_status IS NULL OR work_status = \'\' THEN \'draft\' ELSE work_status END) as work_status')
+            ->selectRaw('MAX(NULLIF(claim_status, \'\')) as claim_status')
+            ->selectRaw('MAX(NULLIF(denial_reason, \'\')) as denial_reason')
+            ->selectRaw('MAX(NULLIF(notes, \'\')) as notes')
+            ->selectRaw('MAX(NULLIF(activity_type, \'\')) as activity_type')
+            ->selectRaw('MAX(NULLIF(batch_name, \'\')) as batch_name')
+            ->selectRaw('MAX(NULLIF(location, \'\')) as location')
+            ->selectRaw('MAX(NULLIF(place_of_service_code, \'\')) as place_of_service_code')
+            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') THEN 1 ELSE 0 END) as is_modified')
+            ->groupBy('external_id')
+            ->orderBy($sortBy, $sortDirection)
+            ->orderBy('external_id')
+            ->paginate(50)
+            ->withQueryString();
+
+        $claimLines = Claim::query()
+            ->with('assignee:id,name,email')
+            ->where('account_type', $accountValue)
+            ->whereIn('external_id', $claimGroups->getCollection()->pluck('external_id')->all())
+            ->orderBy('service_date_start')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('external_id');
+
+        $lineIds = $claimLines->flatten(1)->pluck('id')->all();
+        $latestActivityIds = ClaimActivity::query()
+            ->whereIn('claim_id', $lineIds)
+            ->selectRaw('MAX(id)')
+            ->groupBy('claim_id');
+        $latestActivities = ClaimActivity::query()
+            ->with('user:id,name,email')
+            ->whereIn('id', $latestActivityIds)
+            ->get()
+            ->keyBy('claim_id');
+
+        $claimGroups->setCollection($claimGroups->getCollection()->map(function ($group) use ($claimLines, $latestActivities) {
+            $lines = $claimLines->get($group->external_id, collect())->values();
+            /** @var Claim|null $representative */
+            $representative = $lines->sortByDesc(fn (Claim $claim): int => $claim->updated_at?->getTimestamp() ?? 0)->first()
+                ?? $lines->first();
+
+            $billIds = $lines
+                ->pluck('bill_id')
+                ->filter(fn ($value) => is_string($value) && trim($value) !== '')
+                ->unique()
+                ->values()
+                ->all();
+
+            $cptCodes = $lines
+                ->map(fn (Claim $claim): ?string => $claim->procedure_code ?: $claim->cpt_code)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            $latestActivity = $lines
+                ->map(fn (Claim $claim) => $latestActivities->get($claim->id))
+                ->filter()
+                ->sortByDesc('id')
+                ->first();
+
+            return [
+                'id' => (int) ($lines->min('id') ?? 0),
+                'external_id' => (string) $group->external_id,
+                'patient_name' => $representative?->patient_name ?: ($group->patient_name ?: 'Unknown patient'),
+                'first_name' => $representative?->first_name,
+                'last_name' => $representative?->last_name,
+                'patient_dob' => $representative?->patient_dob?->toDateString(),
+                'patient_id' => $representative?->patient_id,
+                'payer_name' => $representative?->payer_name ?: $representative?->payer,
+                'rendering_provider' => $representative?->rendering_provider ?: $representative?->provider,
+                'facility' => $representative?->practice_location ?: $representative?->location,
+                'modified_by' => $latestActivity?->user?->only(['id', 'name', 'email']),
+                'service_date_start' => $group->service_date_start ? Carbon::parse($group->service_date_start)->toDateString() : null,
+                'service_date_end' => $group->service_date_end ? Carbon::parse($group->service_date_end)->toDateString() : null,
+                'payments' => (float) ($group->payments ?? 0),
+                'true_charge' => (float) ($group->true_charge ?? 0),
+                'adjustments' => (float) ($group->adjustments ?? 0),
+                'true_balance' => (float) ($group->true_balance ?? 0),
+                'claim_status' => $representative?->claim_status ?: $group->claim_status,
+                'work_status' => $representative?->work_status ?: ($group->work_status ?: 'draft'),
+                'denial_reason' => $representative?->denial_reason ?: $group->denial_reason,
+                'notes' => $representative?->notes ?: $group->notes,
+                'activity_type' => $representative?->activity_type ?: $group->activity_type,
+                'batch_name' => $representative?->batch_name ?: $group->batch_name,
+                'location' => $representative?->location ?: $group->location,
+                'place_of_service_code' => $representative?->place_of_service_code ?: $group->place_of_service_code,
+                'assigned_to' => $representative?->assigned_to,
+                'assignee' => $representative?->assignee?->only(['id', 'name', 'email']),
+                'updated_at' => ($representative?->updated_at ?? Carbon::parse($group->updated_at))->toIso8601String(),
+                'line_count' => (int) $group->line_count,
+                'cpt_codes' => $cptCodes,
+                'bill_ids' => $billIds,
+                'is_modified' => (bool) $group->is_modified,
+                'lines' => $lines->map(fn (Claim $claim): array => [
+                    'id' => $claim->id,
+                    'bill_id' => $claim->bill_id,
+                    'procedure_code' => $claim->procedure_code,
+                    'cpt_code' => $claim->cpt_code,
+                    'service_date_start' => $claim->service_date_start?->toDateString(),
+                    'service_date_end' => $claim->service_date_end?->toDateString(),
+                    'payments' => $claim->payments !== null ? (float) $claim->payments : null,
+                    'true_charge' => $claim->true_charge !== null ? (float) $claim->true_charge : null,
+                    'adjustments' => $claim->adjustments !== null ? (float) $claim->adjustments : null,
+                    'true_balance' => $claim->true_balance !== null ? (float) $claim->true_balance : null,
+                    'rendering_provider' => $claim->rendering_provider ?: $claim->provider,
+                    'payer_name' => $claim->payer_name ?: $claim->payer,
+                    'patient_id' => $claim->patient_id,
+                    'priority' => $claim->priority,
+                    'claim_status' => $claim->claim_status,
+                    'work_status' => $claim->work_status ?: 'draft',
+                    'denial_reason' => $claim->denial_reason,
+                    'notes' => $claim->notes,
+                    'source_notes' => $claim->source_notes,
+                    'activity_type' => $claim->activity_type,
+                    'batch_name' => $claim->batch_name,
+                    'location' => $claim->location,
+                    'place_of_service_code' => $claim->place_of_service_code,
+                    'assigned_to' => $claim->assigned_to,
+                    'assignee' => $claim->assignee?->only(['id', 'name', 'email']),
+                    'is_modified' => (bool) ($claim->work_status_manually_set
+                        || filled($claim->notes)
+                        || filled($claim->denial_reason)),
+                    'updated_at' => $claim->updated_at->toIso8601String(),
+                ])->all(),
+            ];
+        }));
+
+        $summaryQuery = Claim::query()
+            ->where('account_type', $accountValue)
+            ->whereIn('external_id', $matchedExternalIds);
 
         return Inertia::render('claims/index', [
-            'claims' => $query->latest('date_of_service')->latest('id')->paginate(25)->withQueryString(),
-            'filters' => $request->only(['search', 'status', 'assigned_to']),
-            'assignees' => User::query()->where('is_approved', true)->orderBy('name')->get(['id', 'name', 'email']),
-            'statuses' => ['new', 'in_progress', 'pending', 'denied', 'appealed', 'paid', 'closed'],
+            'claims' => $claimGroups,
+            'filters' => [
+                'search' => $search,
+                'claim_status' => (string) $request->input('claim_status', ''),
+                'payer_name' => (string) $request->input('payer_name', ''),
+                'rendering_provider' => (string) $request->input('rendering_provider', ''),
+                'denial_reason' => (string) $request->input('denial_reason', ''),
+                'work_status' => (string) $request->input('work_status', ''),
+                'assigned_to' => is_scalar($assignedTo) ? (string) $assignedTo : '',
+                'worked_from' => (string) $request->input('worked_from', ''),
+                'worked_to' => (string) $request->input('worked_to', ''),
+                'service_month' => $serviceMonth,
+                'procedure_code' => (string) $request->input('procedure_code', ''),
+                'expanded' => (string) $request->input('expanded', ''),
+                'sort_by' => $sortBy,
+                'sort_direction' => $sortDirection,
+            ],
+            'summary' => [
+                'totalCount' => DB::query()->fromSub((clone $matchedExternalIds), 'matched_claims')->count(),
+                'totalTrueBalance' => (float) ((clone $summaryQuery)->where('true_balance', '>', 0)->sum('true_balance') ?? 0),
+                'totalTrueCharge' => (float) ((clone $summaryQuery)->sum('true_charge') ?? 0),
+                'totalPayments' => (float) ((clone $summaryQuery)->where('payments', '>', 0)->sum('payments') ?? 0),
+            ],
+            'workStatuses' => array_map(fn (string $value): array => [
+                'value' => $value,
+                'label' => str($value)->replace('_', ' ')->title()->toString(),
+            ], self::WORK_STATUSES),
+            'assignees' => $request->user()->canAssignClaims()
+                ? $this->teams->assignmentCandidates($request->user(), $accountValue)
+                : collect(),
         ]);
+    }
+
+    public function options(Request $request): JsonResponse
+    {
+        $account = CurrentAccount::resolve($request);
+        $validated = $request->validate([
+            'filter' => ['required', 'string'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:5', 'max:200'],
+        ]);
+
+        $filter = trim($validated['filter']);
+        abort_unless(in_array($filter, self::FILTERABLE_OPTION_COLUMNS, true), 422, 'Choose a valid claims filter.');
+
+        $search = trim((string) ($validated['search'] ?? ''));
+        $page = max((int) ($validated['page'] ?? 1), 1);
+        $perPage = min(max((int) ($validated['per_page'] ?? 10), 5), 200);
+
+        if ($filter === 'service_month') {
+            $months = Claim::query()
+                ->where('account_type', $account->value)
+                ->whereNotNull('service_date_start')
+                ->pluck('service_date_start')
+                ->map(fn ($date): string => Carbon::parse($date)->format('Y-m'))
+                ->filter(fn (string $value): bool => $search === '' || str_contains($value, $search) || str_contains(strtolower(Carbon::createFromFormat('Y-m', $value)->format('F Y')), strtolower($search)))
+                ->unique()
+                ->sortDesc()
+                ->values();
+
+            $total = $months->count();
+            $lastPage = max((int) ceil(max($total, 1) / $perPage), 1);
+
+            return response()->json([
+                'data' => $months->forPage($page, $perPage)->map(fn (string $value): array => [
+                    'id' => $value,
+                    'name' => Carbon::createFromFormat('Y-m', $value)->format('F Y'),
+                ])->values()->all(),
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'has_more' => $page < $lastPage,
+            ]);
+        }
+
+        $expression = $this->filterExpression($filter);
+        abort_if($expression === null, 422, 'Choose a valid claims filter.');
+
+        $query = Claim::query()
+            ->where('account_type', $account->value)
+            ->whereRaw("{$expression} IS NOT NULL")
+            ->whereRaw("{$expression} != ''")
+            ->when($search !== '', fn (Builder $query) => $query->whereRaw("{$expression} LIKE ?", ['%'.$search.'%']))
+            ->selectRaw("{$expression} as option_value")
+            ->distinct();
+
+        $total = DB::query()->fromSub(clone $query, 'claim_filter_options')->count();
+        $lastPage = max((int) ceil(max($total, 1) / $perPage), 1);
+        $options = (clone $query)
+            ->orderBy('option_value')
+            ->forPage($page, $perPage)
+            ->pluck('option_value');
+
+        return response()->json([
+            'data' => $options->map(fn ($value): array => [
+                'id' => (string) $value,
+                'name' => (string) $value,
+            ])->values()->all(),
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => $lastPage,
+            'has_more' => $page < $lastPage,
+        ]);
+    }
+
+    public function show(Request $request, Claim $claim): Response
+    {
+        $account = CurrentAccount::resolve($request);
+        abort_unless($claim->account_type === $account->value, 404);
+
+        $lines = Claim::query()
+            ->with('assignee:id,name,email')
+            ->where('account_type', $account->value)
+            ->where('external_id', $claim->external_id)
+            ->orderBy('service_date_start')
+            ->orderBy('id')
+            ->get();
+        $representative = $lines->firstWhere('id', $claim->id) ?? $lines->firstOrFail();
+        $activities = $this->claimActivitiesPage($account->value, $lines, 1);
+        $returnTo = $this->safeClaimsReturnUrl($request->query('return_to'));
+        $serviceStart = $lines
+            ->map(fn (Claim $line) => $line->service_date_start ?? $line->date_of_service)
+            ->filter()
+            ->min();
+        $serviceEnd = $lines
+            ->map(fn (Claim $line) => $line->service_date_end ?? $line->service_date_start ?? $line->date_of_service)
+            ->filter()
+            ->max();
+
+        $diagnosisCodes = $lines
+            ->pluck('diagnosis_code')
+            ->filter()
+            ->flatMap(fn (string $codes) => preg_split('/[,;|\s]+/', $codes) ?: [])
+            ->map(fn (string $code) => trim($code))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return Inertia::render('claims/show', [
+            'claim' => [
+                'id' => (int) $lines->min('id'),
+                'external_id' => (string) $claim->external_id,
+                'patient_name' => $representative->patient_name ?: trim("{$representative->first_name} {$representative->last_name}"),
+                'patient_id' => $representative->patient_id,
+                'patient_dob' => $representative->patient_dob?->toDateString(),
+                'facility' => $representative->practice_location ?: $representative->location,
+                'service_date_start' => $serviceStart?->toDateString(),
+                'service_date_end' => $serviceEnd?->toDateString(),
+                'service_type' => $representative->service_type,
+                'diagnosis_codes' => $diagnosisCodes,
+                'line_count' => $lines->count(),
+                'total_charges' => (float) $lines->sum(fn (Claim $line): float => (float) ($line->true_charge ?? $line->billed_amount ?? 0)),
+                'total_paid' => (float) $lines->sum(fn (Claim $line): float => (float) ($line->payments ?? 0)),
+                'total_adjustments' => (float) $lines->sum(fn (Claim $line): float => (float) ($line->adjustments ?? 0)),
+                'total_balance' => (float) $lines->sum(fn (Claim $line): float => (float) ($line->true_balance ?? $line->balance ?? 0)),
+                'lines' => $lines->map(fn (Claim $line): array => [
+                    'id' => $line->id,
+                    'cpt_code' => $line->procedure_code ?: $line->cpt_code,
+                    'modifier' => $line->modifiers ?: $line->primary_modifier,
+                    'priority' => $line->priority,
+                    'units' => $line->units !== null ? (float) $line->units : null,
+                    'charges' => (float) ($line->true_charge ?? $line->billed_amount ?? 0),
+                    'paid' => (float) ($line->payments ?? 0),
+                    'adjustments' => (float) ($line->adjustments ?? 0),
+                    'balance' => (float) ($line->true_balance ?? $line->balance ?? 0),
+                    'work_status' => $line->work_status ?: 'draft',
+                    'denial_reason' => $line->denial_reason,
+                    'payer_name' => $line->payer_name ?: $line->payer,
+                    'rendering_provider' => $line->rendering_provider ?: $line->provider,
+                    'patient_id' => $line->patient_id,
+                    'notes' => $line->notes,
+                    'assigned_to' => $line->assignee?->only(['id', 'name', 'email']),
+                ])->all(),
+            ],
+            'activities' => $activities['data'],
+            'activitiesPage' => $activities['current_page'],
+            'activitiesHasMore' => $activities['has_more'],
+            'returnTo' => $returnTo,
+        ]);
+    }
+
+    public function activities(Request $request, Claim $claim): JsonResponse
+    {
+        $account = CurrentAccount::resolve($request);
+        abort_unless($claim->account_type === $account->value, 404);
+
+        $lines = Claim::query()
+            ->where('account_type', $account->value)
+            ->where('external_id', $claim->external_id)
+            ->get(['id', 'procedure_code', 'cpt_code']);
+        $payload = $this->claimActivitiesPage(
+            $account->value,
+            $lines,
+            max((int) $request->integer('page', 1), 1),
+        );
+
+        return response()->json($payload);
     }
 
     public function update(Request $request, Claim $claim): RedirectResponse
@@ -47,23 +415,192 @@ class ClaimController extends Controller
         abort_unless($claim->account_type === $account->value, 404);
 
         $validated = $request->validate([
-            'status' => ['sometimes', Rule::in(['new', 'in_progress', 'pending', 'denied', 'appealed', 'paid', 'closed'])],
-            'priority' => ['sometimes', Rule::in(['low', 'normal', 'high', 'urgent'])],
-            'assigned_to' => ['sometimes', 'nullable', 'exists:users,id'],
-            'notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'work_status' => ['sometimes', Rule::in(self::WORK_STATUSES)],
+            'denial_reason' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'notes' => ['sometimes', 'nullable', 'string', 'max:10000'],
         ]);
-        if (array_key_exists('assigned_to', $validated)) {
-            abort_unless($request->user()->canAssignClaims(), 403);
-            if ($validated['assigned_to'] !== null) {
-                $assignee = User::findOrFail($validated['assigned_to']);
-                abort_unless($assignee->is_approved && $assignee->canAccessAccount($account), 422, 'Choose an approved Tricity user.');
+
+        foreach (['denial_reason', 'notes'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $validated[$field] = trim((string) $validated[$field]) ?: null;
             }
         }
 
-        $before = $claim->only(array_keys($validated));
-        $claim->update($validated);
-        $this->activities->record($account->value, 'claim_updated', "Updated claim {$claim->external_id}", $request->user(), $claim, $before, $claim->only(array_keys($validated)));
+        if (array_key_exists('work_status', $validated)) {
+            $validated['work_status_manually_set'] = $validated['work_status'] !== 'draft';
+        }
 
-        return back()->with('success', 'Claim updated.');
+        $validated['assigned_to'] = $request->user()->id;
+        if ($claim->status === 'new') {
+            $validated['status'] = 'in_progress';
+        }
+
+        DB::transaction(function () use ($claim, $validated, $account, $request): void {
+            $before = $claim->only(array_keys($validated));
+            $claim->update($validated);
+            $after = $claim->only(array_keys($validated));
+            if ($before !== $after) {
+                $this->activities->record(
+                    $account->value,
+                    'claim_updated',
+                    "Updated claim {$claim->external_id} CPT ".($claim->procedure_code ?: $claim->cpt_code ?: $claim->id),
+                    $request->user(),
+                    $claim,
+                    $before,
+                    $after,
+                );
+            }
+        });
+
+        $query = $request->query();
+        $query['expanded'] = (string) Claim::query()
+            ->where('account_type', $account->value)
+            ->where('external_id', $claim->external_id)
+            ->min('id');
+
+        return redirect()
+            ->route('claims.index', $query)
+            ->with('success', 'Claim line updated and assigned to you.');
+    }
+
+    private function claimActivitiesPage(string $account, Collection $lines, int $page): array
+    {
+        $linesById = $lines->keyBy('id');
+        $activities = ClaimActivity::query()
+            ->with('user:id,name,email')
+            ->where('account_type', $account)
+            ->whereIn('claim_id', $linesById->keys()->all())
+            ->latest('id')
+            ->paginate(20, ['*'], 'page', $page);
+
+        return [
+            'data' => $activities->getCollection()->map(function (ClaimActivity $activity) use ($linesById): array {
+                $line = $linesById->get($activity->claim_id);
+
+                return [
+                    'id' => $activity->id,
+                    'claim_line_id' => $activity->claim_id,
+                    'cpt_code' => $line?->procedure_code ?: $line?->cpt_code,
+                    'action' => $activity->action,
+                    'description' => $activity->description,
+                    'before' => $activity->before,
+                    'after' => $activity->after,
+                    'created_at' => $activity->created_at?->toIso8601String(),
+                    'user' => $activity->user?->only(['id', 'name', 'email']),
+                ];
+            })->all(),
+            'current_page' => $activities->currentPage(),
+            'has_more' => $activities->hasMorePages(),
+        ];
+    }
+
+    private function safeClaimsReturnUrl(mixed $returnTo): string
+    {
+        if (is_string($returnTo) && (
+            $returnTo === '/dashboard'
+            || $returnTo === '/claims'
+            || str_starts_with($returnTo, '/claims?')
+            || $returnTo === '/activity-logs'
+            || str_starts_with($returnTo, '/activity-logs?')
+            || str_starts_with($returnTo, '/activity-logs/users/')
+        )) {
+            return $returnTo;
+        }
+
+        return route('claims.index', absolute: false);
+    }
+
+    private function buildMatchedClaimGroupQuery(Request $request, string $account): Builder
+    {
+        $query = Claim::query()->where('account_type', $account);
+        $search = trim($request->string('search')->toString());
+
+        if ($search !== '') {
+            $query->where(function (Builder $nested) use ($search): void {
+                $nested->where('external_id', 'like', "%{$search}%")
+                    ->orWhere('bill_id', 'like', "%{$search}%")
+                    ->orWhere('patient_name', 'like', "%{$search}%")
+                    ->orWhere('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('patient_id', 'like', "%{$search}%")
+                    ->orWhereRaw($this->filterExpression('payer_name').' LIKE ?', ["%{$search}%"])
+                    ->orWhereRaw($this->filterExpression('rendering_provider').' LIKE ?', ["%{$search}%"])
+                    ->orWhereRaw($this->filterExpression('procedure_code').' LIKE ?', ["%{$search}%"]);
+            });
+        }
+
+        $this->applyExactFilter($query, 'claim_status', $request->input('claim_status'));
+        $this->applyExpressionExactFilter($query, $this->filterExpression('payer_name'), $request->input('payer_name'));
+        $this->applyExpressionExactFilter($query, $this->filterExpression('rendering_provider'), $request->input('rendering_provider'));
+        $this->applyExactFilter($query, 'denial_reason', $request->input('denial_reason'));
+        $this->applyExactFilter($query, 'work_status', $request->input('work_status'));
+        $this->applyExpressionExactFilter($query, $this->filterExpression('procedure_code'), $request->input('procedure_code'));
+
+        $assignedTo = $request->input('assigned_to');
+        if ($assignedTo === 'unassigned') {
+            $query->whereNull('assigned_to');
+        } elseif ($assignedTo === 'me') {
+            $query->where('assigned_to', $request->user()->id);
+        } elseif (is_numeric($assignedTo)) {
+            $query->where('assigned_to', (int) $assignedTo);
+        }
+
+        $this->applyDateFilter($query, 'updated_at', '>=', $request->input('worked_from'));
+        $this->applyDateFilter($query, 'updated_at', '<=', $request->input('worked_to'));
+
+        $serviceMonth = trim((string) $request->input('service_month', ''));
+        if (preg_match('/^\d{4}-\d{2}$/', $serviceMonth) === 1) {
+            $month = Carbon::createFromFormat('!Y-m', $serviceMonth);
+            $query->whereBetween('service_date_start', [
+                $month->copy()->startOfMonth()->toDateString(),
+                $month->copy()->endOfMonth()->toDateString(),
+            ]);
+        }
+
+        return $query;
+    }
+
+    private function applyExactFilter(Builder $query, string $column, mixed $value): void
+    {
+        $value = trim((string) ($value ?? ''));
+        if ($value !== '' && $value !== 'all') {
+            $query->where($column, $value);
+        }
+    }
+
+    private function applyExpressionExactFilter(Builder $query, ?string $expression, mixed $value): void
+    {
+        $value = trim((string) ($value ?? ''));
+        if ($expression === null || $value === '' || $value === 'all') {
+            return;
+        }
+
+        $query->whereRaw("{$expression} = ?", [$value]);
+    }
+
+    private function applyDateFilter(Builder $query, string $column, string $operator, mixed $value): void
+    {
+        $value = trim((string) ($value ?? ''));
+        if ($value === '') {
+            return;
+        }
+
+        try {
+            $query->whereDate($column, $operator, Carbon::parse($value)->toDateString());
+        } catch (\Throwable) {
+            // Ignore malformed query-string dates and keep the claims page usable.
+        }
+    }
+
+    private function filterExpression(string $filter): ?string
+    {
+        return match ($filter) {
+            'claim_status' => "NULLIF(claim_status, '')",
+            'payer_name' => "COALESCE(NULLIF(payer_name, ''), NULLIF(payer, ''))",
+            'rendering_provider' => "COALESCE(NULLIF(rendering_provider, ''), NULLIF(provider, ''))",
+            'denial_reason' => "NULLIF(denial_reason, '')",
+            'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
+            default => null,
+        };
     }
 }

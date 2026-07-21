@@ -1,5 +1,6 @@
 import Auth from './Auth'
 import DashboardController from './DashboardController'
+import CurrentAccountController from './CurrentAccountController'
 import ClaimController from './ClaimController'
 import ClaimImportController from './ClaimImportController'
 import AssignmentController from './AssignmentController'
@@ -9,6 +10,7 @@ import Settings from './Settings'
 const Controllers = {
     Auth: Object.assign(Auth, Auth),
 DashboardController: Object.assign(DashboardController, DashboardController),
+CurrentAccountController: Object.assign(CurrentAccountController, CurrentAccountController),
 ClaimController: Object.assign(ClaimController, ClaimController),
 ClaimImportController: Object.assign(ClaimImportController, ClaimImportController),
 AssignmentController: Object.assign(AssignmentController, AssignmentController),

@@ -44,7 +44,6 @@ export interface User {
     avatar?: string;
     email_verified_at: string | null;
     is_admin: boolean;
-    is_approved: boolean;
     can_assign_claims: boolean;
     account_types: string[];
     created_at: string;

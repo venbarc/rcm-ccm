@@ -1,39 +1,183 @@
-import { Pagination, type PaginationLink } from '@/components/pagination';
-import { Badge } from '@/components/ui/badge';
+import { ClaimEditDialog } from '@/components/claims/edit-dialog';
+import { ClaimsFilters } from '@/components/claims/filters';
+import { ClaimsTable } from '@/components/claims/table';
+import type { ClaimGroup, ClaimLine, ClaimPage, Filters, SortColumn, StatusOption, Summary, UserOption } from '@/components/claims/types';
+import { currency } from '@/components/claims/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { FileSpreadsheet, Search, Users } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FileSpreadsheet, Users } from 'lucide-react';
+import { type FormEvent, useState } from 'react';
 
-interface UserOption { id: number; name: string; email: string }
-interface Claim { id: number; external_id: string; patient_name: string; date_of_service: string | null; payer: string | null; provider: string | null; cpt_code: string | null; billed_amount: string; balance: string; status: string; priority: string; assigned_to: number | null; assignee: UserOption | null }
-interface ClaimPage { data: Claim[]; links: PaginationLink[]; from: number | null; to: number | null; total: number }
+interface ClaimsIndexProps {
+    claims: ClaimPage;
+    filters: Filters;
+    summary: Summary;
+    workStatuses: StatusOption[];
+    assignees: UserOption[];
+}
 
-export default function ClaimsIndex({ claims, filters, assignees, statuses }: { claims: ClaimPage; filters: Record<string, string>; assignees: UserOption[]; statuses: string[] }) {
+export default function ClaimsIndex(props: ClaimsIndexProps) {
+    return <ClaimsIndexContent {...props} key={JSON.stringify(props.filters)} />;
+}
+
+function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees }: ClaimsIndexProps) {
     const { auth } = usePage<SharedData>().props;
-    const [search, setSearch] = useState(filters.search ?? '');
-    const [status, setStatus] = useState(filters.status ?? '');
-    const [assignedTo, setAssignedTo] = useState(filters.assigned_to ?? '');
+    const [local, setLocal] = useState(filters);
+    const [expandedClaimId, setExpandedClaimId] = useState<number | null>(() => {
+        const expanded = Number(filters.expanded);
 
-    const filter = (event: FormEvent) => {
+        return Number.isFinite(expanded) && expanded > 0 ? expanded : null;
+    });
+    const [editingClaim, setEditingClaim] = useState<ClaimGroup | null>(null);
+    const [editingLine, setEditingLine] = useState<ClaimLine | null>(null);
+    const [editForm, setEditForm] = useState({ work_status: 'draft', denial_reason: '', notes: '' });
+
+    const apply = (values: Partial<Filters> = {}) =>
+        router.get('/claims', { ...local, ...values, page: undefined }, { preserveState: true, replace: true });
+    const submitFilters = (event: FormEvent) => {
         event.preventDefault();
-        router.get('/claims', { search: search || undefined, status: status || undefined, assigned_to: assignedTo || undefined }, { preserveState: true, replace: true });
+        apply();
     };
+    const clearFilters = () => router.get('/claims');
+    const sort = (column: SortColumn) =>
+        apply({ sort_by: column, sort_direction: filters.sort_by === column && filters.sort_direction === 'asc' ? 'desc' : 'asc' });
+    const toggleClaim = (id: number) => {
+        const nextExpandedId = expandedClaimId === id ? null : id;
+        setExpandedClaimId(nextExpandedId);
+        setLocal((current) => ({ ...current, expanded: nextExpandedId ? String(nextExpandedId) : '' }));
 
-    const update = (claim: Claim, values: Record<string, string | number | null>) => router.patch(`/claims/${claim.id}`, values, { preserveScroll: true });
+        const url = new URL(window.location.href);
+        if (nextExpandedId) {
+            url.searchParams.set('expanded', String(nextExpandedId));
+        } else {
+            url.searchParams.delete('expanded');
+        }
+        window.history.replaceState(window.history.state, '', url);
+    };
+    const buildStateQuery = (expandedId: number) => {
+        const params = new URLSearchParams(window.location.search);
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value && key !== 'expanded') {
+                params.set(key, value);
+            }
+        });
+        params.set('expanded', String(expandedId));
+        params.set('page', String(claims.current_page));
+
+        return params.toString();
+    };
+    const openEditLine = (claim: ClaimGroup, line: ClaimLine) => {
+        setEditingClaim(claim);
+        setEditingLine(line);
+        setEditForm({
+            work_status: line.work_status || 'draft',
+            denial_reason: line.denial_reason || '',
+            notes: line.notes || '',
+        });
+    };
+    const save = () => {
+        if (!editingLine) {
+            return;
+        }
+
+        router.patch(
+            `/claims/${editingLine.id}?${buildStateQuery(editingClaim?.id ?? editingLine.id)}`,
+            {
+                work_status: editForm.work_status,
+                denial_reason: editForm.denial_reason || null,
+                notes: editForm.notes || null,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    setEditingClaim(null);
+                    setEditingLine(null);
+                },
+            },
+        );
+    };
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Claims', href: '/claims' }]}>
-            <Head title="Claims" />
+            <Head title="Tricity Claims" />
             <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-                <div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-3xl font-semibold tracking-tight">Claims</h1><p className="text-sm text-muted-foreground">Tricity claim inventory and work status.</p></div><div className="flex gap-2">{(auth.user.is_admin || auth.user.can_assign_claims) && <Button variant="outline" asChild><Link href="/assignments"><Users /> Assign claims</Link></Button>}{auth.user.is_admin && <Button asChild><Link href="/claims-import"><FileSpreadsheet /> Import</Link></Button>}</div></div>
-                <Card><CardContent className="p-4"><form className="grid gap-3 md:grid-cols-[1fr_180px_220px_auto]" onSubmit={filter}><div className="relative"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" onChange={(e) => setSearch(e.target.value)} placeholder="Claim, patient, payer, provider" value={search} /></div><select className="h-10 rounded-md border bg-background px-3 text-sm" onChange={(e) => setStatus(e.target.value)} value={status}><option value="">All statuses</option>{statuses.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select><select className="h-10 rounded-md border bg-background px-3 text-sm" onChange={(e) => setAssignedTo(e.target.value)} value={assignedTo}><option value="">All assignees</option><option value="unassigned">Unassigned</option>{assignees.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select><Button type="submit">Apply</Button></form></CardContent></Card>
-                <Card className="overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[1100px] text-sm"><thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Claim / patient</th><th className="px-4 py-3">DOS</th><th className="px-4 py-3">Payer / provider</th><th className="px-4 py-3">CPT</th><th className="px-4 py-3 text-right">Billed</th><th className="px-4 py-3 text-right">Balance</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Priority</th><th className="px-4 py-3">Assigned to</th></tr></thead><tbody className="divide-y">{claims.data.map((claim) => <tr className="hover:bg-muted/30" key={claim.id}><td className="px-4 py-3"><p className="font-medium">{claim.external_id}</p><p className="text-muted-foreground">{claim.patient_name}</p></td><td className="px-4 py-3">{claim.date_of_service ?? '—'}</td><td className="px-4 py-3"><p>{claim.payer ?? '—'}</p><p className="text-xs text-muted-foreground">{claim.provider ?? '—'}</p></td><td className="px-4 py-3">{claim.cpt_code ?? '—'}</td><td className="px-4 py-3 text-right">${Number(claim.billed_amount).toLocaleString()}</td><td className="px-4 py-3 text-right font-medium">${Number(claim.balance).toLocaleString()}</td><td className="px-4 py-3"><select className="h-8 rounded border bg-background px-2" defaultValue={claim.status} onChange={(e) => update(claim, { status: e.target.value })}>{statuses.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></td><td className="px-4 py-3"><select className="h-8 rounded border bg-background px-2" defaultValue={claim.priority} onChange={(e) => update(claim, { priority: e.target.value })}>{['low', 'normal', 'high', 'urgent'].map((item) => <option key={item}>{item}</option>)}</select></td><td className="px-4 py-3">{claim.assignee ? <Badge variant="outline">{claim.assignee.name}</Badge> : <span className="text-muted-foreground">Unassigned</span>}</td></tr>)}</tbody></table>{claims.data.length === 0 && <p className="p-12 text-center text-muted-foreground">No claims match these filters.</p>}</div><div className="flex flex-wrap items-center justify-between gap-3 border-t p-4"><p className="text-sm text-muted-foreground">Showing {claims.from ?? 0}–{claims.to ?? 0} of {claims.total}</p><Pagination links={claims.links} /></div></Card>
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">RCM workspace</p>
+                        <h1 className="text-3xl font-semibold tracking-tight">Tricity Claims</h1>
+                        <p className="text-muted-foreground text-sm">Billing inventory, work status, and follow-up notes in one queue.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        {(auth.user.is_admin || auth.user.can_assign_claims) && (
+                            <Button variant="outline" asChild>
+                                <Link href="/assignments">
+                                    <Users /> Distribute claims
+                                </Link>
+                            </Button>
+                        )}
+                        {auth.user.is_admin && (
+                            <Button asChild>
+                                <Link href="/claims-import">
+                                    <FileSpreadsheet /> Import
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                        ['Total claims', summary.totalCount.toLocaleString()],
+                        ['True charges', currency(summary.totalTrueCharge)],
+                        ['True balance', currency(summary.totalTrueBalance)],
+                        ['Posted payments', currency(summary.totalPayments)],
+                    ].map(([label, value], index) => (
+                        <Card className={index === 0 ? 'border-l-4 border-l-sky-500' : ''} key={label}>
+                            <CardContent className="p-4">
+                                <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{label}</p>
+                                <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+
+                <ClaimsFilters
+                    assignees={assignees}
+                    local={local}
+                    onClear={clearFilters}
+                    onSubmit={submitFilters}
+                    setLocal={setLocal}
+                    workStatuses={workStatuses}
+                />
+                <ClaimsTable
+                    claims={claims}
+                    expandedClaimId={expandedClaimId}
+                    filters={filters}
+                    onEditLine={openEditLine}
+                    onSort={sort}
+                    onToggleClaim={toggleClaim}
+                />
             </div>
+
+            <ClaimEditDialog
+                claim={editingClaim}
+                editForm={editForm}
+                line={editingLine}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setEditingClaim(null);
+                        setEditingLine(null);
+                    }
+                }}
+                onSave={save}
+                open={editingLine !== null}
+                setEditForm={setEditForm}
+                workStatuses={workStatuses}
+            />
         </AppLayout>
     );
 }

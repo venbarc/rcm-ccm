@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\AccountType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -24,7 +26,6 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
-        'is_approved',
         'can_assign_claims',
         'account_types',
     ];
@@ -53,7 +54,6 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_admin' => 'boolean',
-            'is_approved' => 'boolean',
             'can_assign_claims' => 'boolean',
             'account_types' => 'array',
         ];
@@ -77,5 +77,39 @@ class User extends Authenticatable
     public function canAssignClaims(): bool
     {
         return $this->is_admin || $this->can_assign_claims;
+    }
+
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'group_members', 'admin_id', 'user_id')
+            ->withPivot('account_type')
+            ->withTimestamps();
+    }
+
+    public function membersForAccount(string $account): BelongsToMany
+    {
+        return $this->members()->wherePivot('account_type', $account);
+    }
+
+    public function admins(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'group_members', 'user_id', 'admin_id')
+            ->withPivot('account_type')
+            ->withTimestamps();
+    }
+
+    public function adminsForAccount(string $account): BelongsToMany
+    {
+        return $this->admins()->wherePivot('account_type', $account);
+    }
+
+    public function groupMembershipsAsAdmin(): HasMany
+    {
+        return $this->hasMany(GroupMember::class, 'admin_id');
+    }
+
+    public function groupMembershipsAsMember(): HasMany
+    {
+        return $this->hasMany(GroupMember::class, 'user_id');
     }
 }

@@ -47,7 +47,7 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user() ? [
-                    ...$request->user()->only(['id', 'name', 'email', 'email_verified_at', 'is_admin', 'is_approved', 'can_assign_claims']),
+                    ...$request->user()->only(['id', 'name', 'email', 'email_verified_at', 'is_admin', 'can_assign_claims']),
                     'account_types' => $request->user()->allowedAccountTypes(),
                 ] : null,
             ],

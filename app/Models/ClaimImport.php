@@ -9,12 +9,14 @@ class ClaimImport extends Model
 {
     protected $fillable = [
         'account_type', 'file_name', 'stored_path', 'status', 'created_count',
-        'updated_count', 'skipped_count', 'error_message', 'imported_by', 'completed_at',
+        'updated_count', 'skipped_count', 'failed_count', 'error_message', 'imported_by',
+        'total_rows', 'processed_rows', 'total_chunks', 'processed_chunks', 'started_at',
+        'completed_at',
     ];
 
     protected function casts(): array
     {
-        return ['completed_at' => 'datetime'];
+        return ['started_at' => 'datetime', 'completed_at' => 'datetime'];
     }
 
     public function importer(): BelongsTo

@@ -2,14 +2,20 @@ import { AppContent } from '@/components/app-content';
 import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
-import { type BreadcrumbItem } from '@/types';
-import { type SharedData } from '@/types';
+import { resolveAccountTheme } from '@/lib/account-theme';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 
 export default function AppSidebarLayout({ children, breadcrumbs = [] }: { children: React.ReactNode; breadcrumbs?: BreadcrumbItem[] }) {
-    const { flash } = usePage<SharedData>().props;
+    const { activeAccount, flash } = usePage<SharedData>().props;
+    const accountTheme = resolveAccountTheme(activeAccount);
+
+    useEffect(() => {
+        document.documentElement.dataset.accountTheme = accountTheme;
+        document.body.dataset.accountTheme = accountTheme;
+    }, [accountTheme]);
 
     useEffect(() => {
         if (flash?.success) toast.success(flash.success);
@@ -19,7 +25,7 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }: { child
     return (
         <AppShell variant="sidebar">
             <AppSidebar />
-            <AppContent variant="sidebar">
+            <AppContent variant="sidebar" className="account-page-background">
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
                 {children}
             </AppContent>
