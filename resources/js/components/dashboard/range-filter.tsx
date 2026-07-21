@@ -1,5 +1,5 @@
+import { DateRangeFilterField } from '@/components/date-range-filter-field';
 import { Button } from '@/components/ui/button';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { router } from '@inertiajs/react';
@@ -64,29 +64,25 @@ export function DashboardRangeFilter({ filters }: DashboardRangeFilterProps) {
                         </SelectContent>
                     </Select>
                 </div>
-                <div className="flex min-w-72 flex-[2] flex-col gap-2">
-                    <Label>Service Date Range</Label>
-                    <DateRangePicker
-                        from={start || undefined}
-                        to={end || undefined}
-                        placeholder="Select service date range"
-                        disabled={preset !== 'custom'}
-                        onApply={({ from, to }) => {
-                            const nextStart = from ?? '';
-                            const nextEnd = to ?? '';
+                <DateRangeFilterField
+                    className="min-w-72 flex-[2]"
+                    disabled={preset !== 'custom'}
+                    from={start}
+                    label="Service Date Range"
+                    onApply={({ from: nextStart, to: nextEnd }) => {
+                        if (!nextStart && !nextEnd) {
+                            reset();
+                            return;
+                        }
 
-                            if (!nextStart && !nextEnd) {
-                                reset();
-                                return;
-                            }
-
-                            setPreset('custom');
-                            setStart(nextStart);
-                            setEnd(nextEnd);
-                            applyFilters('custom', nextStart, nextEnd);
-                        }}
-                    />
-                </div>
+                        setPreset('custom');
+                        setStart(nextStart);
+                        setEnd(nextEnd);
+                        applyFilters('custom', nextStart, nextEnd);
+                    }}
+                    placeholder="Select service date range"
+                    to={end}
+                />
                 <div className="flex gap-2">
                     <Button onClick={() => applyFilters()} disabled={preset === 'custom' && (!start || !end)}>
                         Apply

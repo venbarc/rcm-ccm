@@ -1,9 +1,9 @@
-import type { Filters, StatusOption, UserOption } from '@/components/claims/types';
 import { FilterSearchSelect } from '@/components/claims/filter-search-select';
+import type { Filters, StatusOption, UserOption } from '@/components/claims/types';
+import { DateRangeFilterField } from '@/components/date-range-filter-field';
+import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
 import { type FormEvent } from 'react';
 
 interface ClaimsFiltersProps {
@@ -21,17 +21,13 @@ export function ClaimsFilters({ local, setLocal, workStatuses, assignees, onSubm
             <CardContent className="p-4">
                 <form className="space-y-3" onSubmit={onSubmit}>
                     <div className="grid gap-3 xl:grid-cols-[minmax(240px,1.5fr)_repeat(4,minmax(170px,1fr))]">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
-                            <Input
-                                className="pl-9"
-                                onChange={(event) => setLocal({ ...local, search: event.target.value })}
-                                placeholder="Claim, patient, MRN, payer, provider, CPT"
-                                value={local.search}
-                            />
-                        </div>
+                        <SearchInput
+                            onChange={(event) => setLocal({ ...local, search: event.target.value })}
+                            placeholder="Claim, patient, MRN, payer, provider, CPT"
+                            value={local.search}
+                        />
                         <select
-                            className="h-10 rounded-md border bg-background px-3 text-sm"
+                            className="bg-background h-10 rounded-md border px-3 text-sm"
                             onChange={(event) => setLocal({ ...local, work_status: event.target.value })}
                             value={local.work_status}
                         >
@@ -59,7 +55,7 @@ export function ClaimsFilters({ local, setLocal, workStatuses, assignees, onSubm
                             emptyMessage="No providers found."
                         />
                         <select
-                            className="h-10 rounded-md border bg-background px-3 text-sm"
+                            className="bg-background h-10 rounded-md border px-3 text-sm"
                             onChange={(event) => setLocal({ ...local, assigned_to: event.target.value })}
                             value={local.assigned_to}
                         >
@@ -73,7 +69,7 @@ export function ClaimsFilters({ local, setLocal, workStatuses, assignees, onSubm
                             ))}
                         </select>
                     </div>
-                    <div className="grid gap-3 xl:grid-cols-[repeat(6,minmax(150px,1fr))_auto_auto]">
+                    <div className="grid gap-3 xl:grid-cols-[repeat(4,minmax(150px,1fr))_minmax(280px,2fr)_auto_auto]">
                         <FilterSearchSelect
                             filter="claim_status"
                             value={local.claim_status}
@@ -106,8 +102,14 @@ export function ClaimsFilters({ local, setLocal, workStatuses, assignees, onSubm
                             searchPlaceholder="Search service months..."
                             emptyMessage="No service months found."
                         />
-                        <Input onChange={(event) => setLocal({ ...local, worked_from: event.target.value })} type="date" value={local.worked_from} />
-                        <Input onChange={(event) => setLocal({ ...local, worked_to: event.target.value })} type="date" value={local.worked_to} />
+                        <DateRangeFilterField
+                            from={local.worked_from}
+                            hideLabel
+                            label="Worked Date Range"
+                            onApply={({ from, to }) => setLocal({ ...local, worked_from: from, worked_to: to })}
+                            placeholder="Worked date range"
+                            to={local.worked_to}
+                        />
                         <Button type="submit">Apply</Button>
                         <Button onClick={onClear} type="button" variant="ghost">
                             Clear

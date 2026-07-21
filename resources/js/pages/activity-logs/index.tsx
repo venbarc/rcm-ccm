@@ -1,18 +1,17 @@
+import { StatusDetailsDialog } from '@/components/activity-logs/status-details-dialog';
 import { ActivityStatusSummary } from '@/components/activity-logs/status-summary';
 import type { ActivityFilters, PaginatedData, StatusSummaryItem, UserMetric, WorkedLine } from '@/components/activity-logs/types';
-import { formatCurrency } from '@/components/activity-logs/types';
 import { UserMetricsTable } from '@/components/activity-logs/user-metrics-table';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
+import { DateRangeFilterField } from '@/components/date-range-filter-field';
+import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Search } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
 interface ActivityLogsProps {
@@ -79,17 +78,13 @@ export default function ActivityLogs({ metrics, statusSummary, filters, roleOpti
                             <div className="flex flex-wrap items-end gap-4">
                                 <div className="flex min-w-60 flex-1 flex-col gap-2">
                                     <Label htmlFor="activity-search">Search</Label>
-                                    <div className="relative">
-                                        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-                                        <Input
-                                            className="pl-9"
-                                            id="activity-search"
-                                            onChange={(event) => setLocal({ ...local, search: event.target.value })}
-                                            onKeyDown={(event) => event.key === 'Enter' && applyFilters()}
-                                            placeholder="Search by name or email"
-                                            value={local.search}
-                                        />
-                                    </div>
+                                    <SearchInput
+                                        id="activity-search"
+                                        onChange={(event) => setLocal({ ...local, search: event.target.value })}
+                                        onKeyDown={(event) => event.key === 'Enter' && applyFilters()}
+                                        placeholder="Search by name or email"
+                                        value={local.search}
+                                    />
                                 </div>
                                 {isAdmin && (
                                     <div className="flex min-w-48 flex-1 flex-col gap-2">
@@ -116,24 +111,18 @@ export default function ActivityLogs({ metrics, statusSummary, filters, roleOpti
                                         </Select>
                                     </div>
                                 )}
-                                <div className="flex min-w-48 flex-1 flex-col gap-2">
-                                    <Label htmlFor="worked-from">Worked From</Label>
-                                    <Input
-                                        id="worked-from"
-                                        type="date"
-                                        value={local.worked_from}
-                                        onChange={(event) => setLocal({ ...local, worked_from: event.target.value })}
-                                    />
-                                </div>
-                                <div className="flex min-w-48 flex-1 flex-col gap-2">
-                                    <Label htmlFor="worked-to">Worked To</Label>
-                                    <Input
-                                        id="worked-to"
-                                        type="date"
-                                        value={local.worked_to}
-                                        onChange={(event) => setLocal({ ...local, worked_to: event.target.value })}
-                                    />
-                                </div>
+                                <DateRangeFilterField
+                                    className="min-w-72 flex-[2]"
+                                    from={local.worked_from}
+                                    label="Worked Date Range"
+                                    onApply={({ from, to }) => {
+                                        const next = { ...local, worked_from: from, worked_to: to };
+                                        setLocal(next);
+                                        applyFilters(next);
+                                    }}
+                                    placeholder="Select worked date range"
+                                    to={local.worked_to}
+                                />
                                 <div className="flex gap-2">
                                     <Button variant="outline" onClick={() => applyFilters()}>
                                         Apply
@@ -156,50 +145,15 @@ export default function ActivityLogs({ metrics, statusSummary, filters, roleOpti
                 </div>
             </DataLoadingOverlay>
 
-            <Dialog open={selectedStatus !== null} onOpenChange={(open) => !open && setSelectedStatus(null)}>
-                <DialogContent className="max-w-5xl">
-                    <DialogHeader>
-                        <DialogTitle>{selectedStatus?.label} Claim Lines</DialogTitle>
-                        <DialogDescription>Worked lines included in this status summary.</DialogDescription>
-                    </DialogHeader>
-                    <div className="max-h-[65vh] overflow-y-auto rounded-md border">
-                        {statusLines.map((line) => (
-                            <div
-                                className="grid gap-2 border-b p-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto_auto] md:items-center"
-                                key={line.id}
-                            >
-                                <div>
-                                    <p className="font-semibold">
-                                        {line.claim_number} - CPT {line.cpt_code || '-'}
-                                    </p>
-                                    <p className="text-muted-foreground text-xs">{line.patient_name || 'Unknown patient'}</p>
-                                </div>
-                                <p className="text-muted-foreground">{line.denial_reason || 'No denial reason'}</p>
-                                <p className="font-semibold text-rose-600">{formatCurrency(line.balance)}</p>
-                                <Button asChild size="sm" variant="outline">
-                                    <Link href={`/claims/${line.claim_id}?return_to=${encodeURIComponent(currentActivityUrl)}`}>
-                                        <Eye />
-                                        View
-                                    </Link>
-                                </Button>
-                            </div>
-                        ))}
-                        {statusLoading && <p className="text-muted-foreground p-8 text-center text-sm">Loading claim lines...</p>}
-                        {!statusLoading && statusLines.length === 0 && (
-                            <p className="text-muted-foreground p-8 text-center text-sm">No claim lines found.</p>
-                        )}
-                    </div>
-                    {statusHasMore && (
-                        <Button
-                            disabled={statusLoading}
-                            variant="outline"
-                            onClick={() => selectedStatus && void loadStatus(selectedStatus, statusPage + 1)}
-                        >
-                            Load more
-                        </Button>
-                    )}
-                </DialogContent>
-            </Dialog>
+            <StatusDetailsDialog
+                hasMore={statusHasMore}
+                isLoading={statusLoading}
+                lines={statusLines}
+                onClose={() => setSelectedStatus(null)}
+                onLoadMore={() => selectedStatus && void loadStatus(selectedStatus, statusPage + 1)}
+                returnTo={currentActivityUrl}
+                status={selectedStatus}
+            />
         </AppLayout>
     );
 }

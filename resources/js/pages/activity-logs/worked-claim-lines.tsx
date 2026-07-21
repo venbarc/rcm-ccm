@@ -2,6 +2,8 @@ import { ActivityStatusSummary } from '@/components/activity-logs/status-summary
 import type { PaginatedData, StatusSummaryItem, WorkedLine } from '@/components/activity-logs/types';
 import { WorkedLinesTable } from '@/components/activity-logs/worked-lines-table';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
+import { DateRangeFilterField } from '@/components/date-range-filter-field';
+import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 
 interface WorkedFilters {
@@ -88,18 +90,14 @@ export default function WorkedClaimLines({
                                     </Button>
                                 </div>
                             </div>
-                            <div className="grid gap-4 md:grid-cols-3">
+                            <div className="grid gap-4 md:grid-cols-2">
                                 <div className="flex flex-col gap-2">
                                     <Label htmlFor="claim-number">Claim #</Label>
-                                    <div className="relative">
-                                        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-                                        <Input
-                                            className="pl-9"
-                                            id="claim-number"
-                                            value={local.claim_number}
-                                            onChange={(event) => setLocal({ ...local, claim_number: event.target.value })}
-                                        />
-                                    </div>
+                                    <SearchInput
+                                        id="claim-number"
+                                        value={local.claim_number}
+                                        onChange={(event) => setLocal({ ...local, claim_number: event.target.value })}
+                                    />
                                 </div>
                                 <div className="flex flex-col gap-2">
                                     <Label htmlFor="cpt-code">CPT Code</Label>
@@ -142,24 +140,17 @@ export default function WorkedClaimLines({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="date-from">Date From</Label>
-                                    <Input
-                                        id="date-from"
-                                        type="date"
-                                        value={local.date_from}
-                                        onChange={(event) => setLocal({ ...local, date_from: event.target.value })}
-                                    />
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="date-to">Date To</Label>
-                                    <Input
-                                        id="date-to"
-                                        type="date"
-                                        value={local.date_to}
-                                        onChange={(event) => setLocal({ ...local, date_to: event.target.value })}
-                                    />
-                                </div>
+                                <DateRangeFilterField
+                                    from={local.date_from}
+                                    label="Date Range"
+                                    onApply={({ from, to }) => {
+                                        const next = { ...local, date_from: from, date_to: to };
+                                        setLocal(next);
+                                        apply(next);
+                                    }}
+                                    placeholder="Select date range"
+                                    to={local.date_to}
+                                />
                             </div>
                         </CardContent>
                     </Card>
