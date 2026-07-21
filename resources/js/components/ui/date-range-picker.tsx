@@ -206,6 +206,8 @@ export function DateRangePicker({
                             onClick={() => {
                                 setDraftFrom(undefined);
                                 setDraftTo(undefined);
+                                onApply({});
+                                setOpen(false);
                             }}
                         >
                             Clear
