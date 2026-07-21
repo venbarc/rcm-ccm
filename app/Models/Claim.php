@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Claim extends Model
 {
@@ -14,7 +15,18 @@ class Claim extends Model
     protected $fillable = [
         'account_type', 'external_id', 'patient_name', 'date_of_service', 'payer',
         'provider', 'cpt_code', 'billed_amount', 'balance', 'status', 'priority',
-        'assigned_to', 'notes', 'last_import_id',
+        'assigned_to', 'notes', 'last_import_id', 'source_hash', 'uid', 'bill_id',
+        'payer_name', 'rendering_provider', 'payments', 'new_payments', 'true_balance',
+        'true_charge', 'adjustments', 'aging_days', 'denial_reason', 'claim_status',
+        'work_status', 'work_status_manually_set', 'claimed_amount', 'diagnosis_code',
+        'first_name', 'last_name', 'modifiers', 'patient_dob', 'patient_id',
+        'payer_category', 'procedure_code', 'service_type', 'service_date_start',
+        'service_date_end', 'subscriber_id', 'units', 'activity_type', 'batch_user',
+        'batch_name', 'code_category', 'coverage_type', 'division', 'financial_category',
+        'location', 'source_notes', 'ordering_provider', 'package_name',
+        'place_of_service_code', 'posted_date', 'practice_location', 'primary_biller',
+        'primary_biller_role', 'primary_modifier', 'primary_provider_role', 'quick_code',
+        'recorded_by', 'supervising_provider', 'transaction_date',
     ];
 
     protected function casts(): array
@@ -23,6 +35,19 @@ class Claim extends Model
             'date_of_service' => 'date:Y-m-d',
             'billed_amount' => 'decimal:2',
             'balance' => 'decimal:2',
+            'payments' => 'decimal:2',
+            'new_payments' => 'decimal:2',
+            'true_balance' => 'decimal:2',
+            'true_charge' => 'decimal:2',
+            'adjustments' => 'decimal:2',
+            'claimed_amount' => 'decimal:2',
+            'units' => 'decimal:2',
+            'patient_dob' => 'date:Y-m-d',
+            'service_date_start' => 'date:Y-m-d',
+            'service_date_end' => 'date:Y-m-d',
+            'posted_date' => 'date:Y-m-d',
+            'transaction_date' => 'date:Y-m-d',
+            'work_status_manually_set' => 'boolean',
         ];
     }
 
@@ -34,5 +59,10 @@ class Claim extends Model
     public function activities(): HasMany
     {
         return $this->hasMany(ClaimActivity::class);
+    }
+
+    public function rawRow(): HasOne
+    {
+        return $this->hasOne(ClaimRawRow::class);
     }
 }

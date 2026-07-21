@@ -16,19 +16,22 @@ class SsoLoginCompleter
             abort(403, 'This CCM account is not available yet.');
         }
 
-        if ($account && ! $user->canAccessAccount($account)) {
-            abort(403, 'You do not have access to this CCM account.');
+        $updates = [];
+
+        if ($account && ! $user->is_admin && ! $user->canAccessAccount($account)) {
+            $updates['account_types'] = array_values(array_unique([
+                ...($user->account_types ?? []),
+                $account->value,
+            ]));
         }
 
         if ($account) {
             $request->session()->put('account_type', $account->value);
         }
 
-        // OneAccess has already authenticated the identity and authorized the account.
-        $user->forceFill([
-            'email_verified_at' => $user->email_verified_at ?? now(),
-            'is_approved' => true,
-        ])->save();
+        // OneAccess is the source of truth for identity and account authorization.
+        $updates['email_verified_at'] = $user->email_verified_at ?? now();
+        $user->forceFill($updates)->save();
 
         Auth::login($user, remember: false);
         $request->session()->regenerate();

@@ -1,51 +1,57 @@
-import { NavFooter } from '@/components/nav-footer';
+import { AccountSwitcherBadge } from '@/components/account-switcher-badge';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, ArrowLeft, FileSpreadsheet, FileText, LayoutGrid, UserRoundCog, Users } from 'lucide-react';
+import { Activity, ArrowLeft, FileText, LayoutGrid, UserRoundCog } from 'lucide-react';
 import AppLogo from './app-logo';
 
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Back to One Access',
-        url: '/oneaccess',
-        icon: ArrowLeft,
-    },
-];
-
 export function AppSidebar() {
-    const { auth } = usePage<SharedData>().props;
-    const mainNavItems: NavItem[] = [
+    const { auth, activeAccount, accountTypes } = usePage<SharedData>().props;
+    const workspaceItems: NavItem[] = [
         { title: 'Dashboard', url: '/dashboard', icon: LayoutGrid },
         { title: 'Claims', url: '/claims', icon: FileText },
-        ...(auth.user?.is_admin ? [{ title: 'Import Claims', url: '/claims-import', icon: FileSpreadsheet }] : []),
-        ...(auth.user?.is_admin || auth.user?.can_assign_claims ? [{ title: 'Assignments', url: '/assignments', icon: Users }] : []),
         { title: 'Activity Logs', url: '/activity-logs', icon: Activity },
-        ...(auth.user?.is_admin ? [{ title: 'User Management', url: '/user-management', icon: UserRoundCog }] : []),
     ];
+    const administrationItems: NavItem[] = auth.user?.is_admin ? [{ title: 'User Management', url: '/user-management', icon: UserRoundCog }] : [];
 
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
-                            <Link href="/dashboard" prefetch>
-                                <AppLogo />
-                            </Link>
-                        </SidebarMenuButton>
+                        <div className="flex flex-col gap-2 px-2 py-1">
+                            <SidebarMenuButton size="lg" asChild>
+                                <Link href="/dashboard" prefetch>
+                                    <AppLogo />
+                                </Link>
+                            </SidebarMenuButton>
+                            <a
+                                href="/oneaccess"
+                                className="inline-flex items-center gap-1.5 self-start rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                            >
+                                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                                OneAccess
+                            </a>
+                            {auth.user && (
+                                <AccountSwitcherBadge
+                                    activeAccount={activeAccount}
+                                    allowedAccountTypes={auth.user.account_types}
+                                    accountTypes={accountTypes}
+                                />
+                            )}
+                        </div>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={workspaceItems} />
+                {administrationItems.length > 0 && <NavMain items={administrationItems} label="Administration" />}
             </SidebarContent>
 
             <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>

@@ -2,15 +2,15 @@ import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, Sideba
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 
-export function NavMain({ items = [] }: { items: NavItem[] }) {
+export function NavMain({ items = [], label = 'Tricity workspace' }: { items: NavItem[]; label?: string }) {
     const page = usePage();
     return (
         <SidebarGroup className="px-2 py-0">
-            <SidebarGroupLabel>Tricity workspace</SidebarGroupLabel>
+            <SidebarGroupLabel>{label}</SidebarGroupLabel>
             <SidebarMenu>
                 {items.map((item) => (
                     <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild isActive={page.url === item.url || (item.url !== '/dashboard' && page.url.startsWith(item.url))}>
+                        <SidebarMenuButton className="text-sidebar-foreground [&>svg]:text-current" asChild isActive={page.url === item.url || (item.url !== '/dashboard' && page.url.startsWith(item.url))}>
                             <Link href={item.url} prefetch>
                                 {item.icon && <item.icon />}
                                 <span>{item.title}</span>

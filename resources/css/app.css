@@ -76,77 +76,114 @@
     }
 }
 
-:root {
+:root,
+.dark {
     color-scheme: light;
-    --background: rgb(239 247 251);
+    --page-bg: 239 247 251;
+    --page-glow-1: 130 194 220;
+    --page-glow-2: 24 81 111;
+    --background: rgb(var(--page-bg));
     --foreground: rgb(16 35 63);
     --card: rgb(255 255 255);
     --card-foreground: rgb(16 35 63);
     --popover: rgb(255 255 255);
     --popover-foreground: rgb(16 35 63);
-    --primary: rgb(27 81 111);
+    --primary: rgb(30 51 83);
     --primary-foreground: rgb(255 255 255);
     --secondary: rgb(213 237 248);
-    --secondary-foreground: rgb(20 61 84);
+    --secondary-foreground: rgb(30 51 83);
     --muted: rgb(247 251 253);
     --muted-foreground: rgb(96 117 143);
     --accent: rgb(213 237 248);
-    --accent-foreground: rgb(20 61 84);
+    --accent-foreground: rgb(30 51 83);
     --destructive: rgb(220 38 38);
     --destructive-foreground: rgb(255 255 255);
     --border: rgb(211 226 236);
-    --input: rgb(196 213 225);
-    --ring: rgb(27 81 111);
-    --chart-1: rgb(27 81 111);
+    --input: rgb(211 226 236);
+    --ring: rgb(30 51 83);
+    --chart-1: rgb(30 51 83);
     --chart-2: rgb(14 165 233);
     --chart-3: rgb(16 185 129);
     --chart-4: rgb(245 158 11);
     --chart-5: rgb(239 68 68);
     --radius: 0.75rem;
     --sidebar-background: rgb(255 255 255);
-    --sidebar-foreground: rgb(65 87 112);
-    --sidebar-primary: rgb(27 81 111);
+    --sidebar-foreground: rgb(96 117 143);
+    --sidebar-primary: rgb(30 51 83);
     --sidebar-primary-foreground: rgb(255 255 255);
-    --sidebar-accent: rgb(226 242 249);
-    --sidebar-accent-foreground: rgb(20 61 84);
-    --sidebar-border: rgb(211 226 236);
-    --sidebar-ring: rgb(27 81 111);
+    --sidebar-accent: rgb(213 237 248);
+    --sidebar-accent-foreground: rgb(30 51 83);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--ring);
 }
 
-.dark {
-    color-scheme: dark;
-    --background: rgb(15 23 42);
-    --foreground: rgb(226 232 240);
-    --card: rgb(30 41 59);
-    --card-foreground: rgb(226 232 240);
-    --popover: rgb(30 41 59);
-    --popover-foreground: rgb(226 232 240);
-    --primary: rgb(56 189 248);
-    --primary-foreground: rgb(8 47 73);
-    --secondary: rgb(12 74 110);
-    --secondary-foreground: rgb(224 242 254);
-    --muted: rgb(22 33 50);
-    --muted-foreground: rgb(148 163 184);
-    --accent: rgb(12 74 110);
-    --accent-foreground: rgb(224 242 254);
-    --destructive: rgb(239 68 68);
-    --destructive-foreground: rgb(255 255 255);
-    --border: rgb(51 65 85);
-    --input: rgb(51 65 85);
-    --ring: rgb(56 189 248);
-    --chart-1: rgb(56 189 248);
-    --chart-2: rgb(45 212 191);
-    --chart-3: rgb(251 191 36);
-    --chart-4: rgb(192 132 252);
-    --chart-5: rgb(251 113 133);
-    --sidebar-background: rgb(22 33 50);
-    --sidebar-foreground: rgb(203 213 225);
-    --sidebar-primary: rgb(56 189 248);
-    --sidebar-primary-foreground: rgb(8 47 73);
-    --sidebar-accent: rgb(30 58 78);
-    --sidebar-accent-foreground: rgb(224 242 254);
-    --sidebar-border: rgb(51 65 85);
-    --sidebar-ring: rgb(56 189 248);
+:root[data-account-theme='tricity_pain_associates'],
+body[data-account-theme='tricity_pain_associates'] {
+    --page-bg: 231 241 255;
+    --page-glow-1: 98 165 231;
+    --page-glow-2: 37 99 235;
+    --background: rgb(var(--page-bg));
+    --foreground: rgb(16 35 63);
+    --primary: rgb(30 51 83);
+    --secondary: rgb(196 222 246);
+    --secondary-foreground: rgb(30 51 83);
+    --muted: rgb(234 243 255);
+    --muted-foreground: rgb(96 117 143);
+    --accent: rgb(196 222 246);
+    --accent-foreground: rgb(22 45 75);
+    --border: rgb(190 212 241);
+    --input: rgb(190 212 241);
+    --ring: rgb(30 51 83);
+    --sidebar-foreground: rgb(96 117 143);
+    --sidebar-primary: rgb(30 51 83);
+    --sidebar-accent: rgb(234 243 255);
+    --sidebar-accent-foreground: rgb(22 45 75);
+}
+
+:root[data-account-theme='wc_health'],
+body[data-account-theme='wc_health'] {
+    --page-bg: 229 246 235;
+    --page-glow-1: 74 176 115;
+    --page-glow-2: 21 128 61;
+    --background: rgb(var(--page-bg));
+    --foreground: rgb(17 46 35);
+    --primary: rgb(38 130 90);
+    --secondary: rgb(198 235 214);
+    --secondary-foreground: rgb(25 100 67);
+    --muted: rgb(234 248 239);
+    --muted-foreground: rgb(93 121 110);
+    --accent: rgb(198 235 214);
+    --accent-foreground: rgb(25 100 67);
+    --border: rgb(189 223 201);
+    --input: rgb(189 223 201);
+    --ring: rgb(38 130 90);
+    --sidebar-foreground: rgb(93 121 110);
+    --sidebar-primary: rgb(38 130 90);
+    --sidebar-accent: rgb(234 248 239);
+    --sidebar-accent-foreground: rgb(25 100 67);
+}
+
+:root[data-account-theme='principle_spine_and_pain'],
+body[data-account-theme='principle_spine_and_pain'] {
+    --page-bg: 245 239 255;
+    --page-glow-1: 175 143 230;
+    --page-glow-2: 124 58 237;
+    --background: rgb(var(--page-bg));
+    --foreground: rgb(42 28 70);
+    --primary: rgb(87 61 143);
+    --secondary: rgb(224 214 248);
+    --secondary-foreground: rgb(67 47 112);
+    --muted: rgb(244 239 252);
+    --muted-foreground: rgb(112 96 146);
+    --accent: rgb(224 214 248);
+    --accent-foreground: rgb(67 47 112);
+    --border: rgb(220 208 242);
+    --input: rgb(220 208 242);
+    --ring: rgb(87 61 143);
+    --sidebar-foreground: rgb(112 96 146);
+    --sidebar-primary: rgb(87 61 143);
+    --sidebar-accent: rgb(244 239 252);
+    --sidebar-accent-foreground: rgb(67 47 112);
 }
 
 @layer base {
@@ -158,18 +195,28 @@
         @apply bg-background text-foreground;
         min-height: 100vh;
         background-image:
-            radial-gradient(circle at 12% -8%, rgb(130 194 220 / 18%), transparent 34%),
-            radial-gradient(circle at 92% 118%, rgb(24 81 111 / 8%), transparent 42%);
+            radial-gradient(circle at 12% -8%, rgb(var(--page-glow-1) / 0.24), transparent 34%),
+            radial-gradient(circle at 92% 118%, rgb(var(--page-glow-2) / 0.14), transparent 42%);
+        background-attachment: fixed;
+    }
+}
+
+@layer components {
+    .account-page-background {
+        background-color: rgb(var(--page-bg));
+        background-image:
+            radial-gradient(circle at 12% -8%, rgb(var(--page-glow-1) / 0.24), transparent 34%),
+            radial-gradient(circle at 92% 118%, rgb(var(--page-glow-2) / 0.14), transparent 42%);
         background-attachment: fixed;
     }
 }
 
 .dark body {
     background-image:
-        radial-gradient(circle at 12% -8%, rgb(56 189 248 / 6%), transparent 34%),
-        radial-gradient(circle at 92% 118%, rgb(14 165 233 / 4%), transparent 42%);
+        radial-gradient(circle at 12% -8%, rgb(var(--page-glow-1) / 0.24), transparent 34%),
+        radial-gradient(circle at 92% 118%, rgb(var(--page-glow-2) / 0.14), transparent 42%);
 }
 
 ::selection {
-    background: rgb(27 81 111 / 20%);
+    background: rgb(56 189 248 / 28%);
 }
