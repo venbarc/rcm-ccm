@@ -1,4 +1,5 @@
 import { ClaimEditDialog } from '@/components/claims/edit-dialog';
+import { ClaimsExportDialog } from '@/components/claims/export-dialog';
 import { ClaimsFilters } from '@/components/claims/filters';
 import { ClaimsTable } from '@/components/claims/table';
 import type { ClaimGroup, ClaimLine, ClaimPage, Filters, SortColumn, StatusOption, Summary, UserOption } from '@/components/claims/types';
@@ -8,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { FileSpreadsheet, Users } from 'lucide-react';
+import { Download, FileSpreadsheet, Users } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 
 interface ClaimsIndexProps {
@@ -17,13 +18,14 @@ interface ClaimsIndexProps {
     summary: Summary;
     workStatuses: StatusOption[];
     assignees: UserOption[];
+    hasActiveImport: boolean;
 }
 
 export default function ClaimsIndex(props: ClaimsIndexProps) {
     return <ClaimsIndexContent {...props} key={JSON.stringify(props.filters)} />;
 }
 
-function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees }: ClaimsIndexProps) {
+function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees, hasActiveImport }: ClaimsIndexProps) {
     const { auth } = usePage<SharedData>().props;
     const [local, setLocal] = useState(filters);
     const [expandedClaimId, setExpandedClaimId] = useState<number | null>(() => {
@@ -33,6 +35,7 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees 
     });
     const [editingClaim, setEditingClaim] = useState<ClaimGroup | null>(null);
     const [editingLine, setEditingLine] = useState<ClaimLine | null>(null);
+    const [exportOpen, setExportOpen] = useState(false);
     const [editForm, setEditForm] = useState({ work_status: 'draft', denial_reason: '', notes: '' });
 
     const apply = (values: Partial<Filters> = {}) =>
@@ -112,6 +115,9 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees 
                         <p className="text-muted-foreground text-sm">Billing inventory, work status, and follow-up notes in one queue.</p>
                     </div>
                     <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setExportOpen(true)}>
+                            <Download /> Export
+                        </Button>
                         {(auth.user.is_admin || auth.user.can_assign_claims) && (
                             <Button variant="outline" asChild>
                                 <Link href="/assignments">
@@ -177,6 +183,14 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees 
                 open={editingLine !== null}
                 setEditForm={setEditForm}
                 workStatuses={workStatuses}
+            />
+            <ClaimsExportDialog
+                assignees={assignees}
+                canExportByAssignee={auth.user.is_admin || auth.user.can_assign_claims}
+                hasActiveImport={hasActiveImport}
+                onOpenChange={setExportOpen}
+                open={exportOpen}
+                statuses={workStatuses}
             />
         </AppLayout>
     );
