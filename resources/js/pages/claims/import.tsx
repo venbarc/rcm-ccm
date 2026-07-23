@@ -153,7 +153,8 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                             </CardTitle>
                             <CardDescription>
                                 Upload CSV, XLSX, or XLS up to 20 MB. Claim ID is required; fields missing from the source, such as True Balance, are
-                                saved as null.
+                                saved as null. Reimports refresh source data while preserving assignments and manually worked fields. Uploaded files
+                                are removed after processing.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

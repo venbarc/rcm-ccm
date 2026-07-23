@@ -5,6 +5,7 @@ use App\Http\Controllers\AssignmentController;
 use App\Http\Controllers\Auth\SsoCallbackController;
 use App\Http\Controllers\Auth\SsoChooseAccountController;
 use App\Http\Controllers\ClaimController;
+use App\Http\Controllers\ClaimExportController;
 use App\Http\Controllers\ClaimImportController;
 use App\Http\Controllers\CurrentAccountController;
 use App\Http\Controllers\DashboardController;
@@ -33,6 +34,12 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/claims/{claim}/activities', [ClaimController::class, 'activities'])->name('claims.activities');
     Route::get('/claims/{claim}', [ClaimController::class, 'show'])->name('claims.show');
     Route::patch('/claims/{claim}', [ClaimController::class, 'update'])->name('claims.update');
+
+    Route::post('/claims-export/start', [ClaimExportController::class, 'start'])->name('claims.export.start');
+    Route::get('/claims-export/active', [ClaimExportController::class, 'active'])->name('claims.export.active');
+    Route::get('/claims-export/history', [ClaimExportController::class, 'history'])->name('claims.export.history');
+    Route::get('/claims-export/{claimExport}/progress', [ClaimExportController::class, 'progress'])->name('claims.export.progress');
+    Route::get('/claims-export/{claimExport}/download', [ClaimExportController::class, 'download'])->name('claims.export.download');
 
     Route::get('/claims-import', [ClaimImportController::class, 'index'])->name('claims.import.index');
     Route::post('/claims-import', [ClaimImportController::class, 'store'])->middleware('admin')->name('claims.import.store');

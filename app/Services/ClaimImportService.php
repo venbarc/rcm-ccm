@@ -6,6 +6,7 @@ use App\Imports\ChunkReadFilter;
 use App\Jobs\FinalizeClaimImport;
 use App\Jobs\ProcessClaimImportChunk;
 use App\Models\Claim;
+use App\Models\ClaimExport;
 use App\Models\ClaimImport;
 use App\Models\ClaimImportSnapshot;
 use App\Models\ClaimRawRow;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use RuntimeException;
@@ -108,6 +110,15 @@ class ClaimImportService
 
     public function queue(UploadedFile $file, string $account, User $user): ClaimImport
     {
+        if (ClaimExport::query()
+            ->where('account_type', $account)
+            ->whereIn('status', ['queued', 'processing'])
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'file' => 'Cannot import claims while an export is processing.',
+            ]);
+        }
+
         $storedPath = $file->store('claim-imports');
 
         try {
@@ -209,15 +220,19 @@ class ClaimImportService
                         ->first(['assigned_to', 'status', 'priority'])
                     : null;
 
-                $managed = $isNew ? [
-                    'work_status' => ((float) ($payload['payments'] ?? 0)) > 0
-                        ? 'historical_posted_payments'
-                        : 'draft',
+                $wasWorkedOrModified = ! $isNew && $this->wasWorkedOrModified($claim);
+                $automaticWorkStatus = ((float) ($payload['payments'] ?? 0)) > 0
+                    ? 'historical_posted_payments'
+                    : 'draft';
+
+                $managed = $isNew || ! $wasWorkedOrModified ? [
+                    'work_status' => $automaticWorkStatus,
                     'work_status_manually_set' => false,
                     'denial_reason' => $payload['denial_reason'] ?? null,
-                    'assigned_to' => $existingGroupOwner?->assigned_to,
-                    'status' => $existingGroupOwner?->status ?? 'new',
-                    'priority' => $existingGroupOwner?->priority ?? 'normal',
+                    'notes' => null,
+                    'assigned_to' => $isNew ? $existingGroupOwner?->assigned_to : $claim->assigned_to,
+                    'status' => $isNew ? ($existingGroupOwner?->status ?? 'new') : $claim->status,
+                    'priority' => $isNew ? ($existingGroupOwner?->priority ?? 'normal') : $claim->priority,
                 ] : $claim->only([
                     'work_status', 'work_status_manually_set', 'denial_reason', 'notes',
                     'assigned_to', 'priority', 'status',
@@ -283,6 +298,8 @@ class ClaimImportService
         });
 
         if ($import) {
+            $this->deleteImportSourceFile($import);
+
             $this->activities->record(
                 $import->account_type,
                 'import',
@@ -299,10 +316,10 @@ class ClaimImportService
 
     public function failImport(int $importId, string $message): void
     {
-        DB::transaction(function () use ($importId, $message): void {
+        $import = DB::transaction(function () use ($importId, $message): ?ClaimImport {
             $import = ClaimImport::query()->lockForUpdate()->find($importId);
             if (! $import || $import->status === 'completed') {
-                return;
+                return null;
             }
 
             $snapshots = ClaimImportSnapshot::query()
@@ -342,7 +359,32 @@ class ClaimImportService
                 'error_message' => Str::limit($message, 2000),
                 'completed_at' => now(),
             ]);
+
+            return $import->fresh();
         });
+
+        if ($import) {
+            $this->deleteImportSourceFile($import);
+        }
+    }
+
+    private function deleteImportSourceFile(ClaimImport $import): void
+    {
+        if ($import->stored_path && (! Storage::exists($import->stored_path) || Storage::delete($import->stored_path))) {
+            $import->forceFill(['stored_path' => null])->saveQuietly();
+        }
+    }
+
+    private function wasWorkedOrModified(Claim $claim): bool
+    {
+        if ($claim->work_status_manually_set || filled($claim->notes) || filled($claim->denial_reason)) {
+            return true;
+        }
+
+        return $claim->activities()
+            ->whereNotNull('user_id')
+            ->where('action', '!=', 'assigned')
+            ->exists();
     }
 
     /** @return array{0: array<int, mixed>, 1: int} */

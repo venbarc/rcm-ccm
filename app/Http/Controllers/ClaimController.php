@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Claim;
 use App\Models\ClaimActivity;
+use App\Models\ClaimImport;
 use App\Services\ClaimActivityService;
 use App\Services\TeamService;
 use App\Support\CurrentAccount;
@@ -236,6 +237,10 @@ class ClaimController extends Controller
             'assignees' => $request->user()->canAssignClaims()
                 ? $this->teams->assignmentCandidates($request->user(), $accountValue)
                 : collect(),
+            'hasActiveImport' => ClaimImport::query()
+                ->where('account_type', $accountValue)
+                ->whereIn('status', ['queued', 'processing'])
+                ->exists(),
         ]);
     }
 
