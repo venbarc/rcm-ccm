@@ -93,19 +93,19 @@ class AssignmentController extends Controller
             'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
         $assignee = $this->eligibleAssignees($request->user(), [(int) $validated['user_id']], $account->value)->firstOrFail();
-        $externalIds = Claim::query()
+        $billIds = Claim::query()
             ->where('account_type', $account->value)
             ->whereIn('id', $validated['claim_ids'])
-            ->pluck('external_id')
+            ->pluck('bill_id')
             ->unique()
             ->values();
 
-        abort_if($externalIds->isEmpty(), 422, 'Choose at least one Tricity claim group.');
+        abort_if($billIds->isEmpty(), 422, 'Choose at least one Tricity Bill ID.');
 
-        $lineCount = DB::transaction(function () use ($externalIds, $assignee, $account, $request): int {
+        $lineCount = DB::transaction(function () use ($billIds, $assignee, $account, $request): int {
             $claims = Claim::query()
                 ->where('account_type', $account->value)
-                ->whereIn('external_id', $externalIds)
+                ->whereIn('bill_id', $billIds)
                 ->lockForUpdate()
                 ->get();
 
@@ -118,7 +118,7 @@ class AssignmentController extends Controller
                 $this->activities->record(
                     $account->value,
                     'assigned',
-                    "Assigned claim group {$claim->external_id}",
+                    "Assigned Bill ID {$claim->bill_id}",
                     $request->user(),
                     $claim,
                     $before,
@@ -129,7 +129,7 @@ class AssignmentController extends Controller
             return $claims->count();
         });
 
-        return back()->with('success', "Assigned {$externalIds->count()} claim groups ({$lineCount} CPT lines) to {$assignee->name}.");
+        return back()->with('success', "Assigned {$billIds->count()} Bill IDs ({$lineCount} CPT lines) to {$assignee->name}.");
     }
 
     public function distribute(Request $request): RedirectResponse
@@ -169,7 +169,7 @@ class AssignmentController extends Controller
 
         return back()->with(
             'success',
-            "Distributed {$result['total_claims']} claim groups ({$result['total_lines']} CPT lines) without splitting Claim IDs.",
+            "Distributed {$result['total_claims']} Bill IDs ({$result['total_lines']} CPT lines) without splitting Bill IDs.",
         );
     }
 

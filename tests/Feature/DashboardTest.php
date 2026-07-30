@@ -31,8 +31,94 @@ class DashboardTest extends TestCase
                 ->where('filters.preset', 'all')
                 ->has('workSummary')
                 ->has('claimsByStatus')
+                ->missing('cptSummary')
+                ->missing('modmedStatusSummary')
                 ->missing('payerBalance')
                 ->missing('recentClaims'));
+    }
+
+    public function test_admin_dashboard_includes_cpt_and_modmed_financial_summaries()
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $baseClaim = [
+            'account_type' => AccountType::Tricity->value,
+            'patient_name' => 'Admin Summary Patient',
+            'service_date_start' => '2026-07-01',
+            'work_status' => 'draft',
+        ];
+
+        Claim::query()->create($baseClaim + [
+            'external_id' => 'SUMMARY-100',
+            'procedure_code' => '99490',
+            'modmed_claim_status' => 'Resolved/Paid',
+            'units' => 1,
+            'true_charge' => 100,
+            'payments' => 80,
+            'true_balance' => 20,
+            'cf_invoice_amount' => 30,
+        ]);
+        Claim::query()->create($baseClaim + [
+            'external_id' => 'SUMMARY-100',
+            'procedure_code' => '99439',
+            'modmed_claim_status' => 'Resolved/Paid',
+            'units' => 2,
+            'true_charge' => 50,
+            'payments' => 20,
+            'true_balance' => 30,
+            'cf_invoice_amount' => 40,
+        ]);
+        Claim::query()->create($baseClaim + [
+            'external_id' => 'SUMMARY-200',
+            'procedure_code' => '99490',
+            'modmed_claim_status' => 'REVIEW NEEDED',
+            'units' => 3,
+            'true_charge' => 200,
+            'payments' => 50,
+            'true_balance' => 150,
+            'cf_invoice_amount' => 60,
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/dashboard?preset=all')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('cptSummary.rows', 2)
+                ->where('cptSummary.rows', function ($rows): bool {
+                    $cpt = collect($rows)->firstWhere('group', '99490');
+
+                    return $cpt !== null
+                        && $cpt['billCount'] === 2
+                        && $cpt['cptCount'] === 2
+                        && $cpt['units'] === 4.0
+                        && $cpt['trueCharge'] === 300.0
+                        && $cpt['payments'] === 130.0
+                        && $cpt['trueBalance'] === 170.0
+                        && $cpt['collectionPercent'] === 43.33
+                        && $cpt['cfInvoiceAmount'] === 90.0;
+                })
+                ->where('cptSummary.total.billCount', 2)
+                ->where('cptSummary.total.cptCount', 3)
+                ->where('cptSummary.total.units', 6.0)
+                ->where('cptSummary.total.trueCharge', 350.0)
+                ->where('cptSummary.total.payments', 150.0)
+                ->where('cptSummary.total.trueBalance', 200.0)
+                ->where('cptSummary.total.collectionPercent', 42.86)
+                ->where('cptSummary.total.cfInvoiceAmount', 130.0)
+                ->has('modmedStatusSummary.rows', 2)
+                ->where('modmedStatusSummary.rows', function ($rows): bool {
+                    $status = collect($rows)->firstWhere('group', 'Resolved/Paid');
+
+                    return $status !== null
+                        && $status['billCount'] === 1
+                        && $status['cptCount'] === 2
+                        && $status['units'] === 3.0
+                        && $status['trueCharge'] === 150.0
+                        && $status['payments'] === 100.0
+                        && $status['trueBalance'] === 50.0
+                        && $status['collectionPercent'] === 66.67
+                        && $status['cfInvoiceAmount'] === 70.0;
+                }));
     }
 
     public function test_dashboard_matches_tfc_line_metrics_and_service_date_filtering()
@@ -85,7 +171,7 @@ class DashboardTest extends TestCase
                 ->where('workSummary.paidCount', 1)
                 ->where('workSummary.paidAmount', 50.0)
                 ->where('workSummary.workedProgress', 50)
-                ->has('claimsByStatus', 9)
+                ->has('claimsByStatus', 8)
                 ->where('claimsByStatus.0.status', 'draft')
                 ->where('claimsByStatus.0.count', 0)
                 ->where('claimsByStatus.1.status', 'paid')
@@ -119,8 +205,10 @@ class DashboardTest extends TestCase
                 ->where('workSummary.totalAmount', 0.0)
                 ->where('workSummary.workedCount', 0)
                 ->where('workSummary.remainingCount', 1)
-                ->has('claimsByStatus', 9)
+                ->has('claimsByStatus', 8)
                 ->where('claimsByStatus.0.status', 'draft')
-                ->where('claimsByStatus.0.count', 1));
+                ->where('claimsByStatus.0.count', 1)
+                ->missing('cptSummary')
+                ->missing('modmedStatusSummary'));
     }
 }

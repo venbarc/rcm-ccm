@@ -8,9 +8,10 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import { type AccountTypeOption } from '@/types';
 import { router } from '@inertiajs/react';
-import { CheckCircle2, ChevronsUpDown, LoaderCircle } from 'lucide-react';
+import { Building2, ChevronsUpDown, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 
 interface AccountSwitcherBadgeProps {
@@ -20,6 +21,7 @@ interface AccountSwitcherBadgeProps {
 }
 
 export function AccountSwitcherBadge({ activeAccount, allowedAccountTypes, accountTypes }: AccountSwitcherBadgeProps) {
+    const { isMobile, state } = useSidebar();
     const [switchingAccount, setSwitchingAccount] = useState<string | null>(null);
     const [comingSoonAccount, setComingSoonAccount] = useState<AccountTypeOption | null>(null);
 
@@ -33,75 +35,99 @@ export function AccountSwitcherBadge({ activeAccount, allowedAccountTypes, accou
     }
 
     const badgeClassName =
-        'group-data-[collapsible=icon]:hidden inline-flex max-w-full items-center gap-1 rounded-lg bg-sky-100 px-3 py-1 text-xs font-semibold text-blue-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-70';
+        'bg-sky-100 font-semibold text-blue-950 hover:bg-sky-200 hover:text-blue-950 data-[state=open]:bg-sky-200 data-[state=open]:text-blue-950 disabled:cursor-not-allowed disabled:opacity-70';
 
     if (availableAccounts.length <= 1) {
         return (
-            <span className={badgeClassName}>
-                <span className="truncate">{currentOption.label}</span>
-            </span>
+            <SidebarMenu>
+                <SidebarMenuItem>
+                    <SidebarMenuButton asChild className={`${badgeClassName} hover:bg-sky-100`} tooltip={`Current account: ${currentOption.label}`}>
+                        <div role="status">
+                            <Building2 aria-hidden="true" />
+                            <span>{currentOption.label}</span>
+                        </div>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+            </SidebarMenu>
         );
     }
 
     return (
         <>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <button type="button" className={badgeClassName} disabled={switchingAccount !== null}>
-                        {switchingAccount !== null ? <LoaderCircle className="size-3 animate-spin" /> : <CheckCircle2 className="size-3" />}
-                        <span className="max-w-40 truncate">{currentOption.label}</span>
-                        <ChevronsUpDown className="size-3" />
-                    </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-60 rounded-xl" align="start">
-                    <DropdownMenuLabel>Switch Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuRadioGroup
-                        value={resolvedActiveAccount ?? ''}
-                        onValueChange={(value) => {
-                            if (switchingAccount !== null) {
-                                return;
-                            }
-
-                            const option = availableAccounts.find((account) => account.value === value);
-
-                            if (!option?.ready) {
-                                // Defer to the next tick so the dropdown finishes closing before the
-                                // dialog opens — opening both overlays in the same tick leaves Radix's
-                                // body pointer-events lock stuck after the dialog is dismissed.
-                                setTimeout(() => setComingSoonAccount(option ?? null), 0);
-                                return;
-                            }
-
-                            if (value === resolvedActiveAccount) {
-                                return;
-                            }
-
-                            setSwitchingAccount(value);
-                            router.post(
-                                '/account-type/switch',
-                                { account_type: value },
-                                {
-                                    preserveScroll: true,
-                                    onFinish: () => setSwitchingAccount(null),
-                                },
-                            );
-                        }}
-                    >
-                        {availableAccounts.map((option) => (
-                            <DropdownMenuRadioItem
-                                key={option.value}
-                                value={option.value}
+            <SidebarMenu>
+                <SidebarMenuItem>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <SidebarMenuButton
+                                aria-label={`Switch account. Current account: ${currentOption.label}`}
+                                className={badgeClassName}
                                 disabled={switchingAccount !== null}
-                                className="cursor-pointer"
+                                title={state === 'collapsed' && !isMobile ? 'Switch account' : undefined}
+                                type="button"
                             >
-                                {option.label}
-                                {!option.ready && <span className="ml-1.5 text-xs text-muted-foreground">(coming soon)</span>}
-                            </DropdownMenuRadioItem>
-                        ))}
-                    </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-            </DropdownMenu>
+                                {switchingAccount !== null ? (
+                                    <LoaderCircle aria-hidden="true" className="animate-spin" />
+                                ) : (
+                                    <RefreshCw aria-hidden="true" />
+                                )}
+                                <span>{currentOption.label}</span>
+                                <ChevronsUpDown className="ml-auto group-data-[collapsible=icon]:hidden" />
+                            </SidebarMenuButton>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="start"
+                            className="w-60 rounded-xl"
+                            side={isMobile ? 'bottom' : state === 'collapsed' ? 'right' : 'bottom'}
+                        >
+                            <DropdownMenuLabel>Switch Account</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuRadioGroup
+                                value={resolvedActiveAccount ?? ''}
+                                onValueChange={(value) => {
+                                    if (switchingAccount !== null) {
+                                        return;
+                                    }
+
+                                    const option = availableAccounts.find((account) => account.value === value);
+
+                                    if (!option?.ready) {
+                                        // Wait for the dropdown to close before opening the dialog so
+                                        // Radix can release its pointer-events lock cleanly.
+                                        setTimeout(() => setComingSoonAccount(option ?? null), 0);
+                                        return;
+                                    }
+
+                                    if (value === resolvedActiveAccount) {
+                                        return;
+                                    }
+
+                                    setSwitchingAccount(value);
+                                    router.post(
+                                        '/account-type/switch',
+                                        { account_type: value },
+                                        {
+                                            preserveScroll: true,
+                                            onFinish: () => setSwitchingAccount(null),
+                                        },
+                                    );
+                                }}
+                            >
+                                {availableAccounts.map((option) => (
+                                    <DropdownMenuRadioItem
+                                        key={option.value}
+                                        value={option.value}
+                                        disabled={switchingAccount !== null}
+                                        className="cursor-pointer"
+                                    >
+                                        {option.label}
+                                        {!option.ready && <span className="text-muted-foreground ml-1.5 text-xs">(coming soon)</span>}
+                                    </DropdownMenuRadioItem>
+                                ))}
+                            </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </SidebarMenuItem>
+            </SidebarMenu>
 
             <Dialog open={comingSoonAccount !== null} onOpenChange={(open) => !open && setComingSoonAccount(null)}>
                 <DialogContent>
@@ -109,7 +135,7 @@ export function AccountSwitcherBadge({ activeAccount, allowedAccountTypes, accou
                         <DialogTitle>{comingSoonAccount?.label} — Coming Soon</DialogTitle>
                         <DialogDescription>
                             The claims workspace for {comingSoonAccount?.label} is still being developed. We're focused on Tricity Pain Associates
-                            right now — check back soon for this account.
+                            right now—check back soon for this account.
                         </DialogDescription>
                     </DialogHeader>
                 </DialogContent>

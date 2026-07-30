@@ -12,7 +12,7 @@ export function AssignmentOverview({ summary, formatCurrency }: AssignmentOvervi
             <CardContent className="p-4">
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="bg-muted/10 rounded-lg border p-4">
-                        <p className="text-muted-foreground text-xs font-semibold uppercase">Remaining Claim IDs</p>
+                        <p className="text-muted-foreground text-xs font-semibold uppercase">Remaining Bill IDs</p>
                         <p className="mt-1 text-2xl font-semibold">
                             {summary.claim_groups.toLocaleString()}{' '}
                             <span className="text-muted-foreground text-sm font-normal">({summary.claim_lines.toLocaleString()} CPT lines)</span>
@@ -22,7 +22,7 @@ export function AssignmentOverview({ summary, formatCurrency }: AssignmentOvervi
                         </p>
                     </div>
                     <div className="bg-muted/10 rounded-lg border p-4">
-                        <p className="text-muted-foreground text-xs font-semibold uppercase">Assigned Claim IDs</p>
+                        <p className="text-muted-foreground text-xs font-semibold uppercase">Assigned Bill IDs</p>
                         <p className="mt-1 text-2xl font-semibold">
                             {summary.assigned_claim_groups.toLocaleString()}{' '}
                             <span className="text-muted-foreground text-sm font-normal">

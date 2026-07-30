@@ -25,6 +25,23 @@ export interface ClaimByStatus {
     amount: number;
 }
 
+export interface DashboardFinancialSummaryRow {
+    group: string | null;
+    billCount: number;
+    cptCount: number;
+    units: number;
+    trueCharge: number;
+    payments: number;
+    trueBalance: number;
+    collectionPercent: number;
+    cfInvoiceAmount: number;
+}
+
+export interface DashboardFinancialSummary {
+    rows: DashboardFinancialSummaryRow[];
+    total: DashboardFinancialSummaryRow;
+}
+
 export interface RecentClaim {
     id: number;
     claim_number: string;
@@ -42,6 +59,12 @@ export interface PayerBalance {
 
 export const formatCount = (value: number) => value.toLocaleString('en-US');
 
+export const formatNumber = (value: number) =>
+    value.toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    });
+
 export const formatCurrency = (value: number) =>
     value.toLocaleString('en-US', {
         style: 'currency',
@@ -49,3 +72,9 @@ export const formatCurrency = (value: number) =>
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });
+
+export const formatPercent = (value: number) =>
+    `${value.toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    })}%`;

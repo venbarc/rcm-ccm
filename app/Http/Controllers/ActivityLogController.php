@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ActivityLogController extends Controller
 {
     private const WORK_STATUSES = [
-        'draft', 'paid', 'historical_posted_payments', 'rebilled', 'appeal',
+        'draft', 'paid', 'rebilled', 'appeal',
         'pending', 'void', 'corrected', 'patient_balance',
     ];
 
@@ -120,12 +120,12 @@ class ActivityLogController extends Controller
                 return;
             }
 
-            fputcsv($stream, ['User', 'Email', 'Claim #', 'Patient', 'CPT Code', 'Status', 'Charges', 'Paid', 'Balance', 'Worked At']);
+            fputcsv($stream, ['User', 'Email', 'Bill ID', 'Patient', 'CPT Code', 'Status', 'True Charge', 'Payments', 'True Balance', 'Worked At']);
             foreach ($claims->orderBy('id')->lazyById(500) as $line) {
                 fputcsv($stream, [
                     $line->assignee?->name ?? 'Unassigned',
                     $line->assignee?->email ?? '',
-                    $line->external_id,
+                    $line->bill_id,
                     $line->patient_name,
                     $line->procedure_code ?: $line->cpt_code,
                     $line->work_status ?: 'draft',
@@ -274,7 +274,7 @@ class ActivityLogController extends Controller
     private function applyWorkedLineFilters(Builder $query, Request $request): void
     {
         if ($request->filled('claim_number')) {
-            $query->where('external_id', 'like', '%'.trim((string) $request->input('claim_number')).'%');
+            $query->where('bill_id', 'like', '%'.trim((string) $request->input('claim_number')).'%');
         }
         if ($request->filled('cpt_code')) {
             $cpt = trim((string) $request->input('cpt_code'));
@@ -293,7 +293,7 @@ class ActivityLogController extends Controller
         return [
             'id' => $line->id,
             'claim_id' => $line->id,
-            'claim_number' => $line->external_id,
+            'claim_number' => $line->bill_id,
             'patient_name' => $line->patient_name,
             'cpt_code' => $line->procedure_code ?: $line->cpt_code,
             'status' => $line->work_status ?: 'draft',

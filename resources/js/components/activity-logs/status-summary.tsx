@@ -8,7 +8,6 @@ const statusBackground = (status: string) => {
     const colors: Record<string, string> = {
         appeal: 'bg-purple-50',
         rebilled: 'bg-blue-50',
-        historical_posted_payments: 'bg-teal-50',
         corrected: 'bg-blue-50',
         paid: 'bg-emerald-50',
         patient_balance: 'bg-pink-50',

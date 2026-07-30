@@ -10,7 +10,12 @@ export function NavMain({ items = [], label = 'Tricity workspace' }: { items: Na
             <SidebarMenu>
                 {items.map((item) => (
                     <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton className="text-sidebar-foreground [&>svg]:text-current" asChild isActive={page.url === item.url || (item.url !== '/dashboard' && page.url.startsWith(item.url))}>
+                        <SidebarMenuButton
+                            className="text-sidebar-foreground [&>svg]:text-current"
+                            asChild
+                            isActive={page.url === item.url || (item.url !== '/dashboard' && page.url.startsWith(item.url))}
+                            tooltip={item.title}
+                        >
                             <Link href={item.url} prefetch>
                                 {item.icon && <item.icon />}
                                 <span>{item.title}</span>

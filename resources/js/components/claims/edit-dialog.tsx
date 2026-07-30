@@ -27,13 +27,13 @@ export function ClaimEditDialog({ claim, line, editForm, setEditForm, workStatus
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Edit claim line</DialogTitle>
-                    <DialogDescription>Update only the selected CPT line under claim {claim?.external_id}.</DialogDescription>
+                    <DialogDescription>Update only the selected CPT line under Bill ID {claim?.bill_id}.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-                            <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">Claim ID</div>
-                            <div className="mt-1 text-sm font-medium text-slate-900">{claim?.external_id ?? 'N/A'}</div>
+                            <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">Bill ID</div>
+                            <div className="mt-1 text-sm font-medium text-slate-900">{claim?.bill_id ?? 'N/A'}</div>
                         </div>
                         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
                             <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">CPT code</div>

@@ -44,7 +44,6 @@ export const statusClass: Record<string, string> = {
     project: 'border-blue-300 bg-blue-100 text-blue-800',
     pending: 'border-yellow-300 bg-yellow-100 text-yellow-800',
     void: 'border-gray-400 bg-gray-200 text-gray-600',
-    historical_posted_payments: 'border-teal-300 bg-teal-50 text-teal-800',
 };
 
 export const statusRowClass: Record<string, string> = {
@@ -60,5 +59,4 @@ export const statusRowClass: Record<string, string> = {
     project: 'bg-blue-100',
     pending: 'bg-yellow-100',
     void: 'bg-gray-200',
-    historical_posted_payments: 'bg-teal-100',
 };

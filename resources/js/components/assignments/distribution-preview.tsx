@@ -33,7 +33,7 @@ export function DistributionPreview({
                         <Target className="size-5" /> Distribution preview
                     </CardTitle>
                     <CardDescription>
-                        Largest Claim ID balances are placed first into the assignee with the lowest running True Balance.
+                        Largest Bill ID balances are placed first into the assignee with the lowest running True Balance.
                     </CardDescription>
                 </div>
                 <Button disabled={!preview || preview.total_claims === 0 || isDistributing || isLoading} onClick={onDistribute}>
@@ -95,7 +95,7 @@ export function DistributionPreview({
                             </div>
                             {preview.balance_rows === 0 && (
                                 <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-                                    True Balance is not present yet. Claim IDs will be distributed evenly by group count now; the same allocator will
+                                    True Balance is not present yet. Bill IDs will be distributed evenly by group count now; the same allocator will
                                     automatically balance by True Balance once imported.
                                 </p>
                             )}

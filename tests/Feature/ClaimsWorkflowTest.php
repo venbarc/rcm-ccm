@@ -86,6 +86,7 @@ class ClaimsWorkflowTest extends TestCase
             ->where('summary.assigned_claim_groups', 1)
             ->where('summary.assigned_claim_lines', 2)
             ->where('summary.assigned_total_true_balance', 100.0)
+            ->where('groupDefinitions', fn ($definitions): bool => collect($definitions)->pluck('key')->doesntContain('service_type'))
             ->has('assignmentWorkloads', 2)
             ->where('assignmentWorkloads', function ($workloads) use ($agent): bool {
                 $agentWorkload = collect($workloads)->firstWhere('id', $agent->id);
@@ -95,6 +96,56 @@ class ClaimsWorkflowTest extends TestCase
                     && $agentWorkload['claim_lines'] === 2
                     && $agentWorkload['total_true_balance'] === 100.0;
             }));
+    }
+
+    public function test_assignment_page_counts_every_cpt_line_and_balance_in_a_partially_assigned_bill_id(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true, 'name' => 'Manager']);
+        $agent = User::factory()->create(['name' => 'Assigned Agent']);
+        GroupMember::create(['admin_id' => $admin->id, 'user_id' => $agent->id, 'account_type' => AccountType::Tricity->value]);
+
+        Claim::create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-PARTIAL-1',
+            'patient_name' => 'Partially Assigned Patient',
+            'procedure_code' => '99490',
+            'assigned_to' => $agent->id,
+            'true_balance' => 50,
+        ]);
+        Claim::create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-PARTIAL-1',
+            'patient_name' => 'Partially Assigned Patient',
+            'procedure_code' => '99439',
+            'true_balance' => 75,
+        ]);
+        Claim::create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-UNASSIGNED-2',
+            'patient_name' => 'Unassigned Patient',
+            'procedure_code' => '99213',
+            'true_balance' => 25,
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/assignments')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.claim_groups', 1)
+                ->where('summary.claim_lines', 1)
+                ->where('summary.total_true_balance', 25.0)
+                ->where('summary.assigned_claim_groups', 1)
+                ->where('summary.assigned_claim_lines', 2)
+                ->where('summary.assigned_total_true_balance', 125.0)
+                ->where('assignmentWorkloads', function ($workloads) use ($agent): bool {
+                    $agentWorkload = collect($workloads)->firstWhere('id', $agent->id);
+
+                    return $agentWorkload !== null
+                        && $agentWorkload['claim_groups'] === 1
+                        && $agentWorkload['claim_lines'] === 2
+                        && $agentWorkload['total_true_balance'] === 125.0;
+                }));
     }
 
     public function test_distribution_filters_by_cpt_but_keeps_every_claim_id_line_together(): void
@@ -188,6 +239,11 @@ class ClaimsWorkflowTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', '99490')
             ->assertJsonPath('data.0.balance', 100.0);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->getJson('/assignments/options?group_by=service_type')
+            ->assertUnprocessable();
     }
 
     public function test_missing_true_balance_uses_even_group_counts_without_splitting_claims(): void
@@ -281,10 +337,11 @@ class ClaimsWorkflowTest extends TestCase
         $response->assertInertia(fn ($page) => $page
             ->component('claims/index')
             ->has('claims.data', 1)
-            ->where('claims.data.0.external_id', 'TC-GRP-1')
+            ->where('claims.data.0.bill_id', 'TC-GRP-1')
             ->where('claims.data.0.line_count', 2)
             ->where('claims.data.0.true_charge', 150.0)
             ->where('claims.data.0.true_balance', 105.0)
+            ->where('summary.totalCount', 2)
             ->has('claims.data.0.lines', 2));
     }
 
@@ -343,12 +400,11 @@ class ClaimsWorkflowTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('claims/show')
-            ->where('claim.external_id', 'TC-VIEW-1')
+            ->where('claim.bill_id', 'TC-VIEW-1')
             ->where('claim.line_count', 2)
-            ->where('claim.total_charges', 150.0)
-            ->where('claim.total_paid', 30.0)
-            ->where('claim.total_adjustments', 7.0)
-            ->where('claim.total_balance', 113.0)
+            ->where('claim.total_true_charge', 150.0)
+            ->where('claim.total_payments', 30.0)
+            ->where('claim.total_true_balance', 113.0)
             ->has('claim.lines', 2)
             ->has('activities', 2)
             ->where('activities.0.cpt_code', '99439')

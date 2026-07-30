@@ -1,3 +1,4 @@
+import { ClaimSourceLineCells, ClaimSourceLineHeaders } from '@/components/claims/claim-source-line-columns';
 import type { ClaimGroup, Filters, SortColumn } from '@/components/claims/types';
 import { EMPTY_VALUE, currency, lineProcedureCode, serviceDateRange, statusClass, statusLabel, statusRowClass } from '@/components/claims/utils';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
@@ -46,14 +47,6 @@ const initials = (name: string) =>
         .join('')
         .toUpperCase();
 
-const priorityClass = (priority: string | null) => {
-    if (!priority) return '';
-    if (priority.toLowerCase() === 'urgent') return 'border-red-300 bg-red-50 text-red-700';
-    if (priority.toLowerCase() === 'high') return 'border-orange-300 bg-orange-50 text-orange-700';
-
-    return 'border-slate-300 bg-slate-50 text-slate-700';
-};
-
 interface ClaimsTableProps {
     claims: {
         data: ClaimGroup[];
@@ -87,24 +80,26 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
     };
 
     return (
-        <Card className="overflow-hidden rounded-xl">
-            <DataLoadingOverlay isLoading={isLoading} label="Loading claims...">
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1500px] text-sm">
+        <Card className="w-full max-w-full min-w-0 overflow-hidden rounded-xl">
+            <DataLoadingOverlay className="max-w-full min-w-0" isLoading={isLoading} label="Loading claims...">
+                <div className="border-b p-4">
+                    <Pagination links={claims.links} />
+                </div>
+                <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain">
+                    <table className="w-full min-w-[1420px] text-sm">
                         <thead className="bg-muted/30 text-muted-foreground border-b">
                             <tr>
                                 <th className="w-12 px-2 py-3 text-left font-medium">#</th>
-                                <th className="px-4 py-3 text-left font-medium">Claim #</th>
-                                <SortHeader column="first_name" label="Patient" filters={filters} onSort={onSort} />
-                                <th className="px-4 py-3 text-left font-medium">Facility</th>
+                                <SortHeader column="bill_id" label="Bill ID" filters={filters} onSort={onSort} />
+                                <SortHeader column="patient_name" label="Patient" filters={filters} onSort={onSort} />
+                                <SortHeader column="location" label="Location" filters={filters} onSort={onSort} />
                                 <th className="px-4 py-3 text-center font-medium">Modified By</th>
                                 <SortHeader column="service_date_start" label="Service Date" filters={filters} onSort={onSort} />
-                                <th className="px-4 py-3 text-center font-medium">Lines</th>
-                                <SortHeader column="true_charge" label="Charges" filters={filters} onSort={onSort} right />
-                                <SortHeader column="payments" label="Paid" filters={filters} onSort={onSort} right />
-                                <th className="px-4 py-3 text-right font-medium">Adjustments</th>
-                                <SortHeader column="true_balance" label="Balance" filters={filters} onSort={onSort} right />
-                                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                                <SortHeader column="line_count" label="CPT Lines" filters={filters} onSort={onSort} right />
+                                <SortHeader column="true_charge" label="True Charge" filters={filters} onSort={onSort} right />
+                                <SortHeader column="payments" label="Payments" filters={filters} onSort={onSort} right />
+                                <SortHeader column="true_balance" label="True Balance" filters={filters} onSort={onSort} right />
+                                <th className="bg-muted sticky right-0 z-20 w-20 min-w-20 border-l px-4 py-3 text-right font-medium">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -113,7 +108,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
 
                                 return (
                                     <Fragment key={claim.id}>
-                                        <tr className="hover:bg-muted/50">
+                                        <tr className="group hover:bg-muted/50">
                                             <td className="text-muted-foreground px-2 py-3">{(claims.from ?? 1) + index}</td>
                                             <td className="px-4 py-3">
                                                 <button
@@ -121,7 +116,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                     onClick={() => onToggleClaim(claim.id)}
                                                     type="button"
                                                 >
-                                                    {claim.external_id}
+                                                    {claim.bill_id}
                                                 </button>
                                             </td>
                                             <td className="px-4 py-3 font-medium">{claim.patient_name}</td>
@@ -161,13 +156,12 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                             <td className="px-4 py-3 text-right font-medium text-green-600 tabular-nums">
                                                 {currency(claim.payments)}
                                             </td>
-                                            <td className="px-4 py-3 text-right font-medium tabular-nums">{currency(claim.adjustments)}</td>
                                             <td className="px-4 py-3 text-right font-medium text-orange-600 tabular-nums">
                                                 {currency(claim.true_balance)}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <Button asChild size="icon" title={`View claim ${claim.external_id}`} variant="ghost">
-                                                    <Link aria-label={`View claim ${claim.external_id}`} href={claimViewUrl(claim)}>
+                                            <td className="bg-card group-hover:bg-muted sticky right-0 z-10 w-20 min-w-20 border-l px-4 py-3 text-right">
+                                                <Button asChild size="icon" title={`View Bill ID ${claim.bill_id}`} variant="ghost">
+                                                    <Link aria-label={`View Bill ID ${claim.bill_id}`} href={claimViewUrl(claim)}>
                                                         <Eye className="size-4" />
                                                     </Link>
                                                 </Button>
@@ -175,44 +169,39 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                         </tr>
                                         {isExpanded && (
                                             <tr className="bg-muted/40">
-                                                <td className="p-0" colSpan={12}>
-                                                    <div className="px-8 py-3">
-                                                        <div className="overflow-x-auto">
-                                                            <table className="w-full min-w-[1450px] text-sm">
+                                                <td className="max-w-0 p-0" colSpan={11}>
+                                                    <div className="w-full max-w-full min-w-0 px-8 py-3">
+                                                        <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain [contain:inline-size]">
+                                                            <table className="w-full min-w-[1600px] text-sm">
                                                                 <thead className="text-muted-foreground">
                                                                     <tr className="border-b">
-                                                                        <th className="px-3 py-3 text-left font-medium">CPT Code</th>
+                                                                        <ClaimSourceLineHeaders />
                                                                         <th className="px-3 py-3 text-left font-medium">Denial Reason</th>
-                                                                        <th className="px-3 py-3 text-left font-medium">Rendering Provider</th>
-                                                                        <th className="px-3 py-3 text-left font-medium">Primary Payer</th>
-                                                                        <th className="px-3 py-3 text-left font-medium">Status</th>
-                                                                        <th className="px-3 py-3 text-left font-medium">Priority</th>
-                                                                        <th className="px-3 py-3 text-left font-medium">Patient Acct No</th>
-                                                                        <th className="px-3 py-3 text-right font-medium">Charges</th>
-                                                                        <th className="px-3 py-3 text-right font-medium">Paid</th>
-                                                                        <th className="px-3 py-3 text-right font-medium">Adjustments</th>
-                                                                        <th className="px-3 py-3 text-right font-medium">Balance</th>
+                                                                        <th className="px-3 py-3 text-left font-medium">Work Status</th>
                                                                         <th className="px-3 py-3 text-left font-medium">Assigned To</th>
-                                                                        <th className="px-3 py-3 text-right font-medium">Actions</th>
+                                                                        <th className="bg-muted sticky right-0 z-20 w-20 min-w-20 border-l px-3 py-3 text-right font-medium">
+                                                                            Actions
+                                                                        </th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
                                                                     {claim.lines.map((line) => (
                                                                         <tr
                                                                             className={cn(
-                                                                                'border-muted-foreground/20 border-b last:border-0',
+                                                                                'group border-muted-foreground/20 border-b last:border-0',
                                                                                 statusRowClass[line.work_status] ?? statusRowClass.draft,
                                                                             )}
                                                                             key={line.id}
                                                                         >
-                                                                            <td className="px-3 py-3 font-semibold">
-                                                                                {lineProcedureCode(line.procedure_code, line.cpt_code)}
-                                                                            </td>
+                                                                            <ClaimSourceLineCells
+                                                                                line={{
+                                                                                    ...line,
+                                                                                    cpt_code: lineProcedureCode(line.procedure_code, line.cpt_code),
+                                                                                }}
+                                                                            />
                                                                             <td className="text-muted-foreground px-3 py-3">
                                                                                 {line.denial_reason || EMPTY_VALUE}
                                                                             </td>
-                                                                            <td className="px-3 py-3">{line.rendering_provider || EMPTY_VALUE}</td>
-                                                                            <td className="px-3 py-3">{line.payer_name || EMPTY_VALUE}</td>
                                                                             <td className="px-3 py-3">
                                                                                 <Badge
                                                                                     className={statusClass[line.work_status] ?? statusClass.draft}
@@ -222,33 +211,11 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                                 </Badge>
                                                                             </td>
                                                                             <td className="px-3 py-3">
-                                                                                {line.priority ? (
-                                                                                    <Badge className={priorityClass(line.priority)} variant="outline">
-                                                                                        {line.priority}
-                                                                                    </Badge>
-                                                                                ) : (
-                                                                                    EMPTY_VALUE
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="px-3 py-3">{line.patient_id || EMPTY_VALUE}</td>
-                                                                            <td className="px-3 py-3 text-right tabular-nums">
-                                                                                {currency(line.true_charge)}
-                                                                            </td>
-                                                                            <td className="px-3 py-3 text-right font-medium text-green-600 tabular-nums">
-                                                                                {currency(line.payments)}
-                                                                            </td>
-                                                                            <td className="px-3 py-3 text-right tabular-nums">
-                                                                                {currency(line.adjustments)}
-                                                                            </td>
-                                                                            <td className="px-3 py-3 text-right font-medium text-orange-600 tabular-nums">
-                                                                                {currency(line.true_balance)}
-                                                                            </td>
-                                                                            <td className="px-3 py-3">
                                                                                 <div className="bg-background min-w-44 rounded-md border px-3 py-2">
                                                                                     {line.assignee?.name ?? 'Unassigned'}
                                                                                 </div>
                                                                             </td>
-                                                                            <td className="px-3 py-3 text-right">
+                                                                            <td className="sticky right-0 z-10 w-20 min-w-20 border-l bg-inherit px-3 py-3 text-right">
                                                                                 <Button
                                                                                     aria-label={`Edit CPT ${lineProcedureCode(line.procedure_code, line.cpt_code)}`}
                                                                                     onClick={() => onEditLine(claim, line)}
@@ -273,7 +240,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                             })}
                             {claims.data.length === 0 && (
                                 <tr>
-                                    <td className="text-muted-foreground p-14 text-center" colSpan={12}>
+                                    <td className="text-muted-foreground p-14 text-center" colSpan={11}>
                                         No claims match these filters.
                                     </td>
                                 </tr>

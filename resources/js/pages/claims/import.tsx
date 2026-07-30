@@ -40,19 +40,31 @@ interface Progress {
 }
 
 const expectedColumns = [
+    'CPT',
+    'Location',
+    'Bill ID',
+    'Invoice Rate Per Unit',
+    'CF Invoice Amount',
+    'Payments',
+    'True Balance',
+    'True Charge',
+    'Units',
+    'BillingID-CPT',
+    'Charges',
+    'ModMed_Claim_Status',
+    'CF Invoice Date',
+    'Patient DOB',
     'Patient First Name',
     'Patient Last Name',
     'Patient Name',
-    'CPT/Product',
-    'Service Date',
-    'Charges',
-    'Bill ID',
-    'Activity Type',
-    'Claim ID',
-    'Patient DOB',
     'Patient MRN',
     'Payer',
+    'Payer-CPT',
+    'Place of Service Code',
+    'Posted Date Month/Year',
     'Primary Provider',
+    'Service Date',
+    'True Charge Per Unit',
 ];
 
 export default function ClaimImport({ imports, activeImportId }: { imports: ImportPage; activeImportId: number | null }) {
@@ -152,9 +164,9 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                                 <FileSpreadsheet className="size-5" /> Tricity billing workbook
                             </CardTitle>
                             <CardDescription>
-                                Upload CSV, XLSX, or XLS up to 20 MB. Claim ID is required; fields missing from the source, such as True Balance, are
-                                saved as null. Reimports refresh source data while preserving assignments and manually worked fields. Uploaded files
-                                are removed after processing.
+                                Upload CSV, XLSX, or XLS up to 20 MB. Bill ID is required and groups its CPT rows into one claim. Every workbook
+                                column is retained in the raw payload; displayed fields are also normalized for fast filtering and sorting. Reimports
+                                refresh source data while preserving assignments and manually worked fields.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

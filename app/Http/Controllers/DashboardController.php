@@ -17,10 +17,22 @@ class DashboardController extends Controller
 
     private const BALANCE_EXPRESSION = 'COALESCE(true_balance, balance, 0)';
 
+    private const TRUE_CHARGE_EXPRESSION = 'COALESCE(true_charge, billed_amount, 0)';
+
+    private const PAYMENTS_EXPRESSION = 'COALESCE(payments, 0)';
+
+    private const CF_INVOICE_AMOUNT_EXPRESSION = 'COALESCE(cf_invoice_amount, 0)';
+
+    private const BILL_ID_EXPRESSION = "COALESCE(NULLIF(TRIM(bill_id), ''), NULLIF(TRIM(external_id), ''))";
+
+    private const CPT_EXPRESSION = "COALESCE(NULLIF(TRIM(procedure_code), ''), NULLIF(TRIM(cpt_code), ''))";
+
+    private const MODMED_STATUS_EXPRESSION = "NULLIF(TRIM(modmed_claim_status), '')";
+
     private const WORK_STATUS_EXPRESSION = "COALESCE(NULLIF(TRIM(work_status), ''), 'draft')";
 
     private const WORK_STATUSES = [
-        'draft', 'paid', 'historical_posted_payments', 'rebilled', 'appeal',
+        'draft', 'paid', 'rebilled', 'appeal',
         'pending', 'void', 'corrected', 'patient_balance',
     ];
 
@@ -30,11 +42,22 @@ class DashboardController extends Controller
         $filters = $this->resolveDateRange($request);
         $claims = Claim::query()->where('account_type', $account->value);
         $this->applyDateRange($claims, $filters['startDate'], $filters['endDate']);
+        $isAdmin = (bool) $request->user()?->is_admin;
 
-        $total = (clone $claims)
+        $totalQuery = (clone $claims)
             ->selectRaw('COUNT(*) as line_count')
-            ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount')
-            ->first();
+            ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount');
+
+        if ($isAdmin) {
+            $totalQuery
+                ->selectRaw('COUNT(DISTINCT '.self::BILL_ID_EXPRESSION.') as bill_count')
+                ->selectRaw('SUM(COALESCE(units, 0)) as units')
+                ->selectRaw('SUM('.self::TRUE_CHARGE_EXPRESSION.') as true_charge')
+                ->selectRaw('SUM('.self::PAYMENTS_EXPRESSION.') as payments')
+                ->selectRaw('SUM('.self::CF_INVOICE_AMOUNT_EXPRESSION.') as cf_invoice_amount');
+        }
+
+        $total = $totalQuery->first();
         $worked = (clone $claims)
             ->whereRaw(self::WORK_STATUS_EXPRESSION.' != ?', ['draft'])
             ->selectRaw('COUNT(*) as line_count')
@@ -52,6 +75,21 @@ class DashboardController extends Controller
         $workedAmount = (float) ($worked->amount ?? 0);
         $paidCount = (int) ($paid->line_count ?? 0);
         $paidAmount = (float) ($paid->amount ?? 0);
+        $adminSummaryProps = [];
+
+        if ($isAdmin) {
+            $summaryTotal = $this->financialSummaryRow($total);
+            $adminSummaryProps = [
+                'cptSummary' => [
+                    'rows' => $this->groupedFinancialSummary($claims, self::CPT_EXPRESSION),
+                    'total' => $summaryTotal,
+                ],
+                'modmedStatusSummary' => [
+                    'rows' => $this->groupedFinancialSummary($claims, self::MODMED_STATUS_EXPRESSION),
+                    'total' => $summaryTotal,
+                ],
+            ];
+        }
 
         return Inertia::render('dashboard', [
             'accountLabel' => $account->label(),
@@ -76,6 +114,7 @@ class DashboardController extends Controller
                     : 0.0,
             ],
             'claimsByStatus' => $this->claimsByStatus($claims),
+            ...$adminSummaryProps,
         ]);
     }
 
@@ -102,6 +141,69 @@ class DashboardController extends Controller
                 ];
             })
             ->all();
+    }
+
+    /**
+     * @return array<int, array{
+     *     group: string|null,
+     *     billCount: int,
+     *     cptCount: int,
+     *     units: float,
+     *     trueCharge: float,
+     *     payments: float,
+     *     trueBalance: float,
+     *     collectionPercent: float,
+     *     cfInvoiceAmount: float
+     * }>
+     */
+    private function groupedFinancialSummary(Builder $query, string $groupExpression): array
+    {
+        return (clone $query)
+            ->selectRaw("{$groupExpression} as group_key")
+            ->selectRaw('COUNT(DISTINCT '.self::BILL_ID_EXPRESSION.') as bill_count')
+            ->selectRaw('COUNT(*) as line_count')
+            ->selectRaw('SUM(COALESCE(units, 0)) as units')
+            ->selectRaw('SUM('.self::TRUE_CHARGE_EXPRESSION.') as true_charge')
+            ->selectRaw('SUM('.self::PAYMENTS_EXPRESSION.') as payments')
+            ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as true_balance')
+            ->selectRaw('SUM('.self::CF_INVOICE_AMOUNT_EXPRESSION.') as cf_invoice_amount')
+            ->groupByRaw($groupExpression)
+            ->orderByDesc('bill_count')
+            ->orderByDesc('true_charge')
+            ->get()
+            ->map(fn ($row): array => $this->financialSummaryRow($row, filled($row->group_key) ? (string) $row->group_key : null))
+            ->all();
+    }
+
+    /**
+     * @return array{
+     *     group: string|null,
+     *     billCount: int,
+     *     cptCount: int,
+     *     units: float,
+     *     trueCharge: float,
+     *     payments: float,
+     *     trueBalance: float,
+     *     collectionPercent: float,
+     *     cfInvoiceAmount: float
+     * }
+     */
+    private function financialSummaryRow(object $row, ?string $group = null): array
+    {
+        $trueCharge = (float) ($row->true_charge ?? 0);
+        $payments = (float) ($row->payments ?? 0);
+
+        return [
+            'group' => $group,
+            'billCount' => (int) ($row->bill_count ?? 0),
+            'cptCount' => (int) ($row->line_count ?? 0),
+            'units' => (float) ($row->units ?? 0),
+            'trueCharge' => $trueCharge,
+            'payments' => $payments,
+            'trueBalance' => (float) ($row->true_balance ?? $row->amount ?? 0),
+            'collectionPercent' => $trueCharge > 0 ? round(($payments / $trueCharge) * 100, 2) : 0.0,
+            'cfInvoiceAmount' => (float) ($row->cf_invoice_amount ?? 0),
+        ];
     }
 
     /** @return array{preset: string, startDate: Carbon|null, endDate: Carbon|null, label: string, presetLabel: string} */
