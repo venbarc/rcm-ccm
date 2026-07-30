@@ -1,4 +1,4 @@
-import { creditReasonLabel, InvoicedStatusBadge } from '@/components/claims/invoiced-status-badge';
+import { CreditReasonBadge, CreditStatusBadge, InvoicedStatusBadge } from '@/components/claims/invoiced-status-badge';
 import { ModMedClaimStatusBadge } from '@/components/claims/modmed-claim-status-badge';
 import { currency, date, EMPTY_VALUE } from '@/components/claims/utils';
 
@@ -10,6 +10,8 @@ export interface ClaimSourceLine {
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
+    credit_status: boolean | null;
+    credit_status_date: string | null;
     credit_reason: string | null;
     patient_id: string | null;
     true_charge: number | string | null;
@@ -26,6 +28,8 @@ export function ClaimSourceLineHeaders({ showPayer = true }: { showPayer?: boole
             <th className="px-3 py-3 text-left font-medium">CF Invoice Date</th>
             <th className="px-3 py-3 text-left font-medium">Invoiced Status</th>
             <th className="px-3 py-3 text-left font-medium">Invoiced Status Date</th>
+            <th className="px-3 py-3 text-left font-medium">Credit Status</th>
+            <th className="px-3 py-3 text-left font-medium">Credit Status Date</th>
             <th className="px-3 py-3 text-left font-medium">Credit Reason</th>
             <th className="px-3 py-3 text-left font-medium">Patient MRN</th>
             <th className="px-3 py-3 text-right font-medium">True Charge</th>
@@ -48,7 +52,13 @@ export function ClaimSourceLineCells({ line, showPayer = true }: { line: ClaimSo
                 <InvoicedStatusBadge status={line.invoiced_status} />
             </td>
             <td className="px-3 py-3 whitespace-nowrap">{date(line.invoiced_status_date)}</td>
-            <td className="px-3 py-3 whitespace-nowrap">{creditReasonLabel(line.credit_reason)}</td>
+            <td className="px-3 py-3">
+                <CreditStatusBadge credited={line.credit_status} />
+            </td>
+            <td className="px-3 py-3 whitespace-nowrap">{date(line.credit_status_date)}</td>
+            <td className="px-3 py-3">
+                <CreditReasonBadge reason={line.credit_reason} />
+            </td>
             <td className="px-3 py-3">{line.patient_id || EMPTY_VALUE}</td>
             <td className="px-3 py-3 text-right tabular-nums">{currency(line.true_charge)}</td>
             <td className="px-3 py-3 text-right font-medium text-orange-600 tabular-nums">{currency(line.true_balance)}</td>

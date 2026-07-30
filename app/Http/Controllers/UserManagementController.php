@@ -29,10 +29,13 @@ class UserManagementController extends Controller
         $currentUser = $request->user();
         $search = trim($request->string('search')->toString());
         $role = $request->string('role')->toString();
+        $team = $request->string('team')->toString();
         $query = $this->teams->visibleUsersQuery($currentUser, $account->value)
             ->with(['admins' => fn ($admins) => $admins
                 ->wherePivot('account_type', $account->value)
-                ->select('users.id', 'users.name', 'users.email')]);
+                ->select('users.id', 'users.name', 'users.email')])
+            ->withCount(['members as members_under_you_count' => fn ($members) => $members
+                ->where('group_members.account_type', $account->value)]);
 
         if ($search !== '') {
             $query->where(function (Builder $nested) use ($search): void {
@@ -43,30 +46,48 @@ class UserManagementController extends Controller
 
         if ($role === 'admin') {
             $query->where('is_admin', true);
-        } elseif ($role === 'assigner') {
-            $query->where('is_admin', false)->where('can_assign_claims', true);
         } elseif ($role === 'user') {
-            $query->where('is_admin', false)->where('can_assign_claims', false);
+            $query->where('is_admin', false);
+        }
+
+        if ($team === 'mine') {
+            $query->whereHas('groupMembershipsAsMember', fn (Builder $membership) => $membership
+                ->where('account_type', $account->value)
+                ->where('admin_id', $currentUser->id));
+        } elseif ($team === 'unassigned') {
+            $query->where('is_admin', false)
+                ->whereDoesntHave('groupMembershipsAsMember', fn (Builder $membership) => $membership
+                    ->where('account_type', $account->value));
+        } elseif ($team === 'other') {
+            $query->whereHas('groupMembershipsAsMember', fn (Builder $membership) => $membership
+                ->where('account_type', $account->value)
+                ->where('admin_id', '!=', $currentUser->id));
         }
 
         $visibleUsers = $this->teams->visibleUsersQuery($currentUser, $account->value);
+        $users = $query
+            ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$currentUser->id])
+            ->orderByDesc('is_admin')
+            ->orderBy('name')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(function (User $user) use ($currentUser, $account): User {
+                $user->setAttribute('can_manage', $this->teams->canManageUser($currentUser, $user, $account->value));
+
+                return $user;
+            });
 
         return Inertia::render('users/index', [
-            'users' => $query
-                ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$currentUser->id])
-                ->orderByDesc('is_admin')
-                ->orderBy('name')
-                ->paginate(20)
-                ->withQueryString(),
+            'users' => $users,
             'accountTypes' => AccountType::options(),
-            'filters' => compact('search', 'role'),
+            'filters' => compact('search', 'role', 'team'),
             'myTeamMembers' => $currentUser->membersForAccount($account->value)
                 ->orderBy('name')
                 ->get(['users.id', 'users.name', 'users.email']),
             'summary' => [
                 'total' => (clone $visibleUsers)->count(),
                 'admins' => (clone $visibleUsers)->where('is_admin', true)->count(),
-                'claimsManagers' => (clone $visibleUsers)->where('is_admin', false)->where('can_assign_claims', true)->count(),
+                'users' => (clone $visibleUsers)->where('is_admin', false)->count(),
                 'myTeam' => GroupMember::query()
                     ->where('admin_id', $currentUser->id)
                     ->where('account_type', $account->value)
@@ -80,7 +101,11 @@ class UserManagementController extends Controller
         $account = CurrentAccount::resolve($request);
         $search = trim($request->string('search')->toString());
         $perPage = min(max($request->integer('per_page', 10), 5), 50);
-        $query = $this->teams->availableMembersQuery($request->user(), $account->value);
+        $currentUser = $request->user();
+        $query = $this->teams->availableMembersQuery($currentUser, $account->value)
+            ->with(['admins' => fn ($admins) => $admins
+                ->wherePivot('account_type', $account->value)
+                ->select('users.id', 'users.name', 'users.email')]);
 
         if ($search !== '') {
             $query->where(function (Builder $nested) use ($search): void {
@@ -89,7 +114,23 @@ class UserManagementController extends Controller
             });
         }
 
-        return response()->json($query->orderBy('name')->paginate($perPage));
+        $members = $query
+            ->orderBy('name')
+            ->paginate($perPage)
+            ->through(function (User $user) use ($currentUser): array {
+                $owner = $user->admins->first();
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'owner' => $owner?->only(['id', 'name', 'email']),
+                    'is_selectable' => $owner === null || $owner->is($currentUser),
+                    'is_selected' => $owner?->is($currentUser) ?? false,
+                ];
+            });
+
+        return response()->json($members);
     }
 
     public function members(Request $request, User $user): JsonResponse
@@ -132,34 +173,20 @@ class UserManagementController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         $this->authorizeManageUser($request, $user, $account->value);
+        abort_if($user->is_admin, 422, 'Administrator roles and account access are managed by OneAccess.');
         $validated = $request->validate([
-            'is_admin' => ['required', 'boolean'],
-            'can_assign_claims' => ['required', 'boolean'],
+            'is_admin' => ['prohibited'],
             'account_types' => ['required', 'array'],
             'account_types.*' => ['string', 'in:'.implode(',', AccountType::values())],
         ]);
-        abort_if($user->is($request->user()) && ! $validated['is_admin'], 422, 'You cannot remove your own administrator access.');
-        abort_if($user->is_admin && ! $validated['is_admin'] && User::query()->where('is_admin', true)->count() <= 1, 422, 'At least one administrator must remain.');
 
         $before = $user->only(array_keys($validated));
 
         DB::transaction(function () use ($user, $validated): void {
-            $wasAdmin = $user->is_admin;
             $user->update($validated);
-
-            if ($validated['is_admin']) {
-                $user->groupMembershipsAsMember()->delete();
-            }
-
-            if ($wasAdmin && ! $validated['is_admin']) {
-                $user->groupMembershipsAsAdmin()->delete();
-            }
-
-            if (! $validated['is_admin']) {
-                $user->groupMembershipsAsMember()
-                    ->whereNotIn('account_type', $validated['account_types'])
-                    ->delete();
-            }
+            $user->groupMembershipsAsMember()
+                ->whereNotIn('account_type', $validated['account_types'])
+                ->delete();
         });
 
         $this->activities->record($account->value, 'user_updated', "Updated access for {$user->email}", $request->user(), before: $before, after: $validated);

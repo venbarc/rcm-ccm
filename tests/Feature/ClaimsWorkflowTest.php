@@ -16,7 +16,7 @@ class ClaimsWorkflowTest extends TestCase
 
     public function test_authorized_user_can_assign_a_tricity_claim(): void
     {
-        $admin = User::factory()->create(['is_admin' => true, 'can_assign_claims' => true]);
+        $admin = User::factory()->create(['is_admin' => true]);
         $agent = User::factory()->create();
         GroupMember::create(['admin_id' => $admin->id, 'user_id' => $agent->id, 'account_type' => AccountType::Tricity->value]);
         $claim = Claim::create([
@@ -414,14 +414,21 @@ class ClaimsWorkflowTest extends TestCase
 
     public function test_claim_line_update_assigns_only_the_selected_cpt_line_to_the_editor(): void
     {
+        $admin = User::factory()->create(['is_admin' => true]);
         $user = User::factory()->create();
         $previousOwner = User::factory()->create();
+        GroupMember::create([
+            'admin_id' => $admin->id,
+            'user_id' => $user->id,
+            'account_type' => AccountType::Tricity->value,
+        ]);
 
         $firstLine = Claim::create([
             'account_type' => AccountType::Tricity->value,
             'external_id' => 'TC-UPD-1',
             'patient_name' => 'Grouped Patient',
             'procedure_code' => '99490',
+            'cf_invoice_date' => '2026-07-01',
             'work_status' => 'draft',
             'assigned_to' => $previousOwner->id,
         ]);
@@ -430,6 +437,7 @@ class ClaimsWorkflowTest extends TestCase
             'external_id' => 'TC-UPD-1',
             'patient_name' => 'Grouped Patient',
             'procedure_code' => '99439',
+            'cf_invoice_date' => '2026-07-02',
             'work_status' => 'draft',
         ]);
 
@@ -439,8 +447,10 @@ class ClaimsWorkflowTest extends TestCase
                 'work_status' => 'appeal',
                 'denial_reason' => 'Missing documentation',
                 'notes' => 'Followed up with payer',
-                'invoiced_status' => 'pending_credit',
-                'invoiced_status_date' => '2026-07-29',
+                'invoiced_status' => 'credited',
+                'invoiced_status_date' => '2026-07-30',
+                'credit_status' => true,
+                'credit_status_date' => '2026-07-29',
                 'credit_reason' => 'inactive_insurance',
             ])
             ->assertRedirect("/claims?page=2&search=Grouped&expanded={$firstLine->id}");
@@ -448,8 +458,10 @@ class ClaimsWorkflowTest extends TestCase
         $this->assertSame('appeal', $firstLine->fresh()->work_status);
         $this->assertSame('Missing documentation', $firstLine->fresh()->denial_reason);
         $this->assertSame('Followed up with payer', $firstLine->fresh()->notes);
-        $this->assertSame('pending_credit', $firstLine->fresh()->invoiced_status);
-        $this->assertSame('2026-07-29', $firstLine->fresh()->invoiced_status_date?->toDateString());
+        $this->assertSame('invoiced', $firstLine->fresh()->invoiced_status);
+        $this->assertSame('2026-07-01', $firstLine->fresh()->invoiced_status_date?->toDateString());
+        $this->assertTrue($firstLine->fresh()->credit_status);
+        $this->assertSame('2026-07-29', $firstLine->fresh()->credit_status_date?->toDateString());
         $this->assertSame('inactive_insurance', $firstLine->fresh()->credit_reason);
         $this->assertTrue($firstLine->fresh()->work_status_manually_set);
         $this->assertSame($user->id, $firstLine->fresh()->assigned_to);
@@ -458,47 +470,73 @@ class ClaimsWorkflowTest extends TestCase
         $this->assertSame('draft', $secondLine->fresh()->work_status);
         $this->assertNull($secondLine->fresh()->denial_reason);
         $this->assertNull($secondLine->fresh()->notes);
-        $this->assertNull($secondLine->fresh()->invoiced_status);
-        $this->assertNull($secondLine->fresh()->invoiced_status_date);
+        $this->assertSame('invoiced', $secondLine->fresh()->invoiced_status);
+        $this->assertSame('2026-07-02', $secondLine->fresh()->invoiced_status_date?->toDateString());
+        $this->assertNull($secondLine->fresh()->credit_status);
+        $this->assertNull($secondLine->fresh()->credit_status_date);
         $this->assertNull($secondLine->fresh()->credit_reason);
         $this->assertNull($secondLine->fresh()->assigned_to);
         $this->assertFalse((bool) $secondLine->fresh()->work_status_manually_set);
 
         $this->actingAs($user)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->get('/claims?invoiced_status=pending_credit')
+            ->get('/claims?invoiced_status=invoiced')
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('filters.invoiced_status', 'pending_credit')
+                ->where('filters.invoiced_status', 'invoiced')
                 ->where('claims.total', 1)
-                ->where('claims.data.0.lines.0.invoiced_status', 'pending_credit')
-                ->where('claims.data.0.lines.0.invoiced_status_date', '2026-07-29')
+                ->where('claims.data.0.lines.0.invoiced_status', 'invoiced')
+                ->where('claims.data.0.lines.0.invoiced_status_date', '2026-07-01')
+                ->where('claims.data.0.lines.0.credit_status', true)
+                ->where('claims.data.0.lines.0.credit_status_date', '2026-07-29')
                 ->where('claims.data.0.lines.0.credit_reason', 'inactive_insurance')
                 ->where('invoicedStatuses.0.value', 'invoiced')
-                ->where('invoicedStatuses.1.value', 'pending_credit')
-                ->where('invoicedStatuses.2.value', 'credited')
+                ->has('invoicedStatuses', 1)
                 ->where('creditReasons.0.value', 'inactive_insurance')
                 ->where('creditReasons.1.value', 'not_covered_by_insurance'));
 
         $this->actingAs($user)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->get('/claims?invoiced_status_from=2026-07-29&invoiced_status_to=2026-07-29')
+            ->get('/claims?invoiced_status_date=2026-07-01')
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('filters.invoiced_status_from', '2026-07-29')
-                ->where('filters.invoiced_status_to', '2026-07-29')
+                ->where('filters.invoiced_status_date', '2026-07-01')
                 ->where('claims.total', 1));
 
         $this->actingAs($user)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->get('/claims?invoiced_status_from=2026-07-30&invoiced_status_to=2026-07-31')
+            ->get('/claims?invoiced_status_date=2026-07-30')
             ->assertOk()
             ->assertInertia(fn ($page) => $page->where('claims.total', 0));
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->getJson('/claims/options?filter=invoiced_status_date')
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('data.0.id', '2026-07-02')
+            ->assertJsonPath('data.0.name', 'July 2, 2026')
+            ->assertJsonPath('data.1.id', '2026-07-01')
+            ->assertJsonPath('data.1.name', 'July 1, 2026');
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->getJson('/claims/options?filter=invoiced_status_date&search=July%202')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.id', '2026-07-02')
+            ->assertJsonPath('data.0.name', 'July 2, 2026');
     }
 
-    public function test_pending_credit_and_credited_statuses_require_a_credit_reason(): void
+    public function test_credit_status_requires_a_date_and_reason(): void
     {
+        $admin = User::factory()->create(['is_admin' => true]);
         $user = User::factory()->create();
+        GroupMember::create([
+            'admin_id' => $admin->id,
+            'user_id' => $user->id,
+            'account_type' => AccountType::Tricity->value,
+        ]);
         $claim = Claim::create([
             'account_type' => AccountType::Tricity->value,
             'external_id' => 'TC-CREDIT-VALIDATION-1',
@@ -510,13 +548,69 @@ class ClaimsWorkflowTest extends TestCase
             ->withSession(['account_type' => AccountType::Tricity->value])
             ->from('/claims')
             ->patch("/claims/{$claim->id}", [
-                'invoiced_status' => 'credited',
-                'invoiced_status_date' => '2026-07-29',
+                'credit_status' => true,
+                'credit_status_date' => null,
                 'credit_reason' => null,
             ])
             ->assertRedirect('/claims')
-            ->assertSessionHasErrors('credit_reason');
+            ->assertSessionHasErrors([
+                'credit_status_date' => 'Credit Status Date is required when Credit Status is Yes.',
+                'credit_reason' => 'Credit Reason is required when Credit Status is Yes.',
+            ]);
 
-        $this->assertNull($claim->fresh()->invoiced_status);
+        $this->assertSame('invoiced', $claim->fresh()->invoiced_status);
+        $this->assertNull($claim->fresh()->credit_status);
+        $this->assertNull($claim->fresh()->credit_status_date);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/claims')
+            ->patch("/claims/{$claim->id}", [
+                'credit_status' => false,
+                'credit_status_date' => null,
+                'credit_reason' => null,
+            ])
+            ->assertRedirect('/claims')
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertFalse($claim->fresh()->credit_status);
+        $this->assertNull($claim->fresh()->credit_status_date);
+        $this->assertNull($claim->fresh()->credit_reason);
+    }
+
+    public function test_user_without_an_admin_cannot_update_claim_lines(): void
+    {
+        $user = User::factory()->create();
+        $claim = Claim::create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-NO-ADMIN-1',
+            'patient_name' => 'Unassigned Team User',
+            'procedure_code' => '99490',
+            'work_status' => 'draft',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('canEditClaims', false));
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/claims')
+            ->patch("/claims/{$claim->id}", [
+                'work_status' => 'appeal',
+                'notes' => 'This update must be rejected.',
+            ])
+            ->assertRedirect('/claims')
+            ->assertSessionHasErrors([
+                'claim' => 'You are not assigned to an administrator. Ask an administrator to add you as a member before editing claims.',
+            ]);
+
+        $claim->refresh();
+        $this->assertSame('draft', $claim->work_status);
+        $this->assertNull($claim->notes);
+        $this->assertNull($claim->assigned_to);
+        $this->assertSame(0, ClaimActivity::query()->where('claim_id', $claim->id)->count());
     }
 }

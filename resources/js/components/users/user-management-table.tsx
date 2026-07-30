@@ -24,7 +24,7 @@ const initials = (name: string) =>
         .join('')
         .toUpperCase();
 
-const role = (user: ManagedUser) => (user.is_admin ? 'Administrator' : user.can_assign_claims ? 'Claims manager' : 'Claims user');
+const role = (user: ManagedUser) => (user.is_admin ? 'Administrator' : 'User');
 
 export function UserManagementTable({ accountTypes, currentUserId, isLoading, onEdit, users }: UserManagementTableProps) {
     return (
@@ -36,7 +36,7 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                             <tr>
                                 <th className="px-5 py-3">User</th>
                                 <th className="px-5 py-3">Role</th>
-                                <th className="px-5 py-3">Team owner</th>
+                                <th className="px-5 py-3">Members under you</th>
                                 <th className="px-5 py-3">Accounts</th>
                                 <th className="px-5 py-3">Joined</th>
                                 <th className="w-20 px-5 py-3" />
@@ -76,13 +76,27 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                                         </td>
                                         <td className="px-5 py-4">
                                             {user.is_admin ? (
-                                                <span className="text-muted-foreground">Team owner</span>
-                                            ) : teamOwner ? (
                                                 <span className="font-medium text-slate-800">
-                                                    {teamOwner.id === currentUserId ? 'Your team' : teamOwner.name}
+                                                    {user.members_under_you_count} {user.members_under_you_count === 1 ? 'member' : 'members'}
                                                 </span>
+                                            ) : teamOwner ? (
+                                                teamOwner.id === currentUserId ? (
+                                                    <Badge className="border-blue-200 bg-blue-50 text-blue-900" variant="outline">
+                                                        Yes
+                                                    </Badge>
+                                                ) : (
+                                                    <div>
+                                                        <Badge className="border-amber-200 bg-amber-50 text-amber-900" variant="outline">
+                                                            No
+                                                        </Badge>
+                                                        <p className="mt-1 text-xs text-amber-700">Under admin {teamOwner.name}</p>
+                                                    </div>
+                                                )
                                             ) : (
-                                                <span className="text-muted-foreground">Unassigned</span>
+                                                <div>
+                                                    <Badge variant="outline">No</Badge>
+                                                    <p className="text-muted-foreground mt-1 text-xs">Unassigned</p>
+                                                </div>
                                             )}
                                         </td>
                                         <td className="px-5 py-4">
@@ -99,9 +113,11 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                                         </td>
                                         <td className="text-muted-foreground px-5 py-4">{new Date(user.created_at).toLocaleDateString()}</td>
                                         <td className="px-5 py-4">
-                                            <Button aria-label={`Edit ${user.name}`} onClick={() => onEdit(user)} size="icon" variant="ghost">
-                                                <Pencil className="size-4" />
-                                            </Button>
+                                            {user.can_manage && (
+                                                <Button aria-label={`Edit ${user.name}`} onClick={() => onEdit(user)} size="icon" variant="ghost">
+                                                    <Pencil className="size-4" />
+                                                </Button>
+                                            )}
                                         </td>
                                     </tr>
                                 );

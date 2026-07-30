@@ -6,11 +6,18 @@ export interface TeamUser {
     email: string;
 }
 
+export interface TeamCandidate extends TeamUser {
+    owner: TeamUser | null;
+    is_selectable: boolean;
+    is_selected: boolean;
+}
+
 export interface ManagedUser extends TeamUser {
     is_admin: boolean;
-    can_assign_claims: boolean;
     account_types: string[] | null;
     admins: TeamUser[];
+    can_manage: boolean;
+    members_under_you_count: number;
     created_at: string;
 }
 

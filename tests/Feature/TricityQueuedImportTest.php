@@ -50,6 +50,10 @@ class TricityQueuedImportTest extends TestCase
         $this->assertSame('REVIEW NEEDED', $claim->modmed_claim_status);
         $this->assertSame('2026-07-01', $claim->cf_invoice_date?->toDateString());
         $this->assertSame('30.00', $claim->cf_invoice_amount);
+        $this->assertSame('invoiced', $claim->invoiced_status);
+        $this->assertSame('2026-07-01', $claim->invoiced_status_date?->toDateString());
+        $this->assertNull($claim->credit_status);
+        $this->assertNull($claim->credit_status_date);
         $this->assertSame('Superior Medicaid', $claim->rawRow?->raw_payload['payer']);
         $this->assertArrayHasKey('posted_date_month_year', $claim->rawRow?->raw_payload ?? []);
         $this->assertNull($import->stored_path);
@@ -69,6 +73,9 @@ class TricityQueuedImportTest extends TestCase
             'work_status_manually_set' => true,
             'denial_reason' => 'Missing authorization',
             'notes' => 'Appeal submitted.',
+            'credit_status' => true,
+            'credit_status_date' => '2026-07-15',
+            'credit_reason' => 'inactive_insurance',
         ]);
 
         $secondImport = $imports->queue($this->tricityUpdatedFile(), AccountType::Tricity->value, $user)->fresh();
@@ -79,6 +86,11 @@ class TricityQueuedImportTest extends TestCase
         $this->assertSame('appeal', $claim->work_status);
         $this->assertSame('Missing authorization', $claim->denial_reason);
         $this->assertSame('Appeal submitted.', $claim->notes);
+        $this->assertSame('invoiced', $claim->invoiced_status);
+        $this->assertSame('2026-07-01', $claim->invoiced_status_date?->toDateString());
+        $this->assertTrue($claim->credit_status);
+        $this->assertSame('2026-07-15', $claim->credit_status_date?->toDateString());
+        $this->assertSame('inactive_insurance', $claim->credit_reason);
         $this->assertSame('250.00', $claim->true_charge);
         $this->assertNull($claim->true_balance);
     }

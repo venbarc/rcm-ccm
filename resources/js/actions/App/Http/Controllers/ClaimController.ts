@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\ClaimController::options
- * @see app/Http/Controllers/ClaimController.php:269
+ * @see app/Http/Controllers/ClaimController.php:276
  * @route '/claims/options'
  */
 export const options = (routeOptions?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ options.definition = {
 
 /**
 * @see \App\Http\Controllers\ClaimController::options
- * @see app/Http/Controllers/ClaimController.php:269
+ * @see app/Http/Controllers/ClaimController.php:276
  * @route '/claims/options'
  */
 options.url = (routeOptions?: RouteQueryOptions) => {
@@ -104,7 +104,7 @@ options.url = (routeOptions?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ClaimController::options
- * @see app/Http/Controllers/ClaimController.php:269
+ * @see app/Http/Controllers/ClaimController.php:276
  * @route '/claims/options'
  */
 options.get = (routeOptions?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -113,7 +113,7 @@ options.get = (routeOptions?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\ClaimController::options
- * @see app/Http/Controllers/ClaimController.php:269
+ * @see app/Http/Controllers/ClaimController.php:276
  * @route '/claims/options'
  */
 options.head = (routeOptions?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -123,7 +123,7 @@ options.head = (routeOptions?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\ClaimController::options
- * @see app/Http/Controllers/ClaimController.php:269
+ * @see app/Http/Controllers/ClaimController.php:276
  * @route '/claims/options'
  */
     const optionsForm = (routeOptions?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -136,7 +136,7 @@ options.head = (routeOptions?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\ClaimController::options
- * @see app/Http/Controllers/ClaimController.php:269
+ * @see app/Http/Controllers/ClaimController.php:276
  * @route '/claims/options'
  */
         optionsForm.get = (routeOptions?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -148,7 +148,7 @@ options.head = (routeOptions?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\ClaimController::options
- * @see app/Http/Controllers/ClaimController.php:269
+ * @see app/Http/Controllers/ClaimController.php:276
  * @route '/claims/options'
  */
         optionsForm.head = (routeOptions?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -164,7 +164,7 @@ options.head = (routeOptions?: RouteQueryOptions): RouteDefinition<'head'> => ({
     options.form = optionsForm
 /**
 * @see \App\Http\Controllers\ClaimController::activities
- * @see app/Http/Controllers/ClaimController.php:422
+ * @see app/Http/Controllers/ClaimController.php:470
  * @route '/claims/{claim}/activities'
  */
 export const activities = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -179,7 +179,7 @@ activities.definition = {
 
 /**
 * @see \App\Http\Controllers\ClaimController::activities
- * @see app/Http/Controllers/ClaimController.php:422
+ * @see app/Http/Controllers/ClaimController.php:470
  * @route '/claims/{claim}/activities'
  */
 activities.url = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -212,7 +212,7 @@ activities.url = (args: { claim: number | { id: number } } | [claim: number | { 
 
 /**
 * @see \App\Http\Controllers\ClaimController::activities
- * @see app/Http/Controllers/ClaimController.php:422
+ * @see app/Http/Controllers/ClaimController.php:470
  * @route '/claims/{claim}/activities'
  */
 activities.get = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -221,7 +221,7 @@ activities.get = (args: { claim: number | { id: number } } | [claim: number | { 
 })
 /**
 * @see \App\Http\Controllers\ClaimController::activities
- * @see app/Http/Controllers/ClaimController.php:422
+ * @see app/Http/Controllers/ClaimController.php:470
  * @route '/claims/{claim}/activities'
  */
 activities.head = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -231,7 +231,7 @@ activities.head = (args: { claim: number | { id: number } } | [claim: number | {
 
     /**
 * @see \App\Http\Controllers\ClaimController::activities
- * @see app/Http/Controllers/ClaimController.php:422
+ * @see app/Http/Controllers/ClaimController.php:470
  * @route '/claims/{claim}/activities'
  */
     const activitiesForm = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -241,7 +241,7 @@ activities.head = (args: { claim: number | { id: number } } | [claim: number | {
 
             /**
 * @see \App\Http\Controllers\ClaimController::activities
- * @see app/Http/Controllers/ClaimController.php:422
+ * @see app/Http/Controllers/ClaimController.php:470
  * @route '/claims/{claim}/activities'
  */
         activitiesForm.get = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -250,7 +250,7 @@ activities.head = (args: { claim: number | { id: number } } | [claim: number | {
         })
             /**
 * @see \App\Http\Controllers\ClaimController::activities
- * @see app/Http/Controllers/ClaimController.php:422
+ * @see app/Http/Controllers/ClaimController.php:470
  * @route '/claims/{claim}/activities'
  */
         activitiesForm.head = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -266,7 +266,7 @@ activities.head = (args: { claim: number | { id: number } } | [claim: number | {
     activities.form = activitiesForm
 /**
 * @see \App\Http\Controllers\ClaimController::show
- * @see app/Http/Controllers/ClaimController.php:344
+ * @see app/Http/Controllers/ClaimController.php:390
  * @route '/claims/{claim}'
  */
 export const show = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -281,7 +281,7 @@ show.definition = {
 
 /**
 * @see \App\Http\Controllers\ClaimController::show
- * @see app/Http/Controllers/ClaimController.php:344
+ * @see app/Http/Controllers/ClaimController.php:390
  * @route '/claims/{claim}'
  */
 show.url = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -314,7 +314,7 @@ show.url = (args: { claim: number | { id: number } } | [claim: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\ClaimController::show
- * @see app/Http/Controllers/ClaimController.php:344
+ * @see app/Http/Controllers/ClaimController.php:390
  * @route '/claims/{claim}'
  */
 show.get = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -323,7 +323,7 @@ show.get = (args: { claim: number | { id: number } } | [claim: number | { id: nu
 })
 /**
 * @see \App\Http\Controllers\ClaimController::show
- * @see app/Http/Controllers/ClaimController.php:344
+ * @see app/Http/Controllers/ClaimController.php:390
  * @route '/claims/{claim}'
  */
 show.head = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -333,7 +333,7 @@ show.head = (args: { claim: number | { id: number } } | [claim: number | { id: n
 
     /**
 * @see \App\Http\Controllers\ClaimController::show
- * @see app/Http/Controllers/ClaimController.php:344
+ * @see app/Http/Controllers/ClaimController.php:390
  * @route '/claims/{claim}'
  */
     const showForm = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -343,7 +343,7 @@ show.head = (args: { claim: number | { id: number } } | [claim: number | { id: n
 
             /**
 * @see \App\Http\Controllers\ClaimController::show
- * @see app/Http/Controllers/ClaimController.php:344
+ * @see app/Http/Controllers/ClaimController.php:390
  * @route '/claims/{claim}'
  */
         showForm.get = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -352,7 +352,7 @@ show.head = (args: { claim: number | { id: number } } | [claim: number | { id: n
         })
             /**
 * @see \App\Http\Controllers\ClaimController::show
- * @see app/Http/Controllers/ClaimController.php:344
+ * @see app/Http/Controllers/ClaimController.php:390
  * @route '/claims/{claim}'
  */
         showForm.head = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -368,7 +368,7 @@ show.head = (args: { claim: number | { id: number } } | [claim: number | { id: n
     show.form = showForm
 /**
 * @see \App\Http\Controllers\ClaimController::update
- * @see app/Http/Controllers/ClaimController.php:440
+ * @see app/Http/Controllers/ClaimController.php:488
  * @route '/claims/{claim}'
  */
 export const update = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -383,7 +383,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\ClaimController::update
- * @see app/Http/Controllers/ClaimController.php:440
+ * @see app/Http/Controllers/ClaimController.php:488
  * @route '/claims/{claim}'
  */
 update.url = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -416,7 +416,7 @@ update.url = (args: { claim: number | { id: number } } | [claim: number | { id: 
 
 /**
 * @see \App\Http\Controllers\ClaimController::update
- * @see app/Http/Controllers/ClaimController.php:440
+ * @see app/Http/Controllers/ClaimController.php:488
  * @route '/claims/{claim}'
  */
 update.patch = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -426,7 +426,7 @@ update.patch = (args: { claim: number | { id: number } } | [claim: number | { id
 
     /**
 * @see \App\Http\Controllers\ClaimController::update
- * @see app/Http/Controllers/ClaimController.php:440
+ * @see app/Http/Controllers/ClaimController.php:488
  * @route '/claims/{claim}'
  */
     const updateForm = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -441,7 +441,7 @@ update.patch = (args: { claim: number | { id: number } } | [claim: number | { id
 
             /**
 * @see \App\Http\Controllers\ClaimController::update
- * @see app/Http/Controllers/ClaimController.php:440
+ * @see app/Http/Controllers/ClaimController.php:488
  * @route '/claims/{claim}'
  */
         updateForm.patch = (args: { claim: number | { id: number } } | [claim: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

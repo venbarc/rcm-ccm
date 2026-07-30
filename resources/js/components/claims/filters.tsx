@@ -4,6 +4,7 @@ import { DateRangeFilterField } from '@/components/date-range-filter-field';
 import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 
 interface ClaimsFiltersProps {
     local: Filters;
@@ -125,13 +126,17 @@ export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees
                             placeholder="CF invoice date range"
                             to={local.cf_invoice_to}
                         />
-                        <DateRangeFilterField
-                            from={local.invoiced_status_from}
-                            label="Invoiced Status Date Range"
-                            onApply={({ from, to }) => onFilterChange({ invoiced_status_from: from, invoiced_status_to: to })}
-                            placeholder="Invoiced status date range"
-                            to={local.invoiced_status_to}
-                        />
+                        <div className="flex min-w-0 flex-col gap-2">
+                            <Label>Invoiced Status Date</Label>
+                            <FilterSearchSelect
+                                emptyMessage="No invoiced dates found."
+                                filter="invoiced_status_date"
+                                onValueChange={(value) => onFilterChange({ invoiced_status_date: value })}
+                                placeholder="All invoiced status dates"
+                                searchPlaceholder="Search invoiced dates..."
+                                value={local.invoiced_status_date}
+                            />
+                        </div>
                         <DateRangeFilterField
                             from={local.worked_from}
                             label="Worked Date Range"

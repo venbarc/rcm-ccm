@@ -19,6 +19,8 @@ export interface ClaimDetailLine {
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
+    credit_status: boolean | null;
+    credit_status_date: string | null;
     credit_reason: string | null;
     patient_id: string | null;
     notes: string | null;

@@ -32,6 +32,7 @@ export interface SharedData {
     quote: { message: string; author: string };
     auth: Auth;
     activeAccount: string | null;
+    adminMembership: Pick<User, 'id' | 'name'> | null;
     accountTypes: AccountTypeOption[];
     flash: { status?: string; success?: string; error?: string };
     [key: string]: unknown;
@@ -44,7 +45,6 @@ export interface User {
     avatar?: string;
     email_verified_at: string | null;
     is_admin: boolean;
-    can_assign_claims: boolean;
     account_types: string[];
     created_at: string;
     updated_at: string;

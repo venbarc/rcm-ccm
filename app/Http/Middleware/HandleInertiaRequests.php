@@ -38,6 +38,8 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
+        $user = $request->user();
+        $activeAccount = AccountType::tryFrom((string) $request->session()->get('account_type'))?->value;
 
         return array_merge(parent::share($request), [
             'name' => config('app.name'),
@@ -46,12 +48,27 @@ class HandleInertiaRequests extends Middleware
             ],
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
-                'user' => $request->user() ? [
-                    ...$request->user()->only(['id', 'name', 'email', 'email_verified_at', 'is_admin', 'can_assign_claims']),
-                    'account_types' => $request->user()->allowedAccountTypes(),
+                'user' => $user ? [
+                    ...$user->only(['id', 'name', 'email', 'email_verified_at', 'is_admin']),
+                    'account_types' => $user->allowedAccountTypes(),
                 ] : null,
             ],
-            'activeAccount' => AccountType::tryFrom((string) $request->session()->get('account_type'))?->value,
+            'activeAccount' => $activeAccount,
+            'adminMembership' => function () use ($activeAccount, $user): ?array {
+                if (! $user || $user->is_admin || ! $activeAccount) {
+                    return null;
+                }
+
+                $administrator = $user->adminsForAccount($activeAccount)
+                    ->where('users.is_admin', true)
+                    ->select(['users.id', 'users.name'])
+                    ->first();
+
+                return $administrator ? [
+                    'id' => $administrator->id,
+                    'name' => $administrator->name,
+                ] : null;
+            },
             'accountTypes' => AccountType::options(),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),

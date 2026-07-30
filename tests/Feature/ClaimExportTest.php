@@ -63,8 +63,8 @@ class ClaimExportTest extends TestCase
             'service_date_start' => '2026-06-30',
             'work_status' => 'paid',
             'assigned_to' => $agent->id,
-            'invoiced_status' => 'credited',
-            'invoiced_status_date' => '2026-07-29',
+            'credit_status' => true,
+            'credit_status_date' => '2026-07-29',
             'credit_reason' => 'not_covered_by_insurance',
         ]);
         ClaimRawRow::query()->create([
@@ -98,6 +98,13 @@ class ClaimExportTest extends TestCase
             'procedure_code' => '99439',
             'work_status' => 'draft',
             'true_charge' => 140,
+            'credit_status' => false,
+        ]);
+        $this->claim([
+            'external_id' => 'TC-EXPORT-1',
+            'procedure_code' => 'G0511',
+            'work_status' => 'draft',
+            'true_charge' => 95,
         ]);
         $this->claim([
             'account_type' => AccountType::Principle->value,
@@ -112,14 +119,14 @@ class ClaimExportTest extends TestCase
 
         $response->assertAccepted()
             ->assertJsonPath('export.status', 'completed')
-            ->assertJsonPath('export.total_rows', 2)
-            ->assertJsonPath('export.processed_rows', 2);
+            ->assertJsonPath('export.total_rows', 3)
+            ->assertJsonPath('export.processed_rows', 3);
 
         $export = ClaimExport::query()->firstOrFail();
         Storage::assertExists($export->file_path);
         $rows = array_map('str_getcsv', preg_split('/\r\n|\r|\n/', trim(Storage::get($export->file_path))));
 
-        $this->assertCount(3, $rows);
+        $this->assertCount(4, $rows);
         $this->assertSame([
             'CPT', 'Location', 'Bill ID', 'Invoice Rate Per Unit', 'CF Invoice Amount',
             'Payments', 'True Balance', 'True Charge', 'Units', 'BillingID-CPT',
@@ -130,18 +137,27 @@ class ClaimExportTest extends TestCase
         ], array_slice($rows[0], 0, 25));
         $this->assertSame([
             'Work Status', 'Assigned To', 'Denial Reason', 'Notes',
-            'Invoiced Status', 'Invoiced Status Date', 'Credit Reason', 'Last Updated',
+            'Invoiced Status', 'Invoiced Status Date', 'Credit Status',
+            'Credit Status Date', 'Credit Reason', 'Last Updated',
         ], array_slice($rows[0], 25));
-        $this->assertSame(['99490', '99439'], array_column(array_slice($rows, 1), 0));
+        $this->assertSame(['99490', '99439', 'G0511'], array_column(array_slice($rows, 1), 0));
         $this->assertSame('30', $rows[1][3]);
         $this->assertSame('50.46', $rows[1][6]);
         $this->assertSame('50.46', $rows[1][7]);
         $this->assertSame('TC-EXPORT-1-99490', $rows[1][9]);
         $this->assertSame('185', $rows[1][10]);
         $this->assertSame('\'=HYPERLINK("https://example.test")', $rows[1][17]);
-        $this->assertSame('Credited', $rows[1][array_search('Invoiced Status', $rows[0], true)]);
-        $this->assertSame('2026-07-29', $rows[1][array_search('Invoiced Status Date', $rows[0], true)]);
+        $this->assertSame('Invoiced', $rows[1][array_search('Invoiced Status', $rows[0], true)]);
+        $this->assertSame('2026-06-30', $rows[1][array_search('Invoiced Status Date', $rows[0], true)]);
+        $this->assertSame('Yes', $rows[1][array_search('Credit Status', $rows[0], true)]);
+        $this->assertSame('2026-07-29', $rows[1][array_search('Credit Status Date', $rows[0], true)]);
         $this->assertSame('Not Covered by the Insurance', $rows[1][array_search('Credit Reason', $rows[0], true)]);
+        $this->assertSame('No', $rows[2][array_search('Credit Status', $rows[0], true)]);
+        $this->assertSame('', $rows[2][array_search('Credit Status Date', $rows[0], true)]);
+        $this->assertSame('', $rows[2][array_search('Credit Reason', $rows[0], true)]);
+        $this->assertSame('Open', $rows[3][array_search('Credit Status', $rows[0], true)]);
+        $this->assertSame('', $rows[3][array_search('Credit Status Date', $rows[0], true)]);
+        $this->assertSame('', $rows[3][array_search('Credit Reason', $rows[0], true)]);
         $this->assertSame('Paid', $rows[1][array_search('Work Status', $rows[0], true)]);
         $this->assertSame('Assigned Agent', $rows[1][array_search('Assigned To', $rows[0], true)]);
         $this->assertStringNotContainsString('PR-HIDDEN-1', Storage::get($export->file_path));

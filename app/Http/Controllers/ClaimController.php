@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,6 +29,7 @@ class ClaimController extends Controller
         'denial_reason',
         'procedure_code',
         'service_month',
+        'invoiced_status_date',
     ];
 
     private const WORK_STATUSES = [
@@ -37,8 +39,6 @@ class ClaimController extends Controller
 
     private const INVOICED_STATUSES = [
         'invoiced' => 'Invoiced',
-        'pending_credit' => 'Pending Credit',
-        'credited' => 'Credited',
     ];
 
     private const CREDIT_REASONS = [
@@ -90,6 +90,8 @@ class ClaimController extends Controller
             ->selectRaw('MAX(NULLIF(modmed_claim_status, \'\')) as modmed_claim_status')
             ->selectRaw('MAX(NULLIF(invoiced_status, \'\')) as invoiced_status')
             ->selectRaw('MAX(invoiced_status_date) as invoiced_status_date')
+            ->selectRaw('MAX(credit_status) as credit_status')
+            ->selectRaw('MAX(credit_status_date) as credit_status_date')
             ->selectRaw('MAX(NULLIF(credit_reason, \'\')) as credit_reason')
             ->selectRaw('MAX(NULLIF(denial_reason, \'\')) as denial_reason')
             ->selectRaw('MAX(NULLIF(notes, \'\')) as notes')
@@ -99,7 +101,7 @@ class ClaimController extends Controller
             ->selectRaw('MAX(NULLIF(primary_provider, \'\')) as primary_provider')
             ->selectRaw('MAX(NULLIF(payer_name, \'\')) as payer_name')
             ->selectRaw('MAX(NULLIF(place_of_service_code, \'\')) as place_of_service_code')
-            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') OR (invoiced_status IS NOT NULL AND TRIM(invoiced_status) != \'\') THEN 1 ELSE 0 END) as is_modified')
+            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') OR credit_status IS NOT NULL OR (credit_reason IS NOT NULL AND TRIM(credit_reason) != \'\') THEN 1 ELSE 0 END) as is_modified')
             ->groupBy('bill_id')
             ->orderBy($sortBy, $sortDirection)
             ->orderBy('bill_id')
@@ -164,9 +166,11 @@ class ClaimController extends Controller
                 'modmed_claim_status' => $representative?->modmed_claim_status ?: $group->modmed_claim_status,
                 'cf_invoice_date' => $representative?->cf_invoice_date?->toDateString()
                     ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
-                'invoiced_status' => $representative?->invoiced_status ?: $group->invoiced_status,
-                'invoiced_status_date' => $representative?->invoiced_status_date?->toDateString()
-                    ?? ($group->invoiced_status_date ? Carbon::parse($group->invoiced_status_date)->toDateString() : null),
+                'invoiced_status' => 'invoiced',
+                'invoiced_status_date' => $representative?->cf_invoice_date?->toDateString()
+                    ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
+                'credit_status' => $group->credit_status === null ? null : (bool) $group->credit_status,
+                'credit_status_date' => $group->credit_status_date ? Carbon::parse($group->credit_status_date)->toDateString() : null,
                 'credit_reason' => $representative?->credit_reason ?: $group->credit_reason,
                 'work_status' => $representative?->work_status ?: ($group->work_status ?: 'draft'),
                 'denial_reason' => $representative?->denial_reason ?: $group->denial_reason,
@@ -195,8 +199,10 @@ class ClaimController extends Controller
                     'patient_id' => $claim->patient_id,
                     'modmed_claim_status' => $claim->modmed_claim_status,
                     'cf_invoice_date' => $claim->cf_invoice_date?->toDateString(),
-                    'invoiced_status' => $claim->invoiced_status,
-                    'invoiced_status_date' => $claim->invoiced_status_date?->toDateString(),
+                    'invoiced_status' => 'invoiced',
+                    'invoiced_status_date' => $claim->cf_invoice_date?->toDateString(),
+                    'credit_status' => $claim->credit_status,
+                    'credit_status_date' => $claim->credit_status_date?->toDateString(),
                     'credit_reason' => $claim->credit_reason,
                     'work_status' => $claim->work_status ?: 'draft',
                     'denial_reason' => $claim->denial_reason,
@@ -211,7 +217,8 @@ class ClaimController extends Controller
                     'is_modified' => (bool) ($claim->work_status_manually_set
                         || filled($claim->notes)
                         || filled($claim->denial_reason)
-                        || filled($claim->invoiced_status)),
+                        || $claim->credit_status !== null
+                        || filled($claim->credit_reason)),
                     'updated_at' => $claim->updated_at->toIso8601String(),
                 ])->all(),
             ];
@@ -237,8 +244,7 @@ class ClaimController extends Controller
                 'service_month' => $serviceMonth,
                 'cf_invoice_from' => (string) $request->input('cf_invoice_from', ''),
                 'cf_invoice_to' => (string) $request->input('cf_invoice_to', ''),
-                'invoiced_status_from' => (string) $request->input('invoiced_status_from', ''),
-                'invoiced_status_to' => (string) $request->input('invoiced_status_to', ''),
+                'invoiced_status_date' => (string) $request->input('invoiced_status_date', ''),
                 'procedure_code' => (string) $request->input('procedure_code', ''),
                 'expanded' => (string) $request->input('expanded', ''),
                 'sort_by' => $sortBy,
@@ -263,6 +269,7 @@ class ClaimController extends Controller
                 ->where('account_type', $accountValue)
                 ->whereIn('status', ['queued', 'processing'])
                 ->exists(),
+            'canEditClaims' => $this->canEditClaims($request, $accountValue),
         ]);
     }
 
@@ -310,6 +317,45 @@ class ClaimController extends Controller
             ]);
         }
 
+        if ($filter === 'invoiced_status_date') {
+            $dates = Claim::query()
+                ->where('account_type', $account->value)
+                ->whereRaw($this->filterExpression('invoiced_status_date').' IS NOT NULL')
+                ->selectRaw($this->filterExpression('invoiced_status_date').' as option_value')
+                ->distinct()
+                ->pluck('option_value')
+                ->map(fn ($value): string => Carbon::parse($value)->toDateString())
+                ->filter(function (string $value) use ($search): bool {
+                    if ($search === '') {
+                        return true;
+                    }
+
+                    $normalizedSearch = strtolower($search);
+                    $formattedDate = strtolower(Carbon::parse($value)->format('F j, Y'));
+
+                    return str_contains($value, $normalizedSearch)
+                        || str_contains($formattedDate, $normalizedSearch);
+                })
+                ->unique()
+                ->sortDesc()
+                ->values();
+
+            $total = $dates->count();
+            $lastPage = max((int) ceil(max($total, 1) / $perPage), 1);
+
+            return response()->json([
+                'data' => $dates->forPage($page, $perPage)->map(fn (string $value): array => [
+                    'id' => $value,
+                    'name' => Carbon::parse($value)->format('F j, Y'),
+                ])->values()->all(),
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'has_more' => $page < $lastPage,
+            ]);
+        }
+
         $expression = $this->filterExpression($filter);
         abort_if($expression === null, 422, 'Choose a valid claims filter.');
 
@@ -324,7 +370,7 @@ class ClaimController extends Controller
         $total = DB::query()->fromSub(clone $query, 'claim_filter_options')->count();
         $lastPage = max((int) ceil(max($total, 1) / $perPage), 1);
         $options = (clone $query)
-            ->orderBy('option_value')
+            ->orderBy('option_value', $filter === 'invoiced_status_date' ? 'desc' : 'asc')
             ->forPage($page, $perPage)
             ->pluck('option_value');
 
@@ -404,8 +450,10 @@ class ClaimController extends Controller
                     'primary_provider' => $line->primary_provider ?: $line->provider,
                     'modmed_claim_status' => $line->modmed_claim_status,
                     'cf_invoice_date' => $line->cf_invoice_date?->toDateString(),
-                    'invoiced_status' => $line->invoiced_status,
-                    'invoiced_status_date' => $line->invoiced_status_date?->toDateString(),
+                    'invoiced_status' => 'invoiced',
+                    'invoiced_status_date' => $line->cf_invoice_date?->toDateString(),
+                    'credit_status' => $line->credit_status,
+                    'credit_status_date' => $line->credit_status_date?->toDateString(),
                     'credit_reason' => $line->credit_reason,
                     'patient_id' => $line->patient_id,
                     'notes' => $line->notes,
@@ -442,21 +490,30 @@ class ClaimController extends Controller
         $account = CurrentAccount::resolve($request);
         abort_unless($claim->account_type === $account->value, 404);
 
+        if (! $this->canEditClaims($request, $account->value)) {
+            throw ValidationException::withMessages([
+                'claim' => 'You are not assigned to an administrator. Ask an administrator to add you as a member before editing claims.',
+            ]);
+        }
+
         $validated = $request->validate([
             'work_status' => ['sometimes', Rule::in(self::WORK_STATUSES)],
             'denial_reason' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:10000'],
-            'invoiced_status' => ['sometimes', 'nullable', Rule::in(array_keys(self::INVOICED_STATUSES))],
-            'invoiced_status_date' => [
+            'credit_status' => ['sometimes', 'nullable', 'boolean'],
+            'credit_status_date' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('credit_status')),
                 'nullable',
                 'date_format:Y-m-d',
-                Rule::requiredIf(fn (): bool => filled($request->input('invoiced_status'))),
             ],
             'credit_reason' => [
+                Rule::requiredIf(fn (): bool => $request->boolean('credit_status')),
                 'nullable',
                 Rule::in(array_keys(self::CREDIT_REASONS)),
-                Rule::requiredIf(fn (): bool => in_array($request->input('invoiced_status'), ['pending_credit', 'credited'], true)),
             ],
+        ], [
+            'credit_status_date.required' => 'Credit Status Date is required when Credit Status is Yes.',
+            'credit_reason.required' => 'Credit Reason is required when Credit Status is Yes.',
         ]);
 
         foreach (['denial_reason', 'notes', 'credit_reason'] as $field) {
@@ -465,13 +522,13 @@ class ClaimController extends Controller
             }
         }
 
-        if (array_key_exists('invoiced_status', $validated)) {
-            $validated['invoiced_status'] = trim((string) $validated['invoiced_status']) ?: null;
+        if (array_key_exists('credit_status', $validated)) {
+            $validated['credit_status'] = $validated['credit_status'] === null
+                ? null
+                : (bool) $validated['credit_status'];
 
-            if ($validated['invoiced_status'] === null) {
-                $validated['invoiced_status_date'] = null;
-                $validated['credit_reason'] = null;
-            } elseif ($validated['invoiced_status'] === 'invoiced') {
+            if ($validated['credit_status'] !== true) {
+                $validated['credit_status_date'] = null;
                 $validated['credit_reason'] = null;
             }
         }
@@ -599,8 +656,11 @@ class ClaimController extends Controller
         $this->applyDateFilter($query, 'updated_at', '<=', $request->input('worked_to'));
         $this->applyDateFilter($query, 'cf_invoice_date', '>=', $request->input('cf_invoice_from'));
         $this->applyDateFilter($query, 'cf_invoice_date', '<=', $request->input('cf_invoice_to'));
-        $this->applyDateFilter($query, 'invoiced_status_date', '>=', $request->input('invoiced_status_from'));
-        $this->applyDateFilter($query, 'invoiced_status_date', '<=', $request->input('invoiced_status_to'));
+        $this->applyExpressionExactFilter(
+            $query,
+            $this->filterExpression('invoiced_status_date'),
+            $request->input('invoiced_status_date'),
+        );
 
         $serviceMonth = trim((string) $request->input('service_month', ''));
         if (preg_match('/^\d{4}-\d{2}$/', $serviceMonth) === 1) {
@@ -654,8 +714,19 @@ class ClaimController extends Controller
             'primary_provider' => "COALESCE(NULLIF(primary_provider, ''), NULLIF(provider, ''))",
             'denial_reason' => "NULLIF(denial_reason, '')",
             'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
+            'invoiced_status_date' => 'COALESCE(invoiced_status_date, cf_invoice_date)',
             default => null,
         };
+    }
+
+    private function canEditClaims(Request $request, string $account): bool
+    {
+        $user = $request->user();
+
+        return $user->is_admin
+            || $user->groupMembershipsAsMember()
+                ->where('account_type', $account)
+                ->exists();
     }
 
     /** @param array<string, string> $options @return array<int, array{value: string, label: string}> */

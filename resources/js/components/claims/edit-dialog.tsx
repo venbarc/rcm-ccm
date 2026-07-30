@@ -8,8 +8,8 @@ interface EditFormState {
     work_status: string;
     denial_reason: string;
     notes: string;
-    invoiced_status: string;
-    invoiced_status_date: string;
+    credit_status: '' | 'yes' | 'no';
+    credit_status_date: string;
     credit_reason: string;
 }
 
@@ -19,7 +19,6 @@ interface ClaimEditDialogProps {
     editForm: EditFormState;
     setEditForm: (value: EditFormState) => void;
     workStatuses: StatusOption[];
-    invoicedStatuses: StatusOption[];
     creditReasons: StatusOption[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -32,15 +31,15 @@ export function ClaimEditDialog({
     editForm,
     setEditForm,
     workStatuses,
-    invoicedStatuses,
     creditReasons,
     open,
     onOpenChange,
     onSave,
 }: ClaimEditDialogProps) {
-    const needsCreditReason = ['pending_credit', 'credited'].includes(editForm.invoiced_status);
-    const invoicingFieldsComplete =
-        editForm.invoiced_status === '' || (editForm.invoiced_status_date !== '' && (!needsCreditReason || editForm.credit_reason !== ''));
+    const isCredited = editForm.credit_status === 'yes';
+    const isCreditStatusDateMissing = isCredited && editForm.credit_status_date === '';
+    const isCreditReasonMissing = isCredited && editForm.credit_reason === '';
+    const creditFieldsComplete = !isCreditStatusDateMissing && !isCreditReasonMissing;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,43 +78,73 @@ export function ClaimEditDialog({
                     <div className="grid gap-3 sm:grid-cols-2">
                         <label className="grid gap-1.5 text-sm font-medium">
                             Invoiced Status
-                            <select
-                                className="bg-background h-10 rounded-md border px-3 font-normal"
-                                onChange={(event) => {
-                                    const status = event.target.value;
-                                    setEditForm({
-                                        ...editForm,
-                                        invoiced_status: status,
-                                        invoiced_status_date: status ? editForm.invoiced_status_date : '',
-                                        credit_reason: ['pending_credit', 'credited'].includes(status) ? editForm.credit_reason : '',
-                                    });
-                                }}
-                                value={editForm.invoiced_status}
-                            >
-                                <option value="">Not set</option>
-                                {invoicedStatuses.map((item) => (
-                                    <option key={item.value} value={item.value}>
-                                        {item.label}
-                                    </option>
-                                ))}
-                            </select>
+                            <Input className="bg-muted text-muted-foreground" readOnly value="Invoiced" />
                         </label>
                         <label className="grid gap-1.5 text-sm font-medium">
                             Invoiced Status Date
-                            <Input
-                                disabled={!editForm.invoiced_status}
-                                onChange={(event) => setEditForm({ ...editForm, invoiced_status_date: event.target.value })}
-                                required={Boolean(editForm.invoiced_status)}
-                                type="date"
-                                value={editForm.invoiced_status_date}
-                            />
+                            <Input className="bg-muted text-muted-foreground" readOnly type="date" value={line?.cf_invoice_date ?? ''} />
                         </label>
                     </div>
-                    {needsCreditReason && (
+                    <div className="grid gap-3 sm:grid-cols-2">
                         <label className="grid gap-1.5 text-sm font-medium">
-                            Credit Reason
+                            Credit Status
                             <select
                                 className="bg-background h-10 rounded-md border px-3 font-normal"
+                                onChange={(event) => {
+                                    const status = event.target.value as '' | 'yes' | 'no';
+                                    setEditForm({
+                                        ...editForm,
+                                        credit_status: status,
+                                        credit_status_date: status === 'yes' ? editForm.credit_status_date : '',
+                                        credit_reason: status === 'yes' ? editForm.credit_reason : '',
+                                    });
+                                }}
+                                value={editForm.credit_status}
+                            >
+                                <option value="">Open</option>
+                                <option value="no">No</option>
+                                <option value="yes">Yes</option>
+                            </select>
+                        </label>
+                        <label className="grid gap-1.5 text-sm font-medium">
+                            <span>
+                                Credit Status Date
+                                {isCredited && (
+                                    <span aria-label="required" className="font-bold text-red-600">
+                                        {' '}
+                                        *
+                                    </span>
+                                )}
+                            </span>
+                            <Input
+                                aria-invalid={isCreditStatusDateMissing}
+                                aria-required={isCredited}
+                                className={isCreditStatusDateMissing ? 'border-destructive' : undefined}
+                                disabled={!isCredited}
+                                onChange={(event) => setEditForm({ ...editForm, credit_status_date: event.target.value })}
+                                required={isCredited}
+                                type="date"
+                                value={editForm.credit_status_date}
+                            />
+                            {isCreditStatusDateMissing && (
+                                <span className="text-destructive text-xs">Credit Status Date is required when Credit Status is Yes.</span>
+                            )}
+                        </label>
+                    </div>
+                    {isCredited && (
+                        <label className="grid gap-1.5 text-sm font-medium">
+                            <span>
+                                Credit Reason{' '}
+                                <span aria-label="required" className="font-bold text-red-600">
+                                    *
+                                </span>
+                            </span>
+                            <select
+                                aria-invalid={isCreditReasonMissing}
+                                aria-required="true"
+                                className={`bg-background h-10 rounded-md border px-3 font-normal ${
+                                    isCreditReasonMissing ? 'border-destructive' : ''
+                                }`}
                                 onChange={(event) => setEditForm({ ...editForm, credit_reason: event.target.value })}
                                 required
                                 value={editForm.credit_reason}
@@ -127,6 +156,9 @@ export function ClaimEditDialog({
                                     </option>
                                 ))}
                             </select>
+                            {isCreditReasonMissing && (
+                                <span className="text-destructive text-xs">Credit Reason is required when Credit Status is Yes.</span>
+                            )}
                         </label>
                     )}
                     <label className="grid gap-1.5 text-sm font-medium">
@@ -147,7 +179,11 @@ export function ClaimEditDialog({
                     <Button onClick={() => onOpenChange(false)} variant="outline">
                         Cancel
                     </Button>
-                    <Button disabled={!invoicingFieldsComplete} onClick={onSave}>
+                    <Button
+                        disabled={!creditFieldsComplete}
+                        onClick={onSave}
+                        title={!creditFieldsComplete ? 'Complete the required credit fields before saving.' : undefined}
+                    >
                         Save changes
                     </Button>
                 </DialogFooter>

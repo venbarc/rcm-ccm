@@ -18,16 +18,9 @@ class TeamService
         return User::query()
             ->where(function (Builder $query) use ($admin, $account): void {
                 $query->whereKey($admin->id)
-                    ->orWhere(function (Builder $members) use ($admin, $account): void {
+                    ->orWhere(function (Builder $members) use ($account): void {
                         $members->where('is_admin', false)
-                            ->whereJsonContains('account_types', $account)
-                            ->where(function (Builder $scope) use ($admin, $account): void {
-                                $scope->whereDoesntHave('groupMembershipsAsMember', fn (Builder $membership) => $membership
-                                    ->where('account_type', $account))
-                                    ->orWhereHas('groupMembershipsAsMember', fn (Builder $membership) => $membership
-                                        ->where('account_type', $account)
-                                        ->where('admin_id', $admin->id));
-                            });
+                            ->whereJsonContains('account_types', $account);
                     });
             });
     }
@@ -77,15 +70,11 @@ class TeamService
 
     public function availableMembersQuery(User $admin, string $account): Builder
     {
+        abort_unless($admin->is_admin, 422, 'Only administrators can manage users.');
+
         return User::query()
             ->where('is_admin', false)
-            ->whereJsonContains('account_types', $account)
-            ->where(function (Builder $query) use ($admin, $account): void {
-                $query->whereDoesntHave('groupMembershipsAsMember', fn (Builder $membership) => $membership->where('account_type', $account))
-                    ->orWhereHas('groupMembershipsAsMember', fn (Builder $membership) => $membership
-                        ->where('account_type', $account)
-                        ->where('admin_id', $admin->id));
-            });
+            ->whereJsonContains('account_types', $account);
     }
 
     /** @param array<int, int|string> $memberIds */

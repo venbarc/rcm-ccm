@@ -32,7 +32,8 @@ class ClaimExportService
         'Payer', 'Payer-CPT', 'Place of Service Code', 'Posted Date Month/Year',
         'Primary Provider', 'Service Date', 'True Charge Per Unit',
         'Work Status', 'Assigned To', 'Denial Reason', 'Notes',
-        'Invoiced Status', 'Invoiced Status Date', 'Credit Reason', 'Last Updated',
+        'Invoiced Status', 'Invoiced Status Date', 'Credit Status',
+        'Credit Status Date', 'Credit Reason', 'Last Updated',
     ];
 
     private const WORK_STATUS_LABELS = [
@@ -48,8 +49,6 @@ class ClaimExportService
 
     private const INVOICED_STATUS_LABELS = [
         'invoiced' => 'Invoiced',
-        'pending_credit' => 'Pending Credit',
-        'credited' => 'Credited',
     ];
 
     private const CREDIT_REASON_LABELS = [
@@ -334,8 +333,14 @@ class ClaimExportService
             $claim->assignee?->name,
             $claim->denial_reason,
             $claim->notes,
-            $this->label(self::INVOICED_STATUS_LABELS, $claim->invoiced_status),
-            $claim->invoiced_status_date?->format('Y-m-d'),
+            self::INVOICED_STATUS_LABELS['invoiced'],
+            $claim->cf_invoice_date?->format('Y-m-d'),
+            match ($claim->credit_status) {
+                true => 'Yes',
+                false => 'No',
+                null => 'Open',
+            },
+            $claim->credit_status_date?->format('Y-m-d'),
             $this->label(self::CREDIT_REASON_LABELS, $claim->credit_reason),
             $claim->updated_at?->format('Y-m-d H:i:s'),
         ];

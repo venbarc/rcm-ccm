@@ -376,7 +376,11 @@ class ClaimImportService
 
     private function wasWorkedOrModified(Claim $claim): bool
     {
-        if ($claim->work_status_manually_set || filled($claim->notes) || filled($claim->denial_reason)) {
+        if ($claim->work_status_manually_set
+            || filled($claim->notes)
+            || filled($claim->denial_reason)
+            || $claim->credit_status !== null
+            || filled($claim->credit_reason)) {
             return true;
         }
 
