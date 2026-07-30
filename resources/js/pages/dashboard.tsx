@@ -1,8 +1,17 @@
 import { ClaimsByStatusCard } from '@/components/dashboard/claims-by-status-card';
 import { FinancialSummaryCard } from '@/components/dashboard/financial-summary-card';
+import { InvoicedSummaryCard } from '@/components/dashboard/invoiced-summary-card';
 import { RadialMetricCard } from '@/components/dashboard/radial-metric-card';
 import { DashboardRangeFilter } from '@/components/dashboard/range-filter';
-import type { ClaimByStatus, DashboardFilters, DashboardFinancialSummary, WorkSummary } from '@/components/dashboard/types';
+import { SummaryDateFilters } from '@/components/dashboard/summary-date-filters';
+import type {
+    ClaimByStatus,
+    DashboardFilters,
+    DashboardFinancialSummary,
+    DashboardInvoicedSummary,
+    DashboardPanelFilters,
+    WorkSummary,
+} from '@/components/dashboard/types';
 import { formatCount } from '@/components/dashboard/types';
 import { WorkSummaryTable } from '@/components/dashboard/work-summary-table';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
@@ -16,18 +25,29 @@ import { Head, usePage } from '@inertiajs/react';
 interface DashboardProps {
     accountLabel: string;
     filters: DashboardFilters;
+    panelFilters: DashboardPanelFilters;
     workSummary: WorkSummary;
     claimsByStatus: ClaimByStatus[];
     cptSummary?: DashboardFinancialSummary;
     modmedStatusSummary?: DashboardFinancialSummary;
+    invoicedSummary?: DashboardInvoicedSummary;
 }
 
-export default function Dashboard({ accountLabel, filters, workSummary, claimsByStatus, cptSummary, modmedStatusSummary }: DashboardProps) {
+export default function Dashboard({
+    accountLabel,
+    filters,
+    panelFilters,
+    workSummary,
+    claimsByStatus,
+    cptSummary,
+    modmedStatusSummary,
+    invoicedSummary,
+}: DashboardProps) {
     const { auth } = usePage<SharedData>().props;
     const isLoading = useInertiaLoading();
     const workedLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.workedCount / workSummary.totalCount) * 100, 100) : 0;
     const paidLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.paidCount / workSummary.totalCount) * 100, 100) : 0;
-    const showAdminSummaries = auth.user.is_admin && cptSummary && modmedStatusSummary;
+    const showAdminSummaries = auth.user.is_admin && cptSummary && modmedStatusSummary && invoicedSummary;
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }]}>
@@ -60,6 +80,7 @@ export default function Dashboard({ accountLabel, filters, workSummary, claimsBy
                         <section aria-label="Admin financial summaries" className="flex min-w-0 flex-col gap-6">
                             <FinancialSummaryCard
                                 description="CPT-level volume, collections, balances, and CF invoice totals for the selected range."
+                                filters={<SummaryDateFilters filters={panelFilters.cptSummary} prefix="cpt" />}
                                 groupHeading="CPT"
                                 groupKind="cpt"
                                 summary={cptSummary}
@@ -67,15 +88,23 @@ export default function Dashboard({ accountLabel, filters, workSummary, claimsBy
                             />
                             <FinancialSummaryCard
                                 description="Financial performance grouped by the imported ModMed Claim Status."
+                                filters={<SummaryDateFilters filters={panelFilters.modmedStatusSummary} prefix="modmed" />}
                                 groupHeading="ModMed Claim Status"
                                 groupKind="modmed-status"
                                 summary={modmedStatusSummary}
                                 title="Summary by Claim Status"
                             />
+                            <InvoicedSummaryCard
+                                filters={<SummaryDateFilters filters={panelFilters.invoicedSummary} prefix="invoiced" showServiceDate={false} />}
+                                summary={invoicedSummary}
+                            />
                         </section>
                     )}
 
-                    <ClaimsByStatusCard statuses={claimsByStatus} />
+                    <ClaimsByStatusCard
+                        filters={<SummaryDateFilters filters={panelFilters.claimsByStatus} prefix="claims_status" />}
+                        statuses={claimsByStatus}
+                    />
 
                     <Card>
                         <CardHeader>

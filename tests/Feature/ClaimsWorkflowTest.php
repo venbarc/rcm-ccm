@@ -16,6 +16,47 @@ class ClaimsWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_claims_can_filter_by_multiple_payers_selected_from_a_keyword_search(): void
+    {
+        $user = User::factory()->create();
+
+        foreach ([
+            ['bill_id' => 'TC-PAYER-1', 'payer_name' => 'Aetna Texas Medicaid & CHIP'],
+            ['bill_id' => 'TC-PAYER-2', 'payer_name' => 'Superior Medicaid'],
+            ['bill_id' => 'TC-PAYER-3', 'payer_name' => 'Medicare of Texas'],
+        ] as $claim) {
+            Claim::query()->create([
+                'account_type' => AccountType::Tricity->value,
+                'external_id' => $claim['bill_id'],
+                'patient_name' => 'Payer Filter Patient',
+                'payer_name' => $claim['payer_name'],
+                'procedure_code' => '99490',
+            ]);
+        }
+
+        $selectedPayers = json_encode(['Aetna Texas Medicaid & CHIP', 'Superior Medicaid'], JSON_THROW_ON_ERROR);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims?'.http_build_query(['payer_name' => $selectedPayers]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.payer_name', $selectedPayers)
+                ->where('claims.total', 2)
+                ->where('claims.data', fn ($claims): bool => collect($claims)
+                    ->pluck('payer_name')
+                    ->sort()
+                    ->values()
+                    ->all() === ['Aetna Texas Medicaid & CHIP', 'Superior Medicaid']));
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->getJson('/claims/options?filter=payer_name&search=medicaid&per_page=200')
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonCount(2, 'data');
+    }
+
     public function test_authorized_user_can_assign_a_tricity_claim(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);

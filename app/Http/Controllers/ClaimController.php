@@ -7,6 +7,7 @@ use App\Models\ClaimActivity;
 use App\Models\ClaimImport;
 use App\Services\ClaimActivityService;
 use App\Services\ClaimConfigurationService;
+use App\Services\ClaimFilterService;
 use App\Services\TeamService;
 use App\Support\CurrentAccount;
 use Carbon\Carbon;
@@ -43,6 +44,7 @@ class ClaimController extends Controller
     public function __construct(
         private readonly ClaimActivityService $activities,
         private readonly ClaimConfigurationService $configurations,
+        private readonly ClaimFilterService $claimFilters,
         private readonly TeamService $teams,
     ) {}
 
@@ -674,86 +676,11 @@ class ClaimController extends Controller
 
     private function buildMatchedClaimGroupQuery(Request $request, string $account): Builder
     {
-        $query = Claim::query()->where('account_type', $account);
-        $search = trim($request->string('search')->toString());
-
-        if ($search !== '') {
-            $query->where(function (Builder $nested) use ($search): void {
-                $nested->where('bill_id', 'like', "%{$search}%")
-                    ->orWhere('patient_name', 'like', "%{$search}%")
-                    ->orWhere('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('patient_id', 'like', "%{$search}%")
-                    ->orWhereRaw($this->filterExpression('payer_name').' LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw($this->filterExpression('primary_provider').' LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw($this->filterExpression('procedure_code').' LIKE ?', ["%{$search}%"]);
-            });
-        }
-
-        $this->applyExactFilter($query, 'modmed_claim_status', $request->input('modmed_claim_status'));
-        $this->applyExactFilter($query, 'invoiced_status', $request->input('invoiced_status'));
-        $this->applyExpressionExactFilter($query, $this->filterExpression('payer_name'), $request->input('payer_name'));
-        $this->applyExpressionExactFilter($query, $this->filterExpression('primary_provider'), $request->input('primary_provider'));
-        $this->applyExactFilter($query, 'denial_reason', $request->input('denial_reason'));
-        $this->applyExactFilter($query, 'work_status', $request->input('work_status'));
-        $this->applyExpressionExactFilter($query, $this->filterExpression('procedure_code'), $request->input('procedure_code'));
-
-        $assignedTo = $request->input('assigned_to');
-        if ($assignedTo === 'unassigned') {
-            $query->whereNull('assigned_to');
-        } elseif ($assignedTo === 'me') {
-            $query->where('assigned_to', $request->user()->id);
-        } elseif (is_numeric($assignedTo)) {
-            $query->where('assigned_to', (int) $assignedTo);
-        }
-
-        $this->applyDateFilter($query, 'updated_at', '>=', $request->input('worked_from'));
-        $this->applyDateFilter($query, 'updated_at', '<=', $request->input('worked_to'));
-        $this->applyDateFilter($query, 'cf_invoice_date', '>=', $request->input('cf_invoice_from'));
-        $this->applyDateFilter($query, 'cf_invoice_date', '<=', $request->input('cf_invoice_to'));
-
-        $serviceMonth = trim((string) $request->input('service_month', ''));
-        if (preg_match('/^\d{4}-\d{2}$/', $serviceMonth) === 1) {
-            $month = Carbon::createFromFormat('!Y-m', $serviceMonth);
-            $query->whereBetween('service_date_start', [
-                $month->copy()->startOfMonth()->toDateString(),
-                $month->copy()->endOfMonth()->toDateString(),
-            ]);
-        }
-
-        return $query;
-    }
-
-    private function applyExactFilter(Builder $query, string $column, mixed $value): void
-    {
-        $value = trim((string) ($value ?? ''));
-        if ($value !== '' && $value !== 'all') {
-            $query->where($column, $value);
-        }
-    }
-
-    private function applyExpressionExactFilter(Builder $query, ?string $expression, mixed $value): void
-    {
-        $value = trim((string) ($value ?? ''));
-        if ($expression === null || $value === '' || $value === 'all') {
-            return;
-        }
-
-        $query->whereRaw("{$expression} = ?", [$value]);
-    }
-
-    private function applyDateFilter(Builder $query, string $column, string $operator, mixed $value): void
-    {
-        $value = trim((string) ($value ?? ''));
-        if ($value === '') {
-            return;
-        }
-
-        try {
-            $query->whereDate($column, $operator, Carbon::parse($value)->toDateString());
-        } catch (\Throwable) {
-            // Ignore malformed query-string dates and keep the claims page usable.
-        }
+        return $this->claimFilters->matchingLines(
+            $account,
+            $request->query(),
+            $request->user()?->id,
+        );
     }
 
     private function filterExpression(string $filter): ?string

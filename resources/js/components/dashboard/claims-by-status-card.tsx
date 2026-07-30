@@ -2,21 +2,26 @@ import { workStatusBadgeStyle } from '@/components/claims/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { ReactNode } from 'react';
 import type { ClaimByStatus } from './types';
 import { formatCount, formatCurrency } from './types';
 
 interface ClaimsByStatusCardProps {
+    filters: ReactNode;
     statuses: ClaimByStatus[];
 }
 
-export function ClaimsByStatusCard({ statuses }: ClaimsByStatusCardProps) {
+export function ClaimsByStatusCard({ filters, statuses }: ClaimsByStatusCardProps) {
     const totalCount = statuses.reduce((sum, item) => sum + item.count, 0);
 
     return (
         <Card className="h-full">
-            <CardHeader>
-                <CardTitle>Claims by Status</CardTitle>
-                <CardDescription>Distribution of claim statuses</CardDescription>
+            <CardHeader className="space-y-4">
+                <div>
+                    <CardTitle>Claims by Status</CardTitle>
+                    <CardDescription>Distribution of claim statuses</CardDescription>
+                </div>
+                <div className="border-muted/60 bg-muted/15 rounded-lg border p-3">{filters}</div>
             </CardHeader>
             <CardContent className="h-full">
                 {statuses.length === 0 ? (

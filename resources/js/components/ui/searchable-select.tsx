@@ -32,6 +32,8 @@ interface SearchableSelectProps {
     renderValue?: (option: SearchableSelectOption | null) => React.ReactNode;
     renderAfterClearOption?: React.ReactNode | ((helpers: { close: () => void }) => React.ReactNode);
     clearLabel?: string;
+    selectAllMatching?: boolean;
+    pageSize?: number;
     className?: string;
     disabled?: boolean;
 }
@@ -56,6 +58,8 @@ export function SearchableSelect({
     renderValue,
     renderAfterClearOption,
     clearLabel,
+    selectAllMatching = false,
+    pageSize = 10,
     className,
     disabled = false,
 }: SearchableSelectProps) {
@@ -95,7 +99,7 @@ export function SearchableSelect({
             try {
                 const params = new URLSearchParams({
                     page: String(pageNum),
-                    per_page: '10',
+                    per_page: String(pageSize),
                 });
 
                 const normalizedQueryParams = JSON.parse(queryParamsKey) as Record<string, string | number | null | undefined>;
@@ -144,7 +148,7 @@ export function SearchableSelect({
                 setLoading(false);
             }
         },
-        [fetchUrl, queryParamsKey],
+        [fetchUrl, pageSize, queryParamsKey],
     );
 
     React.useEffect(
@@ -241,6 +245,17 @@ export function SearchableSelect({
         setSearch('');
     }, [multiple, onSelectedValuesChange, onValueChange]);
 
+    const handleSelectAllMatching = React.useCallback(() => {
+        const matchingOptions = options.filter((option) => !option.disabled);
+        const nextValues = Array.from(new Set([...selectedValues, ...matchingOptions.map((option) => String(option.id))]));
+        const optionById = new Map(availableOptions.map((option) => [String(option.id), option]));
+        const nextOptions = nextValues.map((selectedValue) => optionById.get(selectedValue)).filter(Boolean) as SearchableSelectOption[];
+
+        onSelectedValuesChange?.(nextValues, nextOptions);
+    }, [availableOptions, onSelectedValuesChange, options, selectedValues]);
+    const allMatchingSelected =
+        options.length > 0 && options.filter((option) => !option.disabled).every((option) => selectedValueSet.has(String(option.id)));
+
     const displayValue = multiple
         ? selectedValues.length > 1
             ? `${selectedValues.length} selected`
@@ -286,6 +301,20 @@ export function SearchableSelect({
                                     className="text-muted-foreground"
                                 >
                                     <span className="flex-1 truncate">{clearLabel}</span>
+                                </CommandItem>
+                            )}
+                            {multiple && selectAllMatching && search.trim() !== '' && options.length > 0 && (
+                                <CommandItem
+                                    value="__select_all_matching__"
+                                    onSelect={handleSelectAllMatching}
+                                    disabled={loading || allMatchingSelected}
+                                >
+                                    <CheckIcon className="mr-2 size-4 shrink-0" />
+                                    <span className="flex-1 truncate">
+                                        {allMatchingSelected
+                                            ? `All matching “${search.trim()}” payers selected`
+                                            : `Select all matching “${search.trim()}” payers`}
+                                    </span>
                                 </CommandItem>
                             )}
                             {renderAfterClearOption && (

@@ -238,6 +238,62 @@ class ClaimExportTest extends TestCase
         $this->assertSame(2, ClaimExport::query()->where('status', 'completed')->count());
     }
 
+    public function test_claims_export_applies_page_filters_to_all_matching_rows_beyond_pagination(): void
+    {
+        config(['claims.export.chunk_size' => 100]);
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        foreach (range(1, 55) as $index) {
+            $this->claim([
+                'external_id' => "TC-FILTERED-{$index}",
+                'patient_name' => "Filtered Export Patient {$index}",
+                'payer_name' => $index % 2 === 0 ? 'Superior Medicaid' : 'Aetna Texas Medicaid & CHIP',
+                'procedure_code' => '99490',
+                'work_status' => 'paid',
+                'cf_invoice_date' => '2026-06-30',
+            ]);
+        }
+
+        $this->claim([
+            'external_id' => 'TC-NOT-MEDICAID',
+            'payer_name' => 'Medicare of Texas',
+            'procedure_code' => '99490',
+            'work_status' => 'paid',
+            'cf_invoice_date' => '2026-06-30',
+        ]);
+        $this->claim([
+            'external_id' => 'TC-WRONG-INVOICE-DATE',
+            'payer_name' => 'Superior Medicaid',
+            'procedure_code' => '99490',
+            'work_status' => 'paid',
+            'cf_invoice_date' => '2026-07-30',
+        ]);
+
+        $selectedPayers = json_encode(['Aetna Texas Medicaid & CHIP', 'Superior Medicaid'], JSON_THROW_ON_ERROR);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->postJson('/claims-export/start', [
+                'type' => 'all',
+                'filters' => [
+                    'search' => 'Filtered Export Patient',
+                    'payer_name' => $selectedPayers,
+                    'work_status' => 'paid',
+                    'procedure_code' => '99490',
+                    'cf_invoice_from' => '2026-06-01',
+                    'cf_invoice_to' => '2026-06-30',
+                ],
+            ])
+            ->assertAccepted()
+            ->assertJsonPath('export.status', 'completed')
+            ->assertJsonPath('export.total_rows', 55)
+            ->assertJsonPath('export.processed_rows', 55);
+
+        $export = ClaimExport::query()->firstOrFail();
+        $this->assertSame($selectedPayers, $export->filters['page_filters']['payer_name']);
+        $this->assertCount(56, preg_split('/\r\n|\r|\n/', trim(Storage::get($export->file_path))));
+    }
+
     public function test_claims_export_is_blocked_during_an_active_import(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);

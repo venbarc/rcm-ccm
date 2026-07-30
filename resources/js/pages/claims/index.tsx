@@ -407,6 +407,7 @@ function ClaimsIndexContent({
             <ClaimsExportDialog
                 assignees={assignees}
                 canExportByAssignee={auth.user.is_admin}
+                filters={filters}
                 hasActiveImport={hasActiveImport}
                 onOpenChange={setExportOpen}
                 open={exportOpen}

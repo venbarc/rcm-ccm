@@ -40,11 +40,12 @@ class ClaimExportService
 
     public function __construct(
         private readonly ClaimConfigurationService $configurations,
+        private readonly ClaimFilterService $claimFilters,
         private readonly TeamService $teams,
     ) {}
 
     /**
-     * @param  array{type:string,status?:string|null,assigned_to?:string|null}  $filters
+     * @param  array{type:string,status?:string|null,assigned_to?:string|null,filters?:array<string, mixed>|null}  $filters
      */
     public function startExport(string $account, User $user, array $filters): ClaimExport
     {
@@ -216,8 +217,19 @@ class ClaimExportService
      */
     public function buildQuery(string $account, array $filters): Builder
     {
-        return Claim::query()
-            ->where('account_type', $account)
+        $query = Claim::query()->where('account_type', $account);
+        $pageFilters = is_array($filters['page_filters'] ?? null) ? $filters['page_filters'] : [];
+
+        if ($pageFilters !== []) {
+            $matchingBillIds = $this->claimFilters
+                ->matchingLines($account, $pageFilters, (int) ($filters['page_filter_user_id'] ?? 0))
+                ->select('bill_id')
+                ->distinct();
+
+            $query->whereIn('bill_id', $matchingBillIds);
+        }
+
+        return $query
             ->when(
                 ($filters['type'] ?? 'all') === 'status',
                 fn (Builder $query) => $query->where('work_status', $filters['status']),
@@ -234,13 +246,24 @@ class ClaimExportService
 
     /**
      * @param  array<string, mixed>  $filters
-     * @return array{type:string,status:?string,assigned_to:?string}
+     * @return array{
+     *     type:string,
+     *     status:?string,
+     *     assigned_to:?string,
+     *     page_filters:array<string, string>,
+     *     page_filter_user_id:int
+     * }
      */
     private function normalizeFilters(string $account, User $user, array $filters): array
     {
         $type = (string) ($filters['type'] ?? 'all');
         $status = $type === 'status' ? (string) ($filters['status'] ?? '') : null;
         $assignedTo = $type === 'assignee' ? (string) ($filters['assigned_to'] ?? '') : null;
+        $pageFilters = collect(is_array($filters['filters'] ?? null) ? $filters['filters'] : [])
+            ->only(ClaimFilterService::FILTER_KEYS)
+            ->filter(fn ($value): bool => is_scalar($value) && trim((string) $value) !== '')
+            ->map(fn ($value): string => (string) $value)
+            ->all();
 
         if ($type === 'assignee') {
             if (! $user->canAssignClaims()) {
@@ -263,6 +286,8 @@ class ClaimExportService
             'type' => $type,
             'status' => $status,
             'assigned_to' => $assignedTo,
+            'page_filters' => $pageFilters,
+            'page_filter_user_id' => $user->id,
         ];
     }
 

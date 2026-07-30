@@ -56,6 +56,8 @@ export function ClaimsFilters({
                             filter="payer_name"
                             value={local.payer_name}
                             onValueChange={(value) => onFilterChange({ payer_name: value })}
+                            multiple
+                            selectAllMatching
                             placeholder="All payers"
                             searchPlaceholder="Search payers..."
                             emptyMessage="No payers found."

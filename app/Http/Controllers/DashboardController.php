@@ -38,33 +38,35 @@ class DashboardController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         $filters = $this->resolveDateRange($request);
-        $claims = Claim::query()->where('account_type', $account->value);
-        $this->applyDateRange($claims, $filters['startDate'], $filters['endDate']);
+        $baseClaims = Claim::query()->where('account_type', $account->value);
+        $workSummaryClaims = clone $baseClaims;
+        $this->applyServiceDateRange($workSummaryClaims, $filters['startDate'], $filters['endDate']);
+
+        $panelFilters = [
+            'claimsByStatus' => $this->resolvePanelDateFilters($request, 'claims_status'),
+            'cptSummary' => $this->resolvePanelDateFilters($request, 'cpt'),
+            'modmedStatusSummary' => $this->resolvePanelDateFilters($request, 'modmed'),
+            'invoicedSummary' => $this->resolvePanelDateFilters($request, 'invoiced', false),
+        ];
+
+        $claimsByStatusQuery = clone $baseClaims;
+        $this->applyPanelDateFilters($claimsByStatusQuery, $panelFilters['claimsByStatus']);
         $isAdmin = (bool) $request->user()?->is_admin;
         $workStatuses = $this->configurations->selectOptions($account->value, ClaimConfigurationService::WORK_STATUS);
         $modMedStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
         $modMedStatusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
 
-        $totalQuery = (clone $claims)
+        $totalQuery = (clone $workSummaryClaims)
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount');
 
-        if ($isAdmin) {
-            $totalQuery
-                ->selectRaw('COUNT(DISTINCT '.self::BILL_ID_EXPRESSION.') as bill_count')
-                ->selectRaw('SUM(COALESCE(units, 0)) as units')
-                ->selectRaw('SUM('.self::TRUE_CHARGE_EXPRESSION.') as true_charge')
-                ->selectRaw('SUM('.self::PAYMENTS_EXPRESSION.') as payments')
-                ->selectRaw('SUM('.self::CF_INVOICE_AMOUNT_EXPRESSION.') as cf_invoice_amount');
-        }
-
         $total = $totalQuery->first();
-        $worked = (clone $claims)
+        $worked = (clone $workSummaryClaims)
             ->whereRaw(self::WORK_STATUS_EXPRESSION.' != ?', ['draft'])
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount')
             ->first();
-        $paid = (clone $claims)
+        $paid = (clone $workSummaryClaims)
             ->whereRaw(self::WORK_STATUS_EXPRESSION.' = ?', ['paid'])
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount')
@@ -79,21 +81,24 @@ class DashboardController extends Controller
         $adminSummaryProps = [];
 
         if ($isAdmin) {
-            $summaryTotal = $this->financialSummaryRow($total);
+            $cptSummaryClaims = clone $baseClaims;
+            $this->applyPanelDateFilters($cptSummaryClaims, $panelFilters['cptSummary']);
+
+            $modmedStatusSummaryClaims = clone $baseClaims;
+            $this->applyPanelDateFilters($modmedStatusSummaryClaims, $panelFilters['modmedStatusSummary']);
+
+            $invoicedSummaryClaims = (clone $baseClaims)->whereNotNull('cf_invoice_date');
+            $this->applyPanelDateFilters($invoicedSummaryClaims, $panelFilters['invoicedSummary']);
+
             $adminSummaryProps = [
-                'cptSummary' => [
-                    'rows' => $this->groupedFinancialSummary($claims, self::CPT_EXPRESSION),
-                    'total' => $summaryTotal,
-                ],
-                'modmedStatusSummary' => [
-                    'rows' => $this->groupedFinancialSummary(
-                        $claims,
-                        self::MODMED_STATUS_EXPRESSION,
-                        $modMedStatusLabels,
-                        $modMedStatusColors,
-                    ),
-                    'total' => $summaryTotal,
-                ],
+                'cptSummary' => $this->financialSummary($cptSummaryClaims, self::CPT_EXPRESSION),
+                'modmedStatusSummary' => $this->financialSummary(
+                    $modmedStatusSummaryClaims,
+                    self::MODMED_STATUS_EXPRESSION,
+                    $modMedStatusLabels,
+                    $modMedStatusColors,
+                ),
+                'invoicedSummary' => $this->invoicedSummary($invoicedSummaryClaims),
             ];
         }
 
@@ -106,6 +111,14 @@ class DashboardController extends Controller
                 'label' => $filters['label'],
                 'presetLabel' => $filters['presetLabel'],
             ],
+            'panelFilters' => collect($panelFilters)
+                ->map(fn (array $range): array => [
+                    'invoiceStart' => $range['invoiceStart']?->toDateString(),
+                    'invoiceEnd' => $range['invoiceEnd']?->toDateString(),
+                    'serviceStart' => $range['serviceStart']?->toDateString(),
+                    'serviceEnd' => $range['serviceEnd']?->toDateString(),
+                ])
+                ->all(),
             'workSummary' => [
                 'totalCount' => $totalCount,
                 'totalAmount' => $totalAmount,
@@ -119,9 +132,88 @@ class DashboardController extends Controller
                     ? round(($paidCount / $totalCount) * 100, 2)
                     : 0.0,
             ],
-            'claimsByStatus' => $this->claimsByStatus($claims, $workStatuses),
+            'claimsByStatus' => $this->claimsByStatus($claimsByStatusQuery, $workStatuses),
             ...$adminSummaryProps,
         ]);
+    }
+
+    /**
+     * @return array{
+     *     rows: array<int, array{
+     *         group: string|null,
+     *         groupLabel: string|null,
+     *         groupColor: string|null,
+     *         billCount: int,
+     *         cptCount: int,
+     *         units: float,
+     *         trueCharge: float,
+     *         payments: float,
+     *         trueBalance: float,
+     *         collectionPercent: float,
+     *         cfInvoiceAmount: float
+     *     }>,
+     *     total: array{
+     *         group: string|null,
+     *         groupLabel: string|null,
+     *         groupColor: string|null,
+     *         billCount: int,
+     *         cptCount: int,
+     *         units: float,
+     *         trueCharge: float,
+     *         payments: float,
+     *         trueBalance: float,
+     *         collectionPercent: float,
+     *         cfInvoiceAmount: float
+     *     }
+     * }
+     */
+    private function financialSummary(
+        Builder $query,
+        string $groupExpression,
+        array $groupLabels = [],
+        array $groupColors = [],
+    ): array {
+        $total = (clone $query)
+            ->selectRaw('COUNT(DISTINCT '.self::BILL_ID_EXPRESSION.') as bill_count')
+            ->selectRaw('COUNT(*) as line_count')
+            ->selectRaw('SUM(COALESCE(units, 0)) as units')
+            ->selectRaw('SUM('.self::TRUE_CHARGE_EXPRESSION.') as true_charge')
+            ->selectRaw('SUM('.self::PAYMENTS_EXPRESSION.') as payments')
+            ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as true_balance')
+            ->selectRaw('SUM('.self::CF_INVOICE_AMOUNT_EXPRESSION.') as cf_invoice_amount')
+            ->first();
+
+        return [
+            'rows' => $this->groupedFinancialSummary(
+                $query,
+                $groupExpression,
+                $groupLabels,
+                $groupColors,
+            ),
+            'total' => $this->financialSummaryRow($total),
+        ];
+    }
+
+    /** @return array{rows: array<int, array{cpt: string|null, units: float}>, totalUnits: float} */
+    private function invoicedSummary(Builder $query): array
+    {
+        $rows = (clone $query)
+            ->selectRaw(self::CPT_EXPRESSION.' as cpt')
+            ->selectRaw('SUM(COALESCE(units, 0)) as units')
+            ->groupByRaw(self::CPT_EXPRESSION)
+            ->orderByDesc('units')
+            ->orderBy('cpt')
+            ->get()
+            ->map(fn ($row): array => [
+                'cpt' => filled($row->cpt) ? (string) $row->cpt : null,
+                'units' => (float) ($row->units ?? 0),
+            ])
+            ->all();
+
+        return [
+            'rows' => $rows,
+            'totalUnits' => (float) collect($rows)->sum('units'),
+        ];
     }
 
     /** @return array<int, array{status: string, label: string, count: int, amount: float}> */
@@ -292,13 +384,81 @@ class DashboardController extends Controller
         ];
     }
 
-    private function applyDateRange(Builder $query, ?Carbon $startDate, ?Carbon $endDate): void
+    private function applyServiceDateRange(Builder $query, ?Carbon $startDate, ?Carbon $endDate): void
     {
         $serviceDateExpression = 'COALESCE(service_date_start, date_of_service)';
 
         $query
             ->when($startDate, fn (Builder $inner) => $inner->whereDate(DB::raw($serviceDateExpression), '>=', $startDate->toDateString()))
             ->when($endDate, fn (Builder $inner) => $inner->whereDate(DB::raw($serviceDateExpression), '<=', $endDate->toDateString()));
+    }
+
+    /**
+     * @return array{
+     *     invoiceStart: Carbon|null,
+     *     invoiceEnd: Carbon|null,
+     *     serviceStart: Carbon|null,
+     *     serviceEnd: Carbon|null
+     * }
+     */
+    private function resolvePanelDateFilters(
+        Request $request,
+        string $prefix,
+        bool $includeService = true,
+    ): array {
+        [$invoiceStart, $invoiceEnd] = $this->normalizedDateRange(
+            $request->input("{$prefix}_invoice_start"),
+            $request->input("{$prefix}_invoice_end"),
+        );
+        [$serviceStart, $serviceEnd] = $includeService
+            ? $this->normalizedDateRange(
+                $request->input("{$prefix}_service_start"),
+                $request->input("{$prefix}_service_end"),
+            )
+            : [null, null];
+
+        return [
+            'invoiceStart' => $invoiceStart,
+            'invoiceEnd' => $invoiceEnd,
+            'serviceStart' => $serviceStart,
+            'serviceEnd' => $serviceEnd,
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     invoiceStart: Carbon|null,
+     *     invoiceEnd: Carbon|null,
+     *     serviceStart: Carbon|null,
+     *     serviceEnd: Carbon|null
+     * }  $filters
+     */
+    private function applyPanelDateFilters(Builder $query, array $filters): void
+    {
+        $query
+            ->when(
+                $filters['invoiceStart'],
+                fn (Builder $inner) => $inner->whereDate('cf_invoice_date', '>=', $filters['invoiceStart']->toDateString()),
+            )
+            ->when(
+                $filters['invoiceEnd'],
+                fn (Builder $inner) => $inner->whereDate('cf_invoice_date', '<=', $filters['invoiceEnd']->toDateString()),
+            );
+
+        $this->applyServiceDateRange($query, $filters['serviceStart'], $filters['serviceEnd']);
+    }
+
+    /** @return array{0: Carbon|null, 1: Carbon|null} */
+    private function normalizedDateRange(mixed $start, mixed $end): array
+    {
+        $startDate = $this->parseDate($start);
+        $endDate = $this->parseDate($end);
+
+        if ($startDate && $endDate && $startDate->greaterThan($endDate)) {
+            return [$endDate, $startDate];
+        }
+
+        return [$startDate, $endDate];
     }
 
     private function parseDate(mixed $value): ?Carbon
