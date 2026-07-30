@@ -8,13 +8,14 @@ import { Card, CardContent } from '@/components/ui/card';
 interface ClaimsFiltersProps {
     local: Filters;
     workStatuses: StatusOption[];
+    invoicedStatuses: StatusOption[];
     assignees: UserOption[];
     onFilterChange: (values: Record<string, string>) => void;
     onSearchChange: (value: string) => void;
     onClear: () => void;
 }
 
-export function ClaimsFilters({ local, workStatuses, assignees, onFilterChange, onSearchChange, onClear }: ClaimsFiltersProps) {
+export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees, onFilterChange, onSearchChange, onClear }: ClaimsFiltersProps) {
     return (
         <Card className="w-full max-w-full min-w-0">
             <CardContent className="min-w-0 p-4">
@@ -70,7 +71,7 @@ export function ClaimsFilters({ local, workStatuses, assignees, onFilterChange, 
                             ))}
                         </select>
                     </div>
-                    <div className="grid gap-3 xl:grid-cols-[repeat(4,minmax(150px,1fr))_minmax(250px,1.5fr)_minmax(250px,1.5fr)_auto]">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[repeat(5,minmax(140px,1fr))_repeat(2,minmax(220px,1.4fr))_auto]">
                         <FilterSearchSelect
                             filter="modmed_claim_status"
                             value={local.modmed_claim_status}
@@ -87,6 +88,18 @@ export function ClaimsFilters({ local, workStatuses, assignees, onFilterChange, 
                             searchPlaceholder="Search CPT codes..."
                             emptyMessage="No CPT codes found."
                         />
+                        <select
+                            className="bg-background h-10 rounded-md border px-3 text-sm"
+                            onChange={(event) => onFilterChange({ invoiced_status: event.target.value })}
+                            value={local.invoiced_status}
+                        >
+                            <option value="">All invoiced statuses</option>
+                            {invoicedStatuses.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </select>
                         <FilterSearchSelect
                             filter="denial_reason"
                             value={local.denial_reason}

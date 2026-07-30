@@ -19,6 +19,8 @@ interface ClaimsIndexProps {
     filters: Filters;
     summary: Summary;
     workStatuses: StatusOption[];
+    invoicedStatuses: StatusOption[];
+    creditReasons: StatusOption[];
     assignees: UserOption[];
     hasActiveImport: boolean;
 }
@@ -27,7 +29,16 @@ export default function ClaimsIndex(props: ClaimsIndexProps) {
     return <ClaimsIndexContent {...props} key={JSON.stringify(props.filters)} />;
 }
 
-function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees, hasActiveImport }: ClaimsIndexProps) {
+function ClaimsIndexContent({
+    claims,
+    filters,
+    summary,
+    workStatuses,
+    invoicedStatuses,
+    creditReasons,
+    assignees,
+    hasActiveImport,
+}: ClaimsIndexProps) {
     const { auth } = usePage<SharedData>().props;
     const [local, setLocal] = useState(filters);
     const [expandedClaimId, setExpandedClaimId] = useState<number | null>(() => {
@@ -38,7 +49,14 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
     const [editingClaim, setEditingClaim] = useState<ClaimGroup | null>(null);
     const [editingLine, setEditingLine] = useState<ClaimLine | null>(null);
     const [exportOpen, setExportOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ work_status: 'draft', denial_reason: '', notes: '' });
+    const [editForm, setEditForm] = useState({
+        work_status: 'draft',
+        denial_reason: '',
+        notes: '',
+        invoiced_status: '',
+        invoiced_status_date: '',
+        credit_reason: '',
+    });
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const cancelPendingSearch = () => {
@@ -148,6 +166,9 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
             work_status: line.work_status || 'draft',
             denial_reason: line.denial_reason || '',
             notes: line.notes || '',
+            invoiced_status: line.invoiced_status || '',
+            invoiced_status_date: line.invoiced_status_date || '',
+            credit_reason: line.credit_reason || '',
         });
     };
     const save = () => {
@@ -160,6 +181,9 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
         const workStatus = editForm.work_status;
         const denialReason = editForm.denial_reason.trim() || null;
         const notes = editForm.notes.trim() || null;
+        const invoicedStatus = editForm.invoiced_status || null;
+        const invoicedStatusDate = invoicedStatus ? editForm.invoiced_status_date || null : null;
+        const creditReason = ['pending_credit', 'credited'].includes(editForm.invoiced_status) ? editForm.credit_reason || null : null;
         const currentUser = {
             id: auth.user.id,
             name: auth.user.name,
@@ -172,6 +196,9 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
                 work_status: workStatus,
                 denial_reason: denialReason,
                 notes,
+                invoiced_status: invoicedStatus,
+                invoiced_status_date: invoicedStatusDate,
+                credit_reason: creditReason,
             },
             {
                 only: ['flash'],
@@ -194,9 +221,12 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
                                           work_status: workStatus,
                                           denial_reason: denialReason,
                                           notes,
+                                          invoiced_status: invoicedStatus,
+                                          invoiced_status_date: invoicedStatusDate,
+                                          credit_reason: creditReason,
                                           assigned_to: currentUser.id,
                                           assignee: currentUser,
-                                          is_modified: workStatus !== 'draft' || denialReason !== null || notes !== null,
+                                          is_modified: workStatus !== 'draft' || denialReason !== null || notes !== null || invoicedStatus !== null,
                                           updated_at: updatedAt,
                                       }
                                     : line,
@@ -207,6 +237,9 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
                                 work_status: workStatus,
                                 denial_reason: denialReason,
                                 notes,
+                                invoiced_status: invoicedStatus,
+                                invoiced_status_date: invoicedStatusDate,
+                                credit_reason: creditReason,
                                 assigned_to: currentUser.id,
                                 assignee: currentUser,
                                 modified_by: currentUser,
@@ -272,6 +305,7 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
 
                 <ClaimsFilters
                     assignees={assignees}
+                    invoicedStatuses={invoicedStatuses}
                     local={local}
                     onClear={clearFilters}
                     onFilterChange={updateFilters}
@@ -292,6 +326,8 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
                 claim={editingClaim}
                 editForm={editForm}
                 line={editingLine}
+                invoicedStatuses={invoicedStatuses}
+                creditReasons={creditReasons}
                 onOpenChange={(open) => {
                     if (!open) {
                         setEditingClaim(null);

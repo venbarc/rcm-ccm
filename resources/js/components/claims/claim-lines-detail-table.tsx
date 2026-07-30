@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 export function ClaimLinesDetailTable({ lines }: { lines: ClaimDetailLine[] }) {
     return (
         <div className="overflow-x-auto">
-            <table className="w-full min-w-[1550px] text-sm">
+            <table className="w-full min-w-[1950px] text-sm">
                 <thead className="text-muted-foreground border-b text-left">
                     <tr>
                         <ClaimSourceLineHeaders />
@@ -36,7 +36,7 @@ export function ClaimLinesDetailTable({ lines }: { lines: ClaimDetailLine[] }) {
                     ))}
                     {lines.length === 0 && (
                         <tr>
-                            <td className="text-muted-foreground p-10 text-center" colSpan={13}>
+                            <td className="text-muted-foreground p-10 text-center" colSpan={16}>
                                 No claim lines found.
                             </td>
                         </tr>

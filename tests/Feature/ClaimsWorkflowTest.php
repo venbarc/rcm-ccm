@@ -439,12 +439,18 @@ class ClaimsWorkflowTest extends TestCase
                 'work_status' => 'appeal',
                 'denial_reason' => 'Missing documentation',
                 'notes' => 'Followed up with payer',
+                'invoiced_status' => 'pending_credit',
+                'invoiced_status_date' => '2026-07-29',
+                'credit_reason' => 'inactive_insurance',
             ])
             ->assertRedirect("/claims?page=2&search=Grouped&expanded={$firstLine->id}");
 
         $this->assertSame('appeal', $firstLine->fresh()->work_status);
         $this->assertSame('Missing documentation', $firstLine->fresh()->denial_reason);
         $this->assertSame('Followed up with payer', $firstLine->fresh()->notes);
+        $this->assertSame('pending_credit', $firstLine->fresh()->invoiced_status);
+        $this->assertSame('2026-07-29', $firstLine->fresh()->invoiced_status_date?->toDateString());
+        $this->assertSame('inactive_insurance', $firstLine->fresh()->credit_reason);
         $this->assertTrue($firstLine->fresh()->work_status_manually_set);
         $this->assertSame($user->id, $firstLine->fresh()->assigned_to);
         $this->assertSame('in_progress', $firstLine->fresh()->status);
@@ -452,7 +458,50 @@ class ClaimsWorkflowTest extends TestCase
         $this->assertSame('draft', $secondLine->fresh()->work_status);
         $this->assertNull($secondLine->fresh()->denial_reason);
         $this->assertNull($secondLine->fresh()->notes);
+        $this->assertNull($secondLine->fresh()->invoiced_status);
+        $this->assertNull($secondLine->fresh()->invoiced_status_date);
+        $this->assertNull($secondLine->fresh()->credit_reason);
         $this->assertNull($secondLine->fresh()->assigned_to);
         $this->assertFalse((bool) $secondLine->fresh()->work_status_manually_set);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims?invoiced_status=pending_credit')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.invoiced_status', 'pending_credit')
+                ->where('claims.total', 1)
+                ->where('claims.data.0.lines.0.invoiced_status', 'pending_credit')
+                ->where('claims.data.0.lines.0.invoiced_status_date', '2026-07-29')
+                ->where('claims.data.0.lines.0.credit_reason', 'inactive_insurance')
+                ->where('invoicedStatuses.0.value', 'invoiced')
+                ->where('invoicedStatuses.1.value', 'pending_credit')
+                ->where('invoicedStatuses.2.value', 'credited')
+                ->where('creditReasons.0.value', 'inactive_insurance')
+                ->where('creditReasons.1.value', 'not_covered_by_insurance'));
+    }
+
+    public function test_pending_credit_and_credited_statuses_require_a_credit_reason(): void
+    {
+        $user = User::factory()->create();
+        $claim = Claim::create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-CREDIT-VALIDATION-1',
+            'patient_name' => 'Credit Validation Patient',
+            'procedure_code' => '99490',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/claims')
+            ->patch("/claims/{$claim->id}", [
+                'invoiced_status' => 'credited',
+                'invoiced_status_date' => '2026-07-29',
+                'credit_reason' => null,
+            ])
+            ->assertRedirect('/claims')
+            ->assertSessionHasErrors('credit_reason');
+
+        $this->assertNull($claim->fresh()->invoiced_status);
     }
 }

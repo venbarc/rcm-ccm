@@ -25,6 +25,9 @@ export interface ClaimLine {
     patient_id: string | null;
     modmed_claim_status: string | null;
     cf_invoice_date: string | null;
+    invoiced_status: string | null;
+    invoiced_status_date: string | null;
+    credit_reason: string | null;
     work_status: string;
     denial_reason: string | null;
     notes: string | null;
@@ -58,6 +61,9 @@ export interface ClaimGroup {
     true_balance: number | string | null;
     modmed_claim_status: string | null;
     cf_invoice_date: string | null;
+    invoiced_status: string | null;
+    invoiced_status_date: string | null;
+    credit_reason: string | null;
     work_status: string;
     denial_reason: string | null;
     notes: string | null;
@@ -94,6 +100,7 @@ export interface Filters {
     [key: string]: string;
     search: string;
     modmed_claim_status: string;
+    invoiced_status: string;
     payer_name: string;
     primary_provider: string;
     denial_reason: string;
@@ -113,6 +120,7 @@ export interface Filters {
 export type SortColumn =
     | 'bill_id'
     | 'patient_name'
+    | 'payer_name'
     | 'location'
     | 'service_date_start'
     | 'line_count'
