@@ -15,7 +15,7 @@ interface ConfigurationSectionProps {
 const dateTime = (value: string | null) => (value ? new Date(value).toLocaleString() : '-');
 
 export function ConfigurationSection({ section, onCreate, onDelete, onEdit }: ConfigurationSectionProps) {
-    const showsColor = section.type === 'work_status';
+    const showsColor = section.type === 'work_status' || section.type === 'modmed_claim_status';
     const hasFixedValues = section.type === 'credit_status';
 
     return (

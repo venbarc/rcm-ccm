@@ -28,6 +28,8 @@ export interface ClaimByStatus {
 
 export interface DashboardFinancialSummaryRow {
     group: string | null;
+    groupLabel: string | null;
+    groupColor: string | null;
     billCount: number;
     cptCount: number;
     units: number;

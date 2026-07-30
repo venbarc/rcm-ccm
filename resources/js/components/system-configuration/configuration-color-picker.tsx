@@ -2,10 +2,12 @@ import { workStatusForegroundColor } from '@/components/claims/utils';
 import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 
-interface WorkStatusColorPickerProps {
+interface ConfigurationColorPickerProps {
     error?: string;
     onChange: (color: string) => void;
+    previewLabel: string;
     selectedColor: string;
+    typeLabel: string;
     usedColors: string[];
 }
 
@@ -13,7 +15,7 @@ export const normalizeHexColor = (color: string) => color.trim().toUpperCase();
 
 export const isValidHexColor = (color: string) => /^#[0-9A-F]{6}$/.test(normalizeHexColor(color));
 
-export function WorkStatusColorPicker({ error, onChange, selectedColor, usedColors }: WorkStatusColorPickerProps) {
+export function ConfigurationColorPicker({ error, onChange, previewLabel, selectedColor, typeLabel, usedColors }: ConfigurationColorPickerProps) {
     const normalizedColor = normalizeHexColor(selectedColor);
     const isValid = isValidHexColor(normalizedColor);
     const colorIsUsed = usedColors.some((color) => normalizeHexColor(color) === normalizedColor);
@@ -21,7 +23,7 @@ export function WorkStatusColorPicker({ error, onChange, selectedColor, usedColo
         normalizedColor !== '' && !isValid
             ? 'Enter a valid six-digit hex color such as #DCEEFF.'
             : colorIsUsed
-              ? 'That background color is already assigned to another Work Status.'
+              ? `That background color is already assigned to another ${typeLabel}.`
               : undefined;
     const pickerValue = isValid ? normalizedColor : '#FFFFFF';
 
@@ -34,7 +36,7 @@ export function WorkStatusColorPicker({ error, onChange, selectedColor, usedColo
                 <label className="grid gap-1.5 text-xs font-medium text-slate-600">
                     Color picker
                     <input
-                        aria-label="Choose Work Status background color"
+                        aria-label={`Choose ${typeLabel} background color`}
                         className="h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white p-1"
                         onChange={(event) => onChange(normalizeHexColor(event.target.value))}
                         type="color"
@@ -59,7 +61,7 @@ export function WorkStatusColorPicker({ error, onChange, selectedColor, usedColo
                 className="flex min-h-12 items-center justify-between rounded-lg border border-slate-200 px-3 py-2"
                 style={{ backgroundColor: pickerValue, color: workStatusForegroundColor(pickerValue) }}
             >
-                <span className="text-xs font-medium">Row color preview</span>
+                <span className="text-xs font-medium">{previewLabel}</span>
                 <code className="rounded bg-white/80 px-2 py-1 text-xs text-slate-800">{isValid ? normalizedColor : 'No color selected'}</code>
             </div>
             {usedColors.length > 0 && (
@@ -76,7 +78,7 @@ export function WorkStatusColorPicker({ error, onChange, selectedColor, usedColo
                 </div>
             )}
             <p className="text-muted-foreground text-xs">
-                Choose any custom color or enter its six-digit hex value. Each Work Status must be unique.
+                Choose any custom color or enter its six-digit hex value. Each {typeLabel} color must be unique.
             </p>
             <InputError message={error ?? localError} />
         </fieldset>

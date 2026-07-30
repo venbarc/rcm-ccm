@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\AccountType;
 use App\Models\Claim;
+use App\Models\ClaimConfigurationOption;
 use App\Models\ClaimImport;
 use App\Models\ClaimRawRow;
 use App\Models\User;
+use App\Services\ClaimConfigurationService;
 use App\Services\ClaimImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -48,6 +50,19 @@ class TricityQueuedImportTest extends TestCase
         $claim = Claim::query()->where('procedure_code', '99490')->firstOrFail();
         $this->assertSame('Smith, Alex', $claim->primary_provider);
         $this->assertSame('REVIEW NEEDED', $claim->modmed_claim_status);
+        $this->assertFalse($claim->modmed_claim_status_manually_set);
+        $this->assertDatabaseHas('claim_configuration_options', [
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'REVIEW NEEDED',
+            'label' => 'REVIEW NEEDED',
+            'added_by' => null,
+        ]);
+        $this->assertNotNull(ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::MODMED_CLAIM_STATUS)
+            ->where('value', 'REVIEW NEEDED')
+            ->value('color'));
         $this->assertSame('2026-07-01', $claim->cf_invoice_date?->toDateString());
         $this->assertSame('30.00', $claim->cf_invoice_amount);
         $this->assertSame('invoiced', $claim->invoiced_status);
@@ -68,6 +83,7 @@ class TricityQueuedImportTest extends TestCase
         $imports->queue($this->tricityFile(), AccountType::Tricity->value, $user);
 
         $claim = Claim::query()->where('procedure_code', '99490')->firstOrFail();
+        app(ClaimConfigurationService::class)->resolveModMedClaimStatus(AccountType::Tricity->value, 'Resolved/Paid');
         $claim->update([
             'work_status' => 'appeal',
             'work_status_manually_set' => true,
@@ -76,6 +92,8 @@ class TricityQueuedImportTest extends TestCase
             'credit_status' => true,
             'credit_status_date' => '2026-07-15',
             'credit_reason' => 'inactive_insurance',
+            'modmed_claim_status' => 'Resolved/Paid',
+            'modmed_claim_status_manually_set' => true,
         ]);
 
         $secondImport = $imports->queue($this->tricityUpdatedFile(), AccountType::Tricity->value, $user)->fresh();
@@ -91,6 +109,8 @@ class TricityQueuedImportTest extends TestCase
         $this->assertTrue($claim->credit_status);
         $this->assertSame('2026-07-15', $claim->credit_status_date?->toDateString());
         $this->assertSame('inactive_insurance', $claim->credit_reason);
+        $this->assertSame('Resolved/Paid', $claim->modmed_claim_status);
+        $this->assertTrue($claim->modmed_claim_status_manually_set);
         $this->assertSame('250.00', $claim->true_charge);
         $this->assertNull($claim->true_balance);
     }
@@ -110,6 +130,8 @@ class TricityQueuedImportTest extends TestCase
         $claim->refresh();
 
         $this->assertSame('250.00', $claim->true_charge);
+        $this->assertSame('Payment Pending', $claim->modmed_claim_status);
+        $this->assertFalse($claim->modmed_claim_status_manually_set);
         $this->assertSame('draft', $claim->work_status);
         $this->assertFalse($claim->work_status_manually_set);
         $this->assertSame([], Storage::allFiles('claim-imports'));
@@ -176,8 +198,8 @@ class TricityQueuedImportTest extends TestCase
     {
         return UploadedFile::fake()->createWithContent('tricity-updated.csv', implode("\n", [
             'CPT,Location,Bill ID,Payments,True Balance,True Charge,ModMed_Claim_Status,CF Invoice Date,Patient First Name,Patient Last Name,Patient Name,Patient MRN,Payer,Primary Provider,Service Date,Units',
-            '99490,Hardy Oak Office,BILL-1,35,,250,REVIEW NEEDED,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
-            '99439,Hardy Oak Office,BILL-1,20,,175,REVIEW NEEDED,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
+            '99490,Hardy Oak Office,BILL-1,35,,250,Payment Pending,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
+            '99439,Hardy Oak Office,BILL-1,20,,175,Payment Pending,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
         ]));
     }
 }

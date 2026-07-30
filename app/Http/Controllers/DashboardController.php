@@ -42,6 +42,8 @@ class DashboardController extends Controller
         $this->applyDateRange($claims, $filters['startDate'], $filters['endDate']);
         $isAdmin = (bool) $request->user()?->is_admin;
         $workStatuses = $this->configurations->selectOptions($account->value, ClaimConfigurationService::WORK_STATUS);
+        $modMedStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
+        $modMedStatusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
 
         $totalQuery = (clone $claims)
             ->selectRaw('COUNT(*) as line_count')
@@ -84,7 +86,12 @@ class DashboardController extends Controller
                     'total' => $summaryTotal,
                 ],
                 'modmedStatusSummary' => [
-                    'rows' => $this->groupedFinancialSummary($claims, self::MODMED_STATUS_EXPRESSION),
+                    'rows' => $this->groupedFinancialSummary(
+                        $claims,
+                        self::MODMED_STATUS_EXPRESSION,
+                        $modMedStatusLabels,
+                        $modMedStatusColors,
+                    ),
                     'total' => $summaryTotal,
                 ],
             ];
@@ -146,6 +153,8 @@ class DashboardController extends Controller
     /**
      * @return array<int, array{
      *     group: string|null,
+     *     groupLabel: string|null,
+     *     groupColor: string|null,
      *     billCount: int,
      *     cptCount: int,
      *     units: float,
@@ -156,8 +165,12 @@ class DashboardController extends Controller
      *     cfInvoiceAmount: float
      * }>
      */
-    private function groupedFinancialSummary(Builder $query, string $groupExpression): array
-    {
+    private function groupedFinancialSummary(
+        Builder $query,
+        string $groupExpression,
+        array $groupLabels = [],
+        array $groupColors = [],
+    ): array {
         return (clone $query)
             ->selectRaw("{$groupExpression} as group_key")
             ->selectRaw('COUNT(DISTINCT '.self::BILL_ID_EXPRESSION.') as bill_count')
@@ -171,13 +184,24 @@ class DashboardController extends Controller
             ->orderByDesc('bill_count')
             ->orderByDesc('true_charge')
             ->get()
-            ->map(fn ($row): array => $this->financialSummaryRow($row, filled($row->group_key) ? (string) $row->group_key : null))
+            ->map(function ($row) use ($groupColors, $groupLabels): array {
+                $group = filled($row->group_key) ? (string) $row->group_key : null;
+
+                return $this->financialSummaryRow(
+                    $row,
+                    $group,
+                    $group === null ? null : ($groupLabels[$group] ?? $group),
+                    $group === null ? null : ($groupColors[$group] ?? null),
+                );
+            })
             ->all();
     }
 
     /**
      * @return array{
      *     group: string|null,
+     *     groupLabel: string|null,
+     *     groupColor: string|null,
      *     billCount: int,
      *     cptCount: int,
      *     units: float,
@@ -188,13 +212,19 @@ class DashboardController extends Controller
      *     cfInvoiceAmount: float
      * }
      */
-    private function financialSummaryRow(object $row, ?string $group = null): array
-    {
+    private function financialSummaryRow(
+        object $row,
+        ?string $group = null,
+        ?string $groupLabel = null,
+        ?string $groupColor = null,
+    ): array {
         $trueCharge = (float) ($row->true_charge ?? 0);
         $payments = (float) ($row->payments ?? 0);
 
         return [
             'group' => $group,
+            'groupLabel' => $groupLabel ?? $group,
+            'groupColor' => $groupColor,
             'billCount' => (int) ($row->bill_count ?? 0),
             'cptCount' => (int) ($row->line_count ?? 0),
             'units' => (float) ($row->units ?? 0),

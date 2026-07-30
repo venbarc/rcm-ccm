@@ -300,7 +300,11 @@ class ClaimExportService
             $claim->units,
             $this->sourceValue($claim, 'billingid_cpt', filled($claim->bill_id) && filled($procedureCode) ? "{$claim->bill_id}-{$procedureCode}" : null),
             $this->sourceValue($claim, 'charges'),
-            $claim->modmed_claim_status,
+            $this->configurationLabel(
+                $claim->account_type,
+                ClaimConfigurationService::MODMED_CLAIM_STATUS,
+                $claim->modmed_claim_status,
+            ),
             $claim->cf_invoice_date?->format('Y-m-d'),
             $claim->patient_dob?->format('Y-m-d'),
             $claim->first_name,

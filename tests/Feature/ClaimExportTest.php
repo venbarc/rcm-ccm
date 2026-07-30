@@ -51,6 +51,15 @@ class ClaimExportTest extends TestCase
             ->where('option_type', ClaimConfigurationService::CREDIT_STATUS)
             ->where('value', 'no')
             ->update(['label' => 'Declined']);
+        ClaimConfigurationOption::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'REVIEW NEEDED',
+            'label' => 'Needs Review',
+            'color' => '#FFEDD5',
+            'sort_order' => 0,
+            'added_by' => null,
+        ]);
 
         $firstClaim = $this->claim([
             'external_id' => 'TC-EXPORT-1',
@@ -158,6 +167,7 @@ class ClaimExportTest extends TestCase
         $this->assertSame('50.46', $rows[1][7]);
         $this->assertSame('TC-EXPORT-1-99490', $rows[1][9]);
         $this->assertSame('185', $rows[1][10]);
+        $this->assertSame('Needs Review', $rows[1][11]);
         $this->assertSame('\'=HYPERLINK("https://example.test")', $rows[1][17]);
         $this->assertSame('Invoiced', $rows[1][array_search('Invoiced Status', $rows[0], true)]);
         $this->assertSame('2026-06-30', $rows[1][array_search('Invoiced Status Date', $rows[0], true)]);

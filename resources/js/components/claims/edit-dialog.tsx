@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 
 interface EditFormState {
     work_status: string;
+    modmed_claim_status: string;
     denial_reason: string;
     notes: string;
     credit_status: '' | 'yes' | 'no';
@@ -19,6 +20,7 @@ interface ClaimEditDialogProps {
     editForm: EditFormState;
     setEditForm: (value: EditFormState) => void;
     workStatuses: StatusOption[];
+    modMedClaimStatuses: StatusOption[];
     creditStatuses: StatusOption[];
     creditReasons: StatusOption[];
     denialReasons: StatusOption[];
@@ -33,6 +35,7 @@ export function ClaimEditDialog({
     editForm,
     setEditForm,
     workStatuses,
+    modMedClaimStatuses,
     creditStatuses,
     creditReasons,
     denialReasons,
@@ -77,6 +80,24 @@ export function ClaimEditDialog({
                                 <option value={editForm.work_status}>{editForm.work_status}</option>
                             )}
                             {workStatuses.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium">
+                        ModMed Claim Status
+                        <select
+                            className="bg-background h-10 rounded-md border px-3 font-normal"
+                            onChange={(event) => setEditForm({ ...editForm, modmed_claim_status: event.target.value })}
+                            value={editForm.modmed_claim_status}
+                        >
+                            <option value="">--</option>
+                            {!modMedClaimStatuses.some((item) => item.value === editForm.modmed_claim_status) && editForm.modmed_claim_status && (
+                                <option value={editForm.modmed_claim_status}>{editForm.modmed_claim_status}</option>
+                            )}
+                            {modMedClaimStatuses.map((item) => (
                                 <option key={item.value} value={item.value}>
                                     {item.label}
                                 </option>

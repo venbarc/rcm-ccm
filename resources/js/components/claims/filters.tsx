@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 interface ClaimsFiltersProps {
     local: Filters;
     workStatuses: StatusOption[];
+    modMedClaimStatuses: StatusOption[];
     invoicedStatuses: StatusOption[];
     denialReasons: StatusOption[];
     assignees: UserOption[];
@@ -19,6 +20,7 @@ interface ClaimsFiltersProps {
 export function ClaimsFilters({
     local,
     workStatuses,
+    modMedClaimStatuses,
     invoicedStatuses,
     denialReasons,
     assignees,
@@ -89,6 +91,7 @@ export function ClaimsFilters({
                             placeholder="All ModMed statuses"
                             searchPlaceholder="Search ModMed statuses..."
                             emptyMessage="No ModMed statuses found."
+                            selectedLabel={modMedClaimStatuses.find((item) => item.value === local.modmed_claim_status)?.label}
                         />
                         <FilterSearchSelect
                             filter="procedure_code"

@@ -20,6 +20,7 @@ interface ClaimsIndexProps {
     filters: Filters;
     summary: Summary;
     workStatuses: StatusOption[];
+    modMedClaimStatuses: StatusOption[];
     invoicedStatuses: StatusOption[];
     creditStatuses: StatusOption[];
     creditReasons: StatusOption[];
@@ -38,6 +39,7 @@ function ClaimsIndexContent({
     filters,
     summary,
     workStatuses,
+    modMedClaimStatuses,
     invoicedStatuses,
     creditStatuses,
     creditReasons,
@@ -58,6 +60,7 @@ function ClaimsIndexContent({
     const [exportOpen, setExportOpen] = useState(false);
     const [editForm, setEditForm] = useState({
         work_status: 'draft',
+        modmed_claim_status: '',
         denial_reason: '',
         notes: '',
         credit_status: '' as '' | 'yes' | 'no',
@@ -177,6 +180,7 @@ function ClaimsIndexContent({
         setEditingLine(line);
         setEditForm({
             work_status: line.work_status || 'draft',
+            modmed_claim_status: line.modmed_claim_status || '',
             denial_reason: line.denial_reason || '',
             notes: line.notes || '',
             credit_status: line.credit_status === null ? '' : line.credit_status ? 'yes' : 'no',
@@ -192,6 +196,11 @@ function ClaimsIndexContent({
         const editedClaimId = editingClaim.id;
         const editedLineId = editingLine.id;
         const workStatus = editForm.work_status;
+        const modMedClaimStatus = editForm.modmed_claim_status.trim() || null;
+        const modMedClaimStatusChanged = modMedClaimStatus !== editingLine.modmed_claim_status;
+        const modMedClaimStatusOption = modMedClaimStatuses.find((option) => option.value === modMedClaimStatus);
+        const modMedClaimStatusLabel = modMedClaimStatusOption?.label ?? modMedClaimStatus;
+        const modMedClaimStatusColor = modMedClaimStatusOption?.color ?? null;
         const denialReason = editForm.denial_reason.trim() || null;
         const notes = editForm.notes.trim() || null;
         const creditStatus = editForm.credit_status === '' ? null : editForm.credit_status === 'yes';
@@ -217,6 +226,7 @@ function ClaimsIndexContent({
             `/claims/${editedLineId}?${buildStateQuery(editedClaimId)}`,
             {
                 work_status: workStatus,
+                ...(modMedClaimStatusChanged ? { modmed_claim_status: modMedClaimStatus } : {}),
                 denial_reason: denialReason,
                 notes,
                 credit_status: creditStatus,
@@ -244,6 +254,9 @@ function ClaimsIndexContent({
                                           work_status: workStatus,
                                           work_status_label: workStatusLabel,
                                           work_status_color: workStatusColor,
+                                          modmed_claim_status: modMedClaimStatus,
+                                          modmed_claim_status_label: modMedClaimStatusLabel,
+                                          modmed_claim_status_color: modMedClaimStatusColor,
                                           denial_reason: denialReason,
                                           denial_reason_label: denialReasonLabel,
                                           notes,
@@ -254,7 +267,13 @@ function ClaimsIndexContent({
                                           credit_reason_label: creditReasonLabel,
                                           assigned_to: currentUser.id,
                                           assignee: currentUser,
-                                          is_modified: workStatus !== 'draft' || denialReason !== null || notes !== null || creditStatus !== null,
+                                          is_modified:
+                                              line.is_modified ||
+                                              workStatus !== 'draft' ||
+                                              modMedClaimStatusChanged ||
+                                              denialReason !== null ||
+                                              notes !== null ||
+                                              creditStatus !== null,
                                           updated_at: updatedAt,
                                       }
                                     : line,
@@ -267,6 +286,9 @@ function ClaimsIndexContent({
                                 work_status: workStatus,
                                 work_status_label: workStatusLabel,
                                 work_status_color: workStatusColor,
+                                modmed_claim_status: modMedClaimStatus,
+                                modmed_claim_status_label: modMedClaimStatusLabel,
+                                modmed_claim_status_color: modMedClaimStatusColor,
                                 denial_reason: denialReason,
                                 denial_reason_label: denialReasonLabel,
                                 notes,
@@ -347,6 +369,7 @@ function ClaimsIndexContent({
                     denialReasons={denialReasons}
                     invoicedStatuses={invoicedStatuses}
                     local={local}
+                    modMedClaimStatuses={modMedClaimStatuses}
                     onClear={clearFilters}
                     onFilterChange={updateFilters}
                     onSearchChange={updateSearch}
@@ -366,6 +389,7 @@ function ClaimsIndexContent({
                 claim={editingClaim}
                 editForm={editForm}
                 line={editingLine}
+                modMedClaimStatuses={modMedClaimStatuses}
                 creditStatuses={creditStatuses}
                 creditReasons={creditReasons}
                 denialReasons={denialReasons}

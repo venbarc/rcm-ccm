@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\AccountType;
 use App\Models\Claim;
+use App\Models\ClaimConfigurationOption;
 use App\Models\User;
+use App\Services\ClaimConfigurationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -46,6 +48,22 @@ class DashboardTest extends TestCase
             'service_date_start' => '2026-07-01',
             'work_status' => 'draft',
         ];
+        ClaimConfigurationOption::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'Resolved/Paid',
+            'label' => 'Resolved and Paid',
+            'color' => '#DCFCE7',
+            'sort_order' => 0,
+        ]);
+        ClaimConfigurationOption::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'REVIEW NEEDED',
+            'label' => 'Needs Review',
+            'color' => '#FFEDD5',
+            'sort_order' => 1,
+        ]);
 
         Claim::query()->create($baseClaim + [
             'external_id' => 'SUMMARY-100',
@@ -110,6 +128,8 @@ class DashboardTest extends TestCase
                     $status = collect($rows)->firstWhere('group', 'Resolved/Paid');
 
                     return $status !== null
+                        && $status['groupLabel'] === 'Resolved and Paid'
+                        && $status['groupColor'] === '#DCFCE7'
                         && $status['billCount'] === 1
                         && $status['cptCount'] === 2
                         && $status['units'] === 3.0

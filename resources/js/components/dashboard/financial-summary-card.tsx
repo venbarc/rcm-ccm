@@ -16,7 +16,7 @@ interface FinancialSummaryCardProps {
 function GroupValue({ kind, row }: { kind: FinancialSummaryCardProps['groupKind']; row: DashboardFinancialSummaryRow }) {
     if (kind === 'modmed-status') {
         return row.group ? (
-            <ModMedClaimStatusBadge status={row.group} />
+            <ModMedClaimStatusBadge color={row.groupColor} label={row.groupLabel} status={row.group} />
         ) : (
             <Badge className="border-slate-300 bg-slate-50 text-slate-600" variant="outline">
                 No status

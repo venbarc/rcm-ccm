@@ -8,7 +8,31 @@ use Illuminate\Support\Collection;
 
 class ClaimConfigurationService
 {
+    private const AUTOMATIC_COLORS = [
+        '#F8FAFC',
+        '#F3E8FF',
+        '#DBEAFE',
+        '#FEE2E2',
+        '#F3F4F6',
+        '#FEF3C7',
+        '#E0F2FE',
+        '#CCFBF1',
+        '#DCFCE7',
+        '#FFEDD5',
+        '#FCE7F3',
+        '#E0E7FF',
+        '#ECFCCB',
+        '#FFE4E6',
+        '#CFFAFE',
+        '#D1FAE5',
+    ];
+
+    /** @var array<string, string> */
+    private array $resolvedModMedStatuses = [];
+
     public const WORK_STATUS = 'work_status';
+
+    public const MODMED_CLAIM_STATUS = 'modmed_claim_status';
 
     public const CREDIT_STATUS = 'credit_status';
 
@@ -21,10 +45,16 @@ class ClaimConfigurationService
     {
         return [
             self::WORK_STATUS => 'Work Status',
+            self::MODMED_CLAIM_STATUS => 'ModMed Claim Status',
             self::CREDIT_STATUS => 'Credit Status',
             self::CREDIT_REASON => 'Credit Reason',
             self::DENIAL_REASON => 'Denial Reason',
         ];
+    }
+
+    public function usesColor(string $type): bool
+    {
+        return in_array($type, [self::WORK_STATUS, self::MODMED_CLAIM_STATUS], true);
     }
 
     /** @return Builder<ClaimConfigurationOption> */
@@ -114,5 +144,70 @@ class ClaimConfigurationService
         );
 
         return $option->value;
+    }
+
+    public function resolveModMedClaimStatus(string $account, ?string $status): ?string
+    {
+        $status = trim((string) $status);
+        if ($status === '') {
+            return null;
+        }
+        $cacheKey = $account.':'.mb_strtolower($status);
+        if (isset($this->resolvedModMedStatuses[$cacheKey])) {
+            return $this->resolvedModMedStatuses[$cacheKey];
+        }
+
+        $existing = $this->query($account, self::MODMED_CLAIM_STATUS)
+            ->where(function (Builder $query) use ($status): void {
+                $query->where('value', $status)
+                    ->orWhereRaw('LOWER(label) = ?', [mb_strtolower($status)]);
+            })
+            ->first();
+
+        if ($existing) {
+            return $this->resolvedModMedStatuses[$cacheKey] = $existing->value;
+        }
+
+        $option = ClaimConfigurationOption::query()->firstOrCreate(
+            [
+                'account_type' => $account,
+                'option_type' => self::MODMED_CLAIM_STATUS,
+                'value' => $status,
+            ],
+            [
+                'label' => $status,
+                'color' => $this->nextAutomaticColor($account, self::MODMED_CLAIM_STATUS, $status),
+                'sort_order' => ((int) $this->query($account, self::MODMED_CLAIM_STATUS)->max('sort_order')) + 1,
+                'added_by' => null,
+            ],
+        );
+
+        return $this->resolvedModMedStatuses[$cacheKey] = $option->value;
+    }
+
+    private function nextAutomaticColor(string $account, string $type, string $seed): string
+    {
+        $usedColors = $this->colorMap($account, $type);
+        $usedColors = array_map('strtoupper', array_values($usedColors));
+
+        foreach (self::AUTOMATIC_COLORS as $color) {
+            if (! in_array($color, $usedColors, true)) {
+                return $color;
+            }
+        }
+
+        for ($attempt = 0; $attempt < 1000; $attempt++) {
+            $hash = hexdec(substr(hash('sha256', "{$seed}:{$attempt}"), 0, 6));
+            $red = 220 + (($hash >> 16) & 31);
+            $green = 220 + (($hash >> 8) & 31);
+            $blue = 220 + ($hash & 31);
+            $color = sprintf('#%02X%02X%02X', $red, $green, $blue);
+
+            if (! in_array($color, $usedColors, true)) {
+                return $color;
+            }
+        }
+
+        throw new \RuntimeException("Unable to allocate a unique {$type} color for {$account}.");
     }
 }

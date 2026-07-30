@@ -8,10 +8,19 @@ interface FilterSearchSelectProps {
     placeholder: string;
     searchPlaceholder: string;
     emptyMessage: string;
+    selectedLabel?: string;
 }
 
-export function FilterSearchSelect({ filter, value, onValueChange, placeholder, searchPlaceholder, emptyMessage }: FilterSearchSelectProps) {
-    const selectedLabel = filter === 'service_month' && value ? formatServiceMonth(value) : value;
+export function FilterSearchSelect({
+    filter,
+    value,
+    onValueChange,
+    placeholder,
+    searchPlaceholder,
+    emptyMessage,
+    selectedLabel,
+}: FilterSearchSelectProps) {
+    const resolvedSelectedLabel = selectedLabel ?? (filter === 'service_month' && value ? formatServiceMonth(value) : value);
 
     return (
         <SearchableSelect
@@ -22,7 +31,7 @@ export function FilterSearchSelect({ filter, value, onValueChange, placeholder, 
             emptyMessage={emptyMessage}
             fetchUrl="/claims/options"
             queryParams={{ filter }}
-            initialOption={value ? { id: value, name: selectedLabel } : null}
+            initialOption={value ? { id: value, name: resolvedSelectedLabel } : null}
             clearLabel={`Clear ${placeholder.toLowerCase()}`}
         />
     );
