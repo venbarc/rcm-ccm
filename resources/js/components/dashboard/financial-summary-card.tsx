@@ -4,9 +4,11 @@ import { formatCount, formatCurrency, formatNumber, formatPercent } from '@/comp
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldCheck } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface FinancialSummaryCardProps {
     description: string;
+    filters: ReactNode;
     groupHeading: string;
     groupKind: 'cpt' | 'modmed-status';
     summary: DashboardFinancialSummary;
@@ -16,7 +18,7 @@ interface FinancialSummaryCardProps {
 function GroupValue({ kind, row }: { kind: FinancialSummaryCardProps['groupKind']; row: DashboardFinancialSummaryRow }) {
     if (kind === 'modmed-status') {
         return row.group ? (
-            <ModMedClaimStatusBadge status={row.group} />
+            <ModMedClaimStatusBadge color={row.groupColor} label={row.groupLabel} status={row.group} />
         ) : (
             <Badge className="border-slate-300 bg-slate-50 text-slate-600" variant="outline">
                 No status
@@ -48,18 +50,21 @@ function FinancialCells({ row }: { row: DashboardFinancialSummaryRow }) {
     );
 }
 
-export function FinancialSummaryCard({ description, groupHeading, groupKind, summary, title }: FinancialSummaryCardProps) {
+export function FinancialSummaryCard({ description, filters, groupHeading, groupKind, summary, title }: FinancialSummaryCardProps) {
     return (
         <Card className="w-full max-w-full min-w-0 overflow-hidden">
-            <CardHeader className="gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <CardTitle className="text-xl">{title}</CardTitle>
-                    <CardDescription className="mt-1">{description}</CardDescription>
+            <CardHeader className="space-y-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <CardTitle className="text-xl">{title}</CardTitle>
+                        <CardDescription className="mt-1">{description}</CardDescription>
+                    </div>
+                    <Badge className="w-fit gap-1.5 border-blue-200 bg-blue-50 text-blue-800" variant="outline">
+                        <ShieldCheck className="size-3.5" />
+                        Admin only
+                    </Badge>
                 </div>
-                <Badge className="w-fit gap-1.5 border-blue-200 bg-blue-50 text-blue-800" variant="outline">
-                    <ShieldCheck className="size-3.5" />
-                    Admin only
-                </Badge>
+                <div className="border-muted/60 bg-muted/15 rounded-lg border p-3">{filters}</div>
             </CardHeader>
             <CardContent className="p-0">
                 <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">

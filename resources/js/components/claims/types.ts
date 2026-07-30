@@ -25,6 +25,8 @@ export interface ClaimLine {
     payer_name: string | null;
     patient_id: string | null;
     modmed_claim_status: string | null;
+    modmed_claim_status_label: string | null;
+    modmed_claim_status_color: string | null;
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
@@ -68,6 +70,8 @@ export interface ClaimGroup {
     true_charge: number | string | null;
     true_balance: number | string | null;
     modmed_claim_status: string | null;
+    modmed_claim_status_label: string | null;
+    modmed_claim_status_color: string | null;
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;

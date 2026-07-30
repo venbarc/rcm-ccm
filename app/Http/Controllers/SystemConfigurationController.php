@@ -46,12 +46,12 @@ class SystemConfigurationController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         $requestedType = (string) $request->input('option_type');
-        $this->normalizeWorkStatusColor($request, $requestedType);
+        $this->normalizeConfigurationColor($request, $requestedType);
         $validated = $request->validate([
             'option_type' => ['required', 'string', Rule::in(array_keys($this->configurations->typeLabels()))],
             'label' => ['required', 'string', 'max:255'],
             'color' => $this->colorRules($requestedType, $account->value),
-        ], $this->colorValidationMessages());
+        ], $this->colorValidationMessages($requestedType));
         $type = $validated['option_type'];
         $this->ensureTypeCanBeCreated($type);
         $label = trim($validated['label']);
@@ -62,7 +62,7 @@ class SystemConfigurationController extends Controller
             'option_type' => $type,
             'value' => $this->uniqueValue($account->value, $type, $label),
             'label' => $label,
-            'color' => $type === ClaimConfigurationService::WORK_STATUS ? $validated['color'] : null,
+            'color' => $this->configurations->usesColor($type) ? $validated['color'] : null,
             'sort_order' => ((int) $this->configurations->query($account->value, $type)->max('sort_order')) + 1,
             'added_by' => $request->user()->id,
         ]);
@@ -75,7 +75,7 @@ class SystemConfigurationController extends Controller
         $account = CurrentAccount::resolve($request);
         abort_unless($configurationOption->account_type === $account->value, 404);
         $this->ensureOptionIsEditable($configurationOption);
-        $this->normalizeWorkStatusColor($request, $configurationOption->option_type);
+        $this->normalizeConfigurationColor($request, $configurationOption->option_type);
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:255'],
             'color' => $this->colorRules(
@@ -83,12 +83,12 @@ class SystemConfigurationController extends Controller
                 $account->value,
                 $configurationOption->id,
             ),
-        ], $this->colorValidationMessages());
+        ], $this->colorValidationMessages($configurationOption->option_type));
         $label = trim($validated['label']);
         $this->ensureUniqueLabel($account->value, $configurationOption->option_type, $label, $configurationOption->id);
         $configurationOption->update([
             'label' => $label,
-            'color' => $configurationOption->option_type === ClaimConfigurationService::WORK_STATUS
+            'color' => $this->configurations->usesColor($configurationOption->option_type)
                 ? $validated['color']
                 : null,
         ]);
@@ -158,7 +158,7 @@ class SystemConfigurationController extends Controller
     /** @return array<int, mixed> */
     private function colorRules(string $type, string $account, ?int $ignoreId = null): array
     {
-        if ($type !== ClaimConfigurationService::WORK_STATUS) {
+        if (! $this->configurations->usesColor($type)) {
             return ['nullable'];
         }
 
@@ -169,24 +169,26 @@ class SystemConfigurationController extends Controller
             Rule::unique('claim_configuration_options', 'color')
                 ->where(fn ($query) => $query
                     ->where('account_type', $account)
-                    ->where('option_type', ClaimConfigurationService::WORK_STATUS))
+                    ->where('option_type', $type))
                 ->ignore($ignoreId),
         ];
     }
 
     /** @return array<string, string> */
-    private function colorValidationMessages(): array
+    private function colorValidationMessages(string $type): array
     {
+        $typeLabel = $this->configurations->typeLabels()[$type] ?? 'configuration option';
+
         return [
-            'color.required' => 'Choose a background color for the Work Status.',
+            'color.required' => "Choose a background color for the {$typeLabel}.",
             'color.regex' => 'Enter a valid six-digit hex color such as #DCEEFF.',
-            'color.unique' => 'That background color is already assigned to another Work Status.',
+            'color.unique' => "That background color is already assigned to another {$typeLabel}.",
         ];
     }
 
-    private function normalizeWorkStatusColor(Request $request, string $type): void
+    private function normalizeConfigurationColor(Request $request, string $type): void
     {
-        if ($type === ClaimConfigurationService::WORK_STATUS && is_string($request->input('color'))) {
+        if ($this->configurations->usesColor($type) && is_string($request->input('color'))) {
             $request->merge([
                 'color' => strtoupper(trim((string) $request->input('color'))),
             ]);

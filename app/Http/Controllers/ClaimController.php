@@ -7,6 +7,7 @@ use App\Models\ClaimActivity;
 use App\Models\ClaimImport;
 use App\Services\ClaimActivityService;
 use App\Services\ClaimConfigurationService;
+use App\Services\ClaimFilterService;
 use App\Services\TeamService;
 use App\Support\CurrentAccount;
 use Carbon\Carbon;
@@ -43,6 +44,7 @@ class ClaimController extends Controller
     public function __construct(
         private readonly ClaimActivityService $activities,
         private readonly ClaimConfigurationService $configurations,
+        private readonly ClaimFilterService $claimFilters,
         private readonly TeamService $teams,
     ) {}
 
@@ -52,6 +54,8 @@ class ClaimController extends Controller
         $accountValue = $account->value;
         $workStatusLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::WORK_STATUS);
         $workStatusColors = $this->configurations->colorMap($accountValue, ClaimConfigurationService::WORK_STATUS);
+        $modMedStatusLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::MODMED_CLAIM_STATUS);
+        $modMedStatusColors = $this->configurations->colorMap($accountValue, ClaimConfigurationService::MODMED_CLAIM_STATUS);
         $creditStatusLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::CREDIT_STATUS);
         $creditReasonLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::CREDIT_REASON);
         $denialReasonLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::DENIAL_REASON);
@@ -96,7 +100,7 @@ class ClaimController extends Controller
             ->selectRaw('MAX(NULLIF(primary_provider, \'\')) as primary_provider')
             ->selectRaw('MAX(NULLIF(payer_name, \'\')) as payer_name')
             ->selectRaw('MAX(NULLIF(place_of_service_code, \'\')) as place_of_service_code')
-            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') OR credit_status IS NOT NULL OR (credit_reason IS NOT NULL AND TRIM(credit_reason) != \'\') THEN 1 ELSE 0 END) as is_modified')
+            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR modmed_claim_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') OR credit_status IS NOT NULL OR (credit_reason IS NOT NULL AND TRIM(credit_reason) != \'\') THEN 1 ELSE 0 END) as is_modified')
             ->groupBy('bill_id')
             ->orderBy($sortBy, $sortDirection)
             ->orderBy('bill_id')
@@ -129,6 +133,8 @@ class ClaimController extends Controller
             $creditStatusLabels,
             $denialReasonLabels,
             $latestActivities,
+            $modMedStatusColors,
+            $modMedStatusLabels,
             $workStatusColors,
             $workStatusLabels,
         ) {
@@ -167,6 +173,9 @@ class ClaimController extends Controller
                 'true_charge' => (float) ($group->true_charge ?? 0),
                 'true_balance' => (float) ($group->true_balance ?? 0),
                 'modmed_claim_status' => $representative?->modmed_claim_status ?: $group->modmed_claim_status,
+                'modmed_claim_status_label' => $modMedStatusLabels[$representative?->modmed_claim_status ?: $group->modmed_claim_status]
+                    ?? ($representative?->modmed_claim_status ?: $group->modmed_claim_status),
+                'modmed_claim_status_color' => $modMedStatusColors[$representative?->modmed_claim_status ?: $group->modmed_claim_status] ?? null,
                 'cf_invoice_date' => $representative?->cf_invoice_date?->toDateString()
                     ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
                 'invoiced_status' => 'invoiced',
@@ -211,6 +220,8 @@ class ClaimController extends Controller
                     'payer_name' => $claim->payer_name ?: $claim->payer,
                     'patient_id' => $claim->patient_id,
                     'modmed_claim_status' => $claim->modmed_claim_status,
+                    'modmed_claim_status_label' => $modMedStatusLabels[$claim->modmed_claim_status] ?? $claim->modmed_claim_status,
+                    'modmed_claim_status_color' => $modMedStatusColors[$claim->modmed_claim_status] ?? null,
                     'cf_invoice_date' => $claim->cf_invoice_date?->toDateString(),
                     'invoiced_status' => 'invoiced',
                     'invoiced_status_date' => $claim->cf_invoice_date?->toDateString(),
@@ -234,6 +245,7 @@ class ClaimController extends Controller
                     'assigned_to' => $claim->assigned_to,
                     'assignee' => $claim->assignee?->only(['id', 'name', 'email']),
                     'is_modified' => (bool) ($claim->work_status_manually_set
+                        || $claim->modmed_claim_status_manually_set
                         || filled($claim->notes)
                         || filled($claim->denial_reason)
                         || $claim->credit_status !== null
@@ -275,6 +287,7 @@ class ClaimController extends Controller
                 'totalPayments' => (float) ((clone $summaryQuery)->where('payments', '>', 0)->sum('payments') ?? 0),
             ],
             'workStatuses' => $this->configurations->selectOptions($accountValue, ClaimConfigurationService::WORK_STATUS),
+            'modMedClaimStatuses' => $this->configurations->selectOptions($accountValue, ClaimConfigurationService::MODMED_CLAIM_STATUS),
             'invoicedStatuses' => $this->selectOptions(self::INVOICED_STATUSES),
             'creditStatuses' => $this->configurations->selectOptions($accountValue, ClaimConfigurationService::CREDIT_STATUS),
             'creditReasons' => $this->configurations->selectOptions($accountValue, ClaimConfigurationService::CREDIT_REASON),
@@ -306,6 +319,34 @@ class ClaimController extends Controller
         $search = trim((string) ($validated['search'] ?? ''));
         $page = max((int) ($validated['page'] ?? 1), 1);
         $perPage = min(max((int) ($validated['per_page'] ?? 10), 5), 200);
+
+        if ($filter === 'modmed_claim_status') {
+            $query = $this->configurations
+                ->query($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS)
+                ->when($search !== '', fn (Builder $query) => $query->where(function (Builder $query) use ($search): void {
+                    $query->where('label', 'like', '%'.$search.'%')
+                        ->orWhere('value', 'like', '%'.$search.'%');
+                }));
+            $total = (clone $query)->count();
+            $lastPage = max((int) ceil(max($total, 1) / $perPage), 1);
+            $options = (clone $query)
+                ->orderBy('sort_order')
+                ->orderBy('label')
+                ->forPage($page, $perPage)
+                ->get(['value', 'label']);
+
+            return response()->json([
+                'data' => $options->map(fn ($option): array => [
+                    'id' => $option->value,
+                    'name' => $option->label,
+                ])->values()->all(),
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'has_more' => $page < $lastPage,
+            ]);
+        }
 
         if ($filter === 'service_month') {
             $months = Claim::query()
@@ -371,6 +412,8 @@ class ClaimController extends Controller
         abort_unless($claim->account_type === $account->value, 404);
         $workStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
         $workStatusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::WORK_STATUS);
+        $modMedStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
+        $modMedStatusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
         $creditStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::CREDIT_STATUS);
         $creditReasonLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::CREDIT_REASON);
         $denialReasonLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::DENIAL_REASON);
@@ -436,6 +479,8 @@ class ClaimController extends Controller
                     'payer_name' => $line->payer_name ?: $line->payer,
                     'primary_provider' => $line->primary_provider ?: $line->provider,
                     'modmed_claim_status' => $line->modmed_claim_status,
+                    'modmed_claim_status_label' => $modMedStatusLabels[$line->modmed_claim_status] ?? $line->modmed_claim_status,
+                    'modmed_claim_status_color' => $modMedStatusColors[$line->modmed_claim_status] ?? null,
                     'cf_invoice_date' => $line->cf_invoice_date?->toDateString(),
                     'invoiced_status' => 'invoiced',
                     'invoiced_status_date' => $line->cf_invoice_date?->toDateString(),
@@ -489,6 +534,10 @@ class ClaimController extends Controller
             ...$this->configurations->values($account->value, ClaimConfigurationService::WORK_STATUS),
             $claim->work_status ?: 'draft',
         ]));
+        $modMedClaimStatuses = array_values(array_unique(array_filter([
+            ...$this->configurations->values($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS),
+            $claim->modmed_claim_status,
+        ])));
         $creditReasons = array_values(array_unique(array_filter([
             ...$this->configurations->values($account->value, ClaimConfigurationService::CREDIT_REASON),
             $claim->credit_reason,
@@ -502,6 +551,7 @@ class ClaimController extends Controller
 
         $validated = $request->validate([
             'work_status' => ['sometimes', Rule::in($workStatuses)],
+            'modmed_claim_status' => ['sometimes', 'nullable', 'string', 'max:255', Rule::in($modMedClaimStatuses)],
             'denial_reason' => ['sometimes', 'nullable', 'string', 'max:255', Rule::in($denialReasons)],
             'notes' => ['sometimes', 'nullable', 'string', 'max:10000'],
             'credit_status' => ['sometimes', 'nullable', 'boolean'],
@@ -520,7 +570,7 @@ class ClaimController extends Controller
             'credit_reason.required' => "Credit Reason is required when Credit Status is {$affirmativeCreditStatusLabel}.",
         ]);
 
-        foreach (['denial_reason', 'notes', 'credit_reason'] as $field) {
+        foreach (['modmed_claim_status', 'denial_reason', 'notes', 'credit_reason'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $validated[$field] = trim((string) $validated[$field]) ?: null;
             }
@@ -539,6 +589,9 @@ class ClaimController extends Controller
 
         if (array_key_exists('work_status', $validated)) {
             $validated['work_status_manually_set'] = $validated['work_status'] !== 'draft';
+        }
+        if (array_key_exists('modmed_claim_status', $validated)) {
+            $validated['modmed_claim_status_manually_set'] = true;
         }
 
         $validated['assigned_to'] = $request->user()->id;
@@ -623,86 +676,11 @@ class ClaimController extends Controller
 
     private function buildMatchedClaimGroupQuery(Request $request, string $account): Builder
     {
-        $query = Claim::query()->where('account_type', $account);
-        $search = trim($request->string('search')->toString());
-
-        if ($search !== '') {
-            $query->where(function (Builder $nested) use ($search): void {
-                $nested->where('bill_id', 'like', "%{$search}%")
-                    ->orWhere('patient_name', 'like', "%{$search}%")
-                    ->orWhere('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('patient_id', 'like', "%{$search}%")
-                    ->orWhereRaw($this->filterExpression('payer_name').' LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw($this->filterExpression('primary_provider').' LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw($this->filterExpression('procedure_code').' LIKE ?', ["%{$search}%"]);
-            });
-        }
-
-        $this->applyExactFilter($query, 'modmed_claim_status', $request->input('modmed_claim_status'));
-        $this->applyExactFilter($query, 'invoiced_status', $request->input('invoiced_status'));
-        $this->applyExpressionExactFilter($query, $this->filterExpression('payer_name'), $request->input('payer_name'));
-        $this->applyExpressionExactFilter($query, $this->filterExpression('primary_provider'), $request->input('primary_provider'));
-        $this->applyExactFilter($query, 'denial_reason', $request->input('denial_reason'));
-        $this->applyExactFilter($query, 'work_status', $request->input('work_status'));
-        $this->applyExpressionExactFilter($query, $this->filterExpression('procedure_code'), $request->input('procedure_code'));
-
-        $assignedTo = $request->input('assigned_to');
-        if ($assignedTo === 'unassigned') {
-            $query->whereNull('assigned_to');
-        } elseif ($assignedTo === 'me') {
-            $query->where('assigned_to', $request->user()->id);
-        } elseif (is_numeric($assignedTo)) {
-            $query->where('assigned_to', (int) $assignedTo);
-        }
-
-        $this->applyDateFilter($query, 'updated_at', '>=', $request->input('worked_from'));
-        $this->applyDateFilter($query, 'updated_at', '<=', $request->input('worked_to'));
-        $this->applyDateFilter($query, 'cf_invoice_date', '>=', $request->input('cf_invoice_from'));
-        $this->applyDateFilter($query, 'cf_invoice_date', '<=', $request->input('cf_invoice_to'));
-
-        $serviceMonth = trim((string) $request->input('service_month', ''));
-        if (preg_match('/^\d{4}-\d{2}$/', $serviceMonth) === 1) {
-            $month = Carbon::createFromFormat('!Y-m', $serviceMonth);
-            $query->whereBetween('service_date_start', [
-                $month->copy()->startOfMonth()->toDateString(),
-                $month->copy()->endOfMonth()->toDateString(),
-            ]);
-        }
-
-        return $query;
-    }
-
-    private function applyExactFilter(Builder $query, string $column, mixed $value): void
-    {
-        $value = trim((string) ($value ?? ''));
-        if ($value !== '' && $value !== 'all') {
-            $query->where($column, $value);
-        }
-    }
-
-    private function applyExpressionExactFilter(Builder $query, ?string $expression, mixed $value): void
-    {
-        $value = trim((string) ($value ?? ''));
-        if ($expression === null || $value === '' || $value === 'all') {
-            return;
-        }
-
-        $query->whereRaw("{$expression} = ?", [$value]);
-    }
-
-    private function applyDateFilter(Builder $query, string $column, string $operator, mixed $value): void
-    {
-        $value = trim((string) ($value ?? ''));
-        if ($value === '') {
-            return;
-        }
-
-        try {
-            $query->whereDate($column, $operator, Carbon::parse($value)->toDateString());
-        } catch (\Throwable) {
-            // Ignore malformed query-string dates and keep the claims page usable.
-        }
+        return $this->claimFilters->matchingLines(
+            $account,
+            $request->query(),
+            $request->user()?->id,
+        );
     }
 
     private function filterExpression(string $filter): ?string

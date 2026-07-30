@@ -1,6 +1,6 @@
 import InputError from '@/components/input-error';
+import { ConfigurationColorPicker, isValidHexColor, normalizeHexColor } from '@/components/system-configuration/configuration-color-picker';
 import type { ConfigurationOption } from '@/components/system-configuration/types';
-import { isValidHexColor, normalizeHexColor, WorkStatusColorPicker } from '@/components/system-configuration/work-status-color-picker';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ interface ConfigurationOptionDialogProps {
 
 export function ConfigurationOptionDialog({ optionType, typeLabel, option, onClose, usedColors }: ConfigurationOptionDialogProps) {
     const isWorkStatus = optionType === 'work_status';
+    const usesColor = isWorkStatus || optionType === 'modmed_claim_status';
     const form = useForm({
         option_type: optionType,
         label: option?.label ?? '',
@@ -47,7 +48,7 @@ export function ConfigurationOptionDialog({ optionType, typeLabel, option, onClo
                     <DialogTitle>{option ? `Edit ${typeLabel}` : `Add ${typeLabel}`}</DialogTitle>
                     <DialogDescription>
                         {option
-                            ? `Update the display name${isWorkStatus ? ' and row color' : ''}. Existing claim records keep their stable internal value.`
+                            ? `Update the display name${usesColor ? ' and color' : ''}. Existing claim records keep their stable internal value.`
                             : `Add a new ${typeLabel.toLowerCase()} option for the active account.`}
                     </DialogDescription>
                 </DialogHeader>
@@ -64,11 +65,13 @@ export function ConfigurationOptionDialog({ optionType, typeLabel, option, onClo
                         />
                         <InputError message={form.errors.label} />
                     </label>
-                    {isWorkStatus && (
-                        <WorkStatusColorPicker
+                    {usesColor && (
+                        <ConfigurationColorPicker
                             error={form.errors.color}
                             onChange={(color) => form.setData('color', color)}
+                            previewLabel={isWorkStatus ? 'Row color preview' : 'Badge color preview'}
                             selectedColor={form.data.color}
+                            typeLabel={typeLabel}
                             usedColors={usedColors}
                         />
                     )}
@@ -82,7 +85,7 @@ export function ConfigurationOptionDialog({ optionType, typeLabel, option, onClo
                             Cancel
                         </Button>
                         <Button
-                            disabled={form.processing || form.data.label.trim() === '' || (isWorkStatus && (!colorIsValid || colorIsUsed))}
+                            disabled={form.processing || form.data.label.trim() === '' || (usesColor && (!colorIsValid || colorIsUsed))}
                             type="submit"
                         >
                             <Save />

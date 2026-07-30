@@ -10,16 +10,29 @@ interface DashboardRangeFilterProps {
     filters: DashboardFilters;
 }
 
+function currentDashboardParams(): Record<string, string> {
+    if (typeof window === 'undefined') {
+        return {};
+    }
+
+    return Object.fromEntries(new URLSearchParams(window.location.search).entries());
+}
+
 export function DashboardRangeFilter({ filters }: DashboardRangeFilterProps) {
     const [preset, setPreset] = useState(filters.preset);
     const [start, setStart] = useState(filters.start ?? '');
     const [end, setEnd] = useState(filters.end ?? '');
 
     const applyFilters = (nextPreset = preset, nextStart = start, nextEnd = end) => {
-        const params: Record<string, string> = { preset: nextPreset };
+        const params = currentDashboardParams();
+        params.preset = nextPreset;
+
         if (nextPreset === 'custom') {
             params.start = nextStart;
             params.end = nextEnd;
+        } else {
+            delete params.start;
+            delete params.end;
         }
 
         router.get('/dashboard', params, {

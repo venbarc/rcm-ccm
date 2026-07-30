@@ -201,6 +201,10 @@ class ClaimImportService
                     $import->account_type,
                     $payload['denial_reason'] ?? null,
                 );
+                $payload['modmed_claim_status'] = $this->configurations->resolveModMedClaimStatus(
+                    $import->account_type,
+                    $payload['modmed_claim_status'] ?? null,
+                );
                 $sourceHash = $this->sourceHash($billId, $payload);
                 $claim = $this->findExistingClaim($import, $billId, $sourceHash, $payload)
                     ?? new Claim(['account_type' => $import->account_type]);
@@ -245,6 +249,10 @@ class ClaimImportService
                     'work_status', 'work_status_manually_set', 'denial_reason', 'notes',
                     'assigned_to', 'priority', 'status',
                 ]);
+                $managed['modmed_claim_status'] = ! $isNew && $claim->modmed_claim_status_manually_set
+                    ? $claim->modmed_claim_status
+                    : ($payload['modmed_claim_status'] ?? null);
+                $managed['modmed_claim_status_manually_set'] = ! $isNew && $claim->modmed_claim_status_manually_set;
 
                 $claim->fill([
                     ...$payload,
@@ -384,6 +392,7 @@ class ClaimImportService
     private function wasWorkedOrModified(Claim $claim): bool
     {
         if ($claim->work_status_manually_set
+            || $claim->modmed_claim_status_manually_set
             || filled($claim->notes)
             || filled($claim->denial_reason)
             || $claim->credit_status !== null

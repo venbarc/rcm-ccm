@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ClaimExport;
 use App\Services\ClaimConfigurationService;
 use App\Services\ClaimExportService;
+use App\Services\ClaimFilterService;
 use App\Support\CurrentAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class ClaimExportController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         $workStatuses = $this->configurations->values($account->value, ClaimConfigurationService::WORK_STATUS);
+        $pageFilterKeys = implode(',', ClaimFilterService::FILTER_KEYS);
         $validated = $request->validate([
             'type' => ['required', Rule::in(['all', 'status', 'assignee'])],
             'status' => [
@@ -31,6 +33,21 @@ class ClaimExportController extends Controller
                 Rule::in($workStatuses),
             ],
             'assigned_to' => ['nullable', 'required_if:type,assignee', 'string', 'max:30'],
+            'filters' => ['nullable', "array:{$pageFilterKeys}"],
+            'filters.search' => ['nullable', 'string', 'max:255'],
+            'filters.modmed_claim_status' => ['nullable', 'string', 'max:255'],
+            'filters.invoiced_status' => ['nullable', 'string', 'max:50'],
+            'filters.payer_name' => ['nullable', 'string', 'max:20000'],
+            'filters.primary_provider' => ['nullable', 'string', 'max:255'],
+            'filters.denial_reason' => ['nullable', 'string', 'max:255'],
+            'filters.work_status' => ['nullable', 'string', 'max:100'],
+            'filters.assigned_to' => ['nullable', 'string', 'max:30'],
+            'filters.worked_from' => ['nullable', 'date_format:Y-m-d'],
+            'filters.worked_to' => ['nullable', 'date_format:Y-m-d'],
+            'filters.service_month' => ['nullable', 'date_format:Y-m'],
+            'filters.cf_invoice_from' => ['nullable', 'date_format:Y-m-d'],
+            'filters.cf_invoice_to' => ['nullable', 'date_format:Y-m-d'],
+            'filters.procedure_code' => ['nullable', 'string', 'max:100'],
         ]);
 
         $export = $this->exports->startExport($account->value, $request->user(), $validated);

@@ -19,6 +19,8 @@ export interface ClaimDetailLine {
     payer_name: string | null;
     primary_provider: string | null;
     modmed_claim_status: string | null;
+    modmed_claim_status_label: string | null;
+    modmed_claim_status_color: string | null;
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;

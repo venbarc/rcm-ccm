@@ -6,6 +6,20 @@ export interface DashboardFilters {
     presetLabel: string;
 }
 
+export interface DashboardPanelDateFilters {
+    invoiceStart: string | null;
+    invoiceEnd: string | null;
+    serviceStart: string | null;
+    serviceEnd: string | null;
+}
+
+export interface DashboardPanelFilters {
+    claimsByStatus: DashboardPanelDateFilters;
+    cptSummary: DashboardPanelDateFilters;
+    modmedStatusSummary: DashboardPanelDateFilters;
+    invoicedSummary: DashboardPanelDateFilters;
+}
+
 export interface WorkSummary {
     totalCount: number;
     totalAmount: number;
@@ -28,6 +42,8 @@ export interface ClaimByStatus {
 
 export interface DashboardFinancialSummaryRow {
     group: string | null;
+    groupLabel: string | null;
+    groupColor: string | null;
     billCount: number;
     cptCount: number;
     units: number;
@@ -41,6 +57,16 @@ export interface DashboardFinancialSummaryRow {
 export interface DashboardFinancialSummary {
     rows: DashboardFinancialSummaryRow[];
     total: DashboardFinancialSummaryRow;
+}
+
+export interface DashboardInvoicedSummaryRow {
+    cpt: string | null;
+    units: number;
+}
+
+export interface DashboardInvoicedSummary {
+    rows: DashboardInvoicedSummaryRow[];
+    totalUnits: number;
 }
 
 export interface RecentClaim {

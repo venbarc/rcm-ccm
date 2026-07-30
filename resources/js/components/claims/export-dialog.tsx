@@ -1,4 +1,4 @@
-import { type StatusOption, type UserOption } from '@/components/claims/types';
+import { type Filters, type StatusOption, type UserOption } from '@/components/claims/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,7 @@ interface ClaimExport {
 interface ClaimsExportDialogProps {
     assignees: UserOption[];
     canExportByAssignee: boolean;
+    filters: Filters;
     hasActiveImport: boolean;
     onOpenChange: (open: boolean) => void;
     open: boolean;
@@ -39,6 +40,22 @@ interface ExportResponse {
 }
 
 const csrfToken = () => document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+const exportFilterKeys: Array<keyof Filters> = [
+    'search',
+    'modmed_claim_status',
+    'invoiced_status',
+    'payer_name',
+    'primary_provider',
+    'denial_reason',
+    'work_status',
+    'assigned_to',
+    'worked_from',
+    'worked_to',
+    'service_month',
+    'cf_invoice_from',
+    'cf_invoice_to',
+    'procedure_code',
+];
 
 const responseMessage = (data: ExportResponse, fallback: string) =>
     data.message ??
@@ -58,7 +75,15 @@ const formatDate = (value: string | null) => {
     }).format(new Date(value));
 };
 
-export function ClaimsExportDialog({ assignees, canExportByAssignee, hasActiveImport, onOpenChange, open, statuses }: ClaimsExportDialogProps) {
+export function ClaimsExportDialog({
+    assignees,
+    canExportByAssignee,
+    filters,
+    hasActiveImport,
+    onOpenChange,
+    open,
+    statuses,
+}: ClaimsExportDialogProps) {
     const [exportType, setExportType] = useState<ExportType>('all');
     const [selectedStatus, setSelectedStatus] = useState('');
     const [selectedAssignee, setSelectedAssignee] = useState('');
@@ -143,6 +168,9 @@ export function ClaimsExportDialog({ assignees, canExportByAssignee, hasActiveIm
         setIsStarting(true);
 
         try {
+            const appliedFilters = Object.fromEntries(
+                exportFilterKeys.map((key) => [key, filters[key]]).filter(([, value]) => typeof value === 'string' && value !== ''),
+            );
             const response = await fetch('/claims-export/start', {
                 method: 'POST',
                 headers: {
@@ -154,6 +182,7 @@ export function ClaimsExportDialog({ assignees, canExportByAssignee, hasActiveIm
                     type: exportType,
                     status: exportType === 'status' ? selectedStatus : null,
                     assigned_to: exportType === 'assignee' ? selectedAssignee : null,
+                    filters: appliedFilters,
                 }),
             });
             const data = (await response.json()) as ExportResponse;
@@ -203,7 +232,9 @@ export function ClaimsExportDialog({ assignees, canExportByAssignee, hasActiveIm
                         Export Claims
                     </DialogTitle>
                     <DialogDescription>
-                        {showHistory ? 'Download a completed export.' : 'Choose the claim lines to include in the export.'}
+                        {showHistory
+                            ? 'Download a completed export.'
+                            : 'Exports every CPT line matching the current Claims page filters, including results outside the current page.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -286,7 +317,7 @@ export function ClaimsExportDialog({ assignees, canExportByAssignee, hasActiveIm
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Export All Claims</SelectItem>
+                                    <SelectItem value="all">Export Current Filtered Results</SelectItem>
                                     <SelectItem value="status">Export by Status</SelectItem>
                                     {canExportByAssignee && <SelectItem value="assignee">Export by Assigned To</SelectItem>}
                                 </SelectContent>

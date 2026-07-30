@@ -7,6 +7,8 @@ export interface ClaimSourceLine {
     primary_provider: string | null;
     payer_name: string | null;
     modmed_claim_status: string | null;
+    modmed_claim_status_label: string | null;
+    modmed_claim_status_color: string | null;
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
@@ -47,7 +49,11 @@ export function ClaimSourceLineCells({ line, showPayer = true }: { line: ClaimSo
             <td className="px-3 py-3">{line.primary_provider || EMPTY_VALUE}</td>
             {showPayer && <td className="px-3 py-3">{line.payer_name || EMPTY_VALUE}</td>}
             <td className="px-3 py-3">
-                <ModMedClaimStatusBadge status={line.modmed_claim_status} />
+                <ModMedClaimStatusBadge
+                    color={line.modmed_claim_status_color}
+                    label={line.modmed_claim_status_label}
+                    status={line.modmed_claim_status}
+                />
             </td>
             <td className="px-3 py-3 whitespace-nowrap">{date(line.cf_invoice_date)}</td>
             <td className="px-3 py-3">

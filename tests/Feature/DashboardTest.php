@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\AccountType;
 use App\Models\Claim;
+use App\Models\ClaimConfigurationOption;
 use App\Models\User;
+use App\Services\ClaimConfigurationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -29,10 +31,12 @@ class DashboardTest extends TestCase
                 ->component('dashboard')
                 ->where('accountLabel', AccountType::Tricity->label())
                 ->where('filters.preset', 'all')
+                ->has('panelFilters.claimsByStatus')
                 ->has('workSummary')
                 ->has('claimsByStatus')
                 ->missing('cptSummary')
                 ->missing('modmedStatusSummary')
+                ->missing('invoicedSummary')
                 ->missing('payerBalance')
                 ->missing('recentClaims'));
     }
@@ -44,8 +48,25 @@ class DashboardTest extends TestCase
             'account_type' => AccountType::Tricity->value,
             'patient_name' => 'Admin Summary Patient',
             'service_date_start' => '2026-07-01',
+            'cf_invoice_date' => '2026-07-15',
             'work_status' => 'draft',
         ];
+        ClaimConfigurationOption::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'Resolved/Paid',
+            'label' => 'Resolved and Paid',
+            'color' => '#DCFCE7',
+            'sort_order' => 0,
+        ]);
+        ClaimConfigurationOption::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'REVIEW NEEDED',
+            'label' => 'Needs Review',
+            'color' => '#FFEDD5',
+            'sort_order' => 1,
+        ]);
 
         Claim::query()->create($baseClaim + [
             'external_id' => 'SUMMARY-100',
@@ -105,11 +126,20 @@ class DashboardTest extends TestCase
                 ->where('cptSummary.total.trueBalance', 200.0)
                 ->where('cptSummary.total.collectionPercent', 42.86)
                 ->where('cptSummary.total.cfInvoiceAmount', 130.0)
+                ->has('invoicedSummary.rows', 2)
+                ->where('invoicedSummary.rows', function ($rows): bool {
+                    $cpt = collect($rows)->firstWhere('cpt', '99490');
+
+                    return $cpt !== null && $cpt['units'] === 4.0;
+                })
+                ->where('invoicedSummary.totalUnits', 6.0)
                 ->has('modmedStatusSummary.rows', 2)
                 ->where('modmedStatusSummary.rows', function ($rows): bool {
                     $status = collect($rows)->firstWhere('group', 'Resolved/Paid');
 
                     return $status !== null
+                        && $status['groupLabel'] === 'Resolved and Paid'
+                        && $status['groupColor'] === '#DCFCE7'
                         && $status['billCount'] === 1
                         && $status['cptCount'] === 2
                         && $status['units'] === 3.0
@@ -118,6 +148,79 @@ class DashboardTest extends TestCase
                         && $status['trueBalance'] === 50.0
                         && $status['collectionPercent'] === 66.67
                         && $status['cfInvoiceAmount'] === 70.0;
+                }));
+    }
+
+    public function test_dashboard_panels_apply_their_own_invoice_and_service_date_ranges()
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $baseClaim = [
+            'account_type' => AccountType::Tricity->value,
+            'patient_name' => 'Panel Filter Patient',
+            'true_charge' => 100,
+            'payments' => 25,
+            'true_balance' => 75,
+        ];
+
+        Claim::query()->create($baseClaim + [
+            'external_id' => 'PANEL-100',
+            'procedure_code' => '11111',
+            'service_date_start' => '2026-01-15',
+            'cf_invoice_date' => '2026-06-30',
+            'modmed_claim_status' => 'REVIEW NEEDED',
+            'work_status' => 'draft',
+            'units' => 2,
+        ]);
+        Claim::query()->create($baseClaim + [
+            'external_id' => 'PANEL-200',
+            'procedure_code' => '22222',
+            'service_date_start' => '2026-02-15',
+            'cf_invoice_date' => '2026-07-30',
+            'modmed_claim_status' => 'Resolved/Paid',
+            'work_status' => 'paid',
+            'units' => 3,
+        ]);
+
+        $query = http_build_query([
+            'preset' => 'all',
+            'cpt_invoice_start' => '2026-06-01',
+            'cpt_invoice_end' => '2026-06-30',
+            'cpt_service_start' => '2026-01-01',
+            'cpt_service_end' => '2026-01-31',
+            'modmed_invoice_start' => '2026-07-01',
+            'modmed_invoice_end' => '2026-07-31',
+            'modmed_service_start' => '2026-02-01',
+            'modmed_service_end' => '2026-02-28',
+            'invoiced_invoice_start' => '2026-06-01',
+            'invoiced_invoice_end' => '2026-06-30',
+            'claims_status_invoice_start' => '2026-07-01',
+            'claims_status_invoice_end' => '2026-07-31',
+            'claims_status_service_start' => '2026-02-01',
+            'claims_status_service_end' => '2026-02-28',
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get("/dashboard?{$query}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('panelFilters.cptSummary.invoiceStart', '2026-06-01')
+                ->where('panelFilters.cptSummary.invoiceEnd', '2026-06-30')
+                ->where('panelFilters.cptSummary.serviceStart', '2026-01-01')
+                ->where('panelFilters.cptSummary.serviceEnd', '2026-01-31')
+                ->has('cptSummary.rows', 1)
+                ->where('cptSummary.rows.0.group', '11111')
+                ->has('modmedStatusSummary.rows', 1)
+                ->where('modmedStatusSummary.rows.0.group', 'Resolved/Paid')
+                ->has('invoicedSummary.rows', 1)
+                ->where('invoicedSummary.rows.0.cpt', '11111')
+                ->where('invoicedSummary.rows.0.units', 2.0)
+                ->where('invoicedSummary.totalUnits', 2.0)
+                ->where('claimsByStatus', function ($statuses): bool {
+                    $draft = collect($statuses)->firstWhere('status', 'draft');
+                    $paid = collect($statuses)->firstWhere('status', 'paid');
+
+                    return $draft['count'] === 0 && $paid['count'] === 1;
                 }));
     }
 
@@ -157,7 +260,7 @@ class DashboardTest extends TestCase
         $this->actingAs($user)
             ->withSession(['account_type' => AccountType::Tricity->value]);
 
-        $this->get('/dashboard?preset=custom&start=2026-01-01&end=2026-01-31')
+        $this->get('/dashboard?preset=custom&start=2026-01-01&end=2026-01-31&claims_status_service_start=2026-01-01&claims_status_service_end=2026-01-31')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('dashboard')
@@ -171,6 +274,8 @@ class DashboardTest extends TestCase
                 ->where('workSummary.paidCount', 1)
                 ->where('workSummary.paidAmount', 50.0)
                 ->where('workSummary.workedProgress', 50)
+                ->where('panelFilters.claimsByStatus.serviceStart', '2026-01-01')
+                ->where('panelFilters.claimsByStatus.serviceEnd', '2026-01-31')
                 ->has('claimsByStatus', 8)
                 ->where('claimsByStatus.0.status', 'draft')
                 ->where('claimsByStatus.0.count', 0)
@@ -209,6 +314,7 @@ class DashboardTest extends TestCase
                 ->where('claimsByStatus.0.status', 'draft')
                 ->where('claimsByStatus.0.count', 1)
                 ->missing('cptSummary')
-                ->missing('modmedStatusSummary'));
+                ->missing('modmedStatusSummary')
+                ->missing('invoicedSummary'));
     }
 }

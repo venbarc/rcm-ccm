@@ -105,7 +105,7 @@ class SystemConfigurationTest extends TestCase
         $this->assertDatabaseMissing('claim_configuration_options', ['id' => $option->id]);
     }
 
-    public function test_work_status_requires_an_available_unique_color(): void
+    public function test_colored_configuration_types_require_an_available_unique_color(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
@@ -153,6 +153,34 @@ class SystemConfigurationTest extends TestCase
             'option_type' => ClaimConfigurationService::WORK_STATUS,
             'value' => 'needs_review',
             'color' => '#12AB34',
+            'added_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/system-configuration')
+            ->post('/system-configuration', [
+                'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+                'label' => 'Review Needed',
+            ])
+            ->assertSessionHasErrors('color');
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->post('/system-configuration', [
+                'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+                'label' => 'Review Needed',
+                'color' => '#dbeafe',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('claim_configuration_options', [
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'review_needed',
+            'label' => 'Review Needed',
+            'color' => '#DBEAFE',
             'added_by' => $admin->id,
         ]);
     }
@@ -243,6 +271,7 @@ class SystemConfigurationTest extends TestCase
             ->where('value', 'yes')
             ->update(['label' => 'Approved']);
         $workStatus = $this->createOption($admin, ClaimConfigurationService::WORK_STATUS, 'quality_review', 'Quality Review');
+        $modMedStatus = $this->createOption($admin, ClaimConfigurationService::MODMED_CLAIM_STATUS, 'review_needed', 'Review Needed');
         $creditReason = $this->createOption($admin, ClaimConfigurationService::CREDIT_REASON, 'contractual_credit', 'Contractual Credit');
         $denialReason = $this->createOption($admin, ClaimConfigurationService::DENIAL_REASON, 'missing_referral', 'Missing Referral');
         $claim = Claim::create([
@@ -261,6 +290,9 @@ class SystemConfigurationTest extends TestCase
                 ->where('workStatuses', fn ($options) => collect($options)->contains(
                     fn ($option): bool => $option['value'] === $workStatus->value && $option['color'] === '#FFEDD5',
                 ))
+                ->where('modMedClaimStatuses', fn ($options) => collect($options)->contains(
+                    fn ($option): bool => $option['value'] === $modMedStatus->value && $option['color'] === '#DBEAFE',
+                ))
                 ->where('creditStatuses', fn ($options) => collect($options)->contains(
                     fn ($option): bool => $option['value'] === 'yes' && $option['label'] === 'Approved',
                 ))
@@ -269,8 +301,18 @@ class SystemConfigurationTest extends TestCase
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
+            ->getJson('/claims/options?filter=modmed_claim_status')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => 'review_needed',
+                'name' => 'Review Needed',
+            ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
             ->patch("/claims/{$claim->id}", [
                 'work_status' => $workStatus->value,
+                'modmed_claim_status' => $modMedStatus->value,
                 'denial_reason' => $denialReason->value,
                 'credit_status' => true,
                 'credit_status_date' => '2026-07-30',
@@ -281,6 +323,8 @@ class SystemConfigurationTest extends TestCase
 
         $claim->refresh();
         $this->assertSame('quality_review', $claim->work_status);
+        $this->assertSame('review_needed', $claim->modmed_claim_status);
+        $this->assertTrue($claim->modmed_claim_status_manually_set);
         $this->assertSame('missing_referral', $claim->denial_reason);
         $this->assertSame('contractual_credit', $claim->credit_reason);
 
@@ -289,6 +333,8 @@ class SystemConfigurationTest extends TestCase
             ->get('/claims')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
+                ->where('claims.data.0.lines.0.modmed_claim_status_label', 'Review Needed')
+                ->where('claims.data.0.lines.0.modmed_claim_status_color', '#DBEAFE')
                 ->where('claims.data.0.lines.0.credit_status_label', 'Approved'));
     }
 
@@ -314,7 +360,11 @@ class SystemConfigurationTest extends TestCase
             'option_type' => $type,
             'value' => $value,
             'label' => $label,
-            'color' => $type === ClaimConfigurationService::WORK_STATUS ? '#FFEDD5' : null,
+            'color' => match ($type) {
+                ClaimConfigurationService::WORK_STATUS => '#FFEDD5',
+                ClaimConfigurationService::MODMED_CLAIM_STATUS => '#DBEAFE',
+                default => null,
+            },
             'sort_order' => 100,
             'added_by' => $admin->id,
         ]);

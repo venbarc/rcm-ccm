@@ -51,6 +51,15 @@ class ClaimExportTest extends TestCase
             ->where('option_type', ClaimConfigurationService::CREDIT_STATUS)
             ->where('value', 'no')
             ->update(['label' => 'Declined']);
+        ClaimConfigurationOption::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::MODMED_CLAIM_STATUS,
+            'value' => 'REVIEW NEEDED',
+            'label' => 'Needs Review',
+            'color' => '#FFEDD5',
+            'sort_order' => 0,
+            'added_by' => null,
+        ]);
 
         $firstClaim = $this->claim([
             'external_id' => 'TC-EXPORT-1',
@@ -158,6 +167,7 @@ class ClaimExportTest extends TestCase
         $this->assertSame('50.46', $rows[1][7]);
         $this->assertSame('TC-EXPORT-1-99490', $rows[1][9]);
         $this->assertSame('185', $rows[1][10]);
+        $this->assertSame('Needs Review', $rows[1][11]);
         $this->assertSame('\'=HYPERLINK("https://example.test")', $rows[1][17]);
         $this->assertSame('Invoiced', $rows[1][array_search('Invoiced Status', $rows[0], true)]);
         $this->assertSame('2026-06-30', $rows[1][array_search('Invoiced Status Date', $rows[0], true)]);
@@ -226,6 +236,62 @@ class ClaimExportTest extends TestCase
             ->assertJsonPath('export.total_rows', 1);
 
         $this->assertSame(2, ClaimExport::query()->where('status', 'completed')->count());
+    }
+
+    public function test_claims_export_applies_page_filters_to_all_matching_rows_beyond_pagination(): void
+    {
+        config(['claims.export.chunk_size' => 100]);
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        foreach (range(1, 55) as $index) {
+            $this->claim([
+                'external_id' => "TC-FILTERED-{$index}",
+                'patient_name' => "Filtered Export Patient {$index}",
+                'payer_name' => $index % 2 === 0 ? 'Superior Medicaid' : 'Aetna Texas Medicaid & CHIP',
+                'procedure_code' => '99490',
+                'work_status' => 'paid',
+                'cf_invoice_date' => '2026-06-30',
+            ]);
+        }
+
+        $this->claim([
+            'external_id' => 'TC-NOT-MEDICAID',
+            'payer_name' => 'Medicare of Texas',
+            'procedure_code' => '99490',
+            'work_status' => 'paid',
+            'cf_invoice_date' => '2026-06-30',
+        ]);
+        $this->claim([
+            'external_id' => 'TC-WRONG-INVOICE-DATE',
+            'payer_name' => 'Superior Medicaid',
+            'procedure_code' => '99490',
+            'work_status' => 'paid',
+            'cf_invoice_date' => '2026-07-30',
+        ]);
+
+        $selectedPayers = json_encode(['Aetna Texas Medicaid & CHIP', 'Superior Medicaid'], JSON_THROW_ON_ERROR);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->postJson('/claims-export/start', [
+                'type' => 'all',
+                'filters' => [
+                    'search' => 'Filtered Export Patient',
+                    'payer_name' => $selectedPayers,
+                    'work_status' => 'paid',
+                    'procedure_code' => '99490',
+                    'cf_invoice_from' => '2026-06-01',
+                    'cf_invoice_to' => '2026-06-30',
+                ],
+            ])
+            ->assertAccepted()
+            ->assertJsonPath('export.status', 'completed')
+            ->assertJsonPath('export.total_rows', 55)
+            ->assertJsonPath('export.processed_rows', 55);
+
+        $export = ClaimExport::query()->firstOrFail();
+        $this->assertSame($selectedPayers, $export->filters['page_filters']['payer_name']);
+        $this->assertCount(56, preg_split('/\r\n|\r|\n/', trim(Storage::get($export->file_path))));
     }
 
     public function test_claims_export_is_blocked_during_an_active_import(): void
