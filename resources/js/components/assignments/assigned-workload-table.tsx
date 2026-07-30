@@ -18,7 +18,7 @@ export function AssignedWorkloadTable({ workloads, isLoading, formatCurrency }: 
         <Card className="overflow-hidden">
             <CardHeader className="border-b">
                 <CardTitle>Assigned workload</CardTitle>
-                <CardDescription>Current Claim ID and CPT-line counts for each available assignee.</CardDescription>
+                <CardDescription>Current Bill ID and CPT-line counts for each available assignee.</CardDescription>
             </CardHeader>
             <DataLoadingOverlay isLoading={isLoading} label="Refreshing assigned counts...">
                 <div className="overflow-x-auto">
@@ -26,7 +26,7 @@ export function AssignedWorkloadTable({ workloads, isLoading, formatCurrency }: 
                         <thead className="bg-muted/60 text-muted-foreground text-left text-xs uppercase">
                             <tr>
                                 <th className="p-4">Assignee</th>
-                                <th className="p-4 text-right">Claim IDs</th>
+                                <th className="p-4 text-right">Bill IDs</th>
                                 <th className="p-4 text-right">CPT lines</th>
                                 <th className="p-4 text-right">True Balance</th>
                             </tr>

@@ -10,7 +10,9 @@ import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Download, FileSpreadsheet, Users } from 'lucide-react';
-import { type FormEvent, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 interface ClaimsIndexProps {
     claims: ClaimPage;
@@ -37,14 +39,81 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
     const [editingLine, setEditingLine] = useState<ClaimLine | null>(null);
     const [exportOpen, setExportOpen] = useState(false);
     const [editForm, setEditForm] = useState({ work_status: 'draft', denial_reason: '', notes: '' });
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const apply = (values: Partial<Filters> = {}) =>
-        router.get('/claims', { ...local, ...values, page: undefined }, { preserveState: true, replace: true });
-    const submitFilters = (event: FormEvent) => {
-        event.preventDefault();
-        apply();
+    const cancelPendingSearch = () => {
+        if (searchTimer.current !== null) {
+            clearTimeout(searchTimer.current);
+            searchTimer.current = null;
+        }
     };
-    const clearFilters = () => router.get('/claims');
+
+    useEffect(
+        () => () => {
+            if (searchTimer.current !== null) {
+                clearTimeout(searchTimer.current);
+            }
+        },
+        [],
+    );
+
+    const visitFilters = (next: Filters) => {
+        const expanded = new URL(window.location.href).searchParams.get('expanded') ?? '';
+
+        router.get(
+            '/claims',
+            { ...next, expanded, page: undefined },
+            {
+                only: ['claims', 'filters', 'summary'],
+                preserveScroll: true,
+                preserveState: true,
+                replace: true,
+            },
+        );
+    };
+    const updateFilters = (values: Record<string, string>) => {
+        const next = { ...local, ...values };
+        const changed = Object.entries(values).some(([key, value]) => local[key] !== value);
+
+        if (!changed) {
+            return;
+        }
+
+        cancelPendingSearch();
+        setLocal(next);
+        visitFilters(next);
+    };
+    const updateSearch = (value: string) => {
+        if (value === local.search) {
+            return;
+        }
+
+        const next = { ...local, search: value };
+
+        cancelPendingSearch();
+        router.cancelAll({ async: false, prefetch: false, sync: true });
+        setLocal(next);
+        searchTimer.current = setTimeout(() => {
+            searchTimer.current = null;
+            visitFilters(next);
+        }, SEARCH_DEBOUNCE_MS);
+    };
+    const apply = (values: Record<string, string> = {}) => {
+        cancelPendingSearch();
+        visitFilters({ ...local, ...values });
+    };
+    const clearFilters = () => {
+        cancelPendingSearch();
+        router.get(
+            '/claims',
+            {},
+            {
+                only: ['claims', 'filters', 'summary'],
+                preserveScroll: true,
+                replace: true,
+            },
+        );
+    };
     const sort = (column: SortColumn) =>
         apply({ sort_by: column, sort_direction: filters.sort_by === column && filters.sort_direction === 'asc' ? 'desc' : 'asc' });
     const toggleClaim = (id: number) => {
@@ -82,21 +151,71 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
         });
     };
     const save = () => {
-        if (!editingLine) {
+        if (!editingClaim || !editingLine) {
             return;
         }
 
+        const editedClaimId = editingClaim.id;
+        const editedLineId = editingLine.id;
+        const workStatus = editForm.work_status;
+        const denialReason = editForm.denial_reason.trim() || null;
+        const notes = editForm.notes.trim() || null;
+        const currentUser = {
+            id: auth.user.id,
+            name: auth.user.name,
+            email: auth.user.email,
+        };
+
         router.patch(
-            `/claims/${editingLine.id}?${buildStateQuery(editingClaim?.id ?? editingLine.id)}`,
+            `/claims/${editedLineId}?${buildStateQuery(editedClaimId)}`,
             {
-                work_status: editForm.work_status,
-                denial_reason: editForm.denial_reason || null,
-                notes: editForm.notes || null,
+                work_status: workStatus,
+                denial_reason: denialReason,
+                notes,
             },
             {
+                only: ['flash'],
+                preserveUrl: true,
                 preserveState: true,
                 preserveScroll: true,
                 onSuccess: () => {
+                    const updatedAt = new Date().toISOString();
+
+                    router.replaceProp<ClaimsIndexProps>('claims.data', (currentData: unknown) =>
+                        (currentData as ClaimGroup[]).map((claim) => {
+                            if (claim.id !== editedClaimId) {
+                                return claim;
+                            }
+
+                            const lines = claim.lines.map((line) =>
+                                line.id === editedLineId
+                                    ? {
+                                          ...line,
+                                          work_status: workStatus,
+                                          denial_reason: denialReason,
+                                          notes,
+                                          assigned_to: currentUser.id,
+                                          assignee: currentUser,
+                                          is_modified: workStatus !== 'draft' || denialReason !== null || notes !== null,
+                                          updated_at: updatedAt,
+                                      }
+                                    : line,
+                            );
+
+                            return {
+                                ...claim,
+                                work_status: workStatus,
+                                denial_reason: denialReason,
+                                notes,
+                                assigned_to: currentUser.id,
+                                assignee: currentUser,
+                                modified_by: currentUser,
+                                updated_at: updatedAt,
+                                is_modified: lines.some((line) => line.is_modified),
+                                lines,
+                            };
+                        }),
+                    );
                     setEditingClaim(null);
                     setEditingLine(null);
                 },
@@ -107,7 +226,7 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
     return (
         <AppLayout breadcrumbs={[{ title: 'Claims', href: '/claims' }]}>
             <Head title="Tricity Claims" />
-            <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+            <div className="flex w-full max-w-full min-w-0 flex-1 flex-col gap-5 overflow-x-clip p-4 md:p-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
                         <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">RCM workspace</p>
@@ -138,9 +257,9 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
                         ['Total claims', summary.totalCount.toLocaleString()],
-                        ['True charges', currency(summary.totalTrueCharge)],
-                        ['True balance', currency(summary.totalTrueBalance)],
-                        ['Posted payments', currency(summary.totalPayments)],
+                        ['True Charge', currency(summary.totalTrueCharge)],
+                        ['True Balance', currency(summary.totalTrueBalance)],
+                        ['Payments', currency(summary.totalPayments)],
                     ].map(([label, value], index) => (
                         <Card className={index === 0 ? 'border-l-4 border-l-sky-500' : ''} key={label}>
                             <CardContent className="p-4">
@@ -155,8 +274,8 @@ function ClaimsIndexContent({ claims, filters, summary, workStatuses, assignees,
                     assignees={assignees}
                     local={local}
                     onClear={clearFilters}
-                    onSubmit={submitFilters}
-                    setLocal={setLocal}
+                    onFilterChange={updateFilters}
+                    onSearchChange={updateSearch}
                     workStatuses={workStatuses}
                 />
                 <ClaimsTable

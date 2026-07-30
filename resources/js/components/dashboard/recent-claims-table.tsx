@@ -9,13 +9,13 @@ export function RecentClaimsTable({ claims }: { claims: RecentClaim[] }) {
         <Card>
             <CardHeader>
                 <CardTitle className="text-xl">Recent Claims</CardTitle>
-                <CardDescription>Latest claim IDs added to the system</CardDescription>
+                <CardDescription>Latest Bill IDs added to the system</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
                 <table className="w-full min-w-[560px] text-sm">
                     <thead>
                         <tr className="text-muted-foreground border-b text-left">
-                            <th className="h-10 px-2 font-medium">Claim #</th>
+                            <th className="h-10 px-2 font-medium">Bill ID</th>
                             <th className="h-10 px-2 font-medium">Patient</th>
                             <th className="h-10 px-2 font-medium">Lines</th>
                             <th className="h-10 px-2 text-right font-medium">Balance</th>

@@ -25,7 +25,7 @@ class TricityQueuedImportTest extends TestCase
         Storage::fake('local');
     }
 
-    public function test_tricity_rows_are_chunked_and_missing_financial_columns_remain_null(): void
+    public function test_tricity_rows_are_chunked_by_bill_id_and_raw_source_columns_are_retained(): void
     {
         config(['queue.default' => 'sync', 'claims.import.chunk_size' => 1]);
         $user = User::factory()->create(['is_admin' => true]);
@@ -43,7 +43,15 @@ class TricityQueuedImportTest extends TestCase
         $this->assertSame(2, Claim::count());
         $this->assertSame(2, ClaimRawRow::count());
         $this->assertSame(2, Claim::query()->whereNull('true_balance')->count());
-        $this->assertSame(2, Claim::query()->where('external_id', 'TC-1001')->count());
+        $this->assertSame(2, Claim::query()->where('bill_id', 'BILL-1')->count());
+        $this->assertSame(2, Claim::query()->where('external_id', 'BILL-1')->count());
+        $claim = Claim::query()->where('procedure_code', '99490')->firstOrFail();
+        $this->assertSame('Smith, Alex', $claim->primary_provider);
+        $this->assertSame('REVIEW NEEDED', $claim->modmed_claim_status);
+        $this->assertSame('2026-07-01', $claim->cf_invoice_date?->toDateString());
+        $this->assertSame('30.00', $claim->cf_invoice_amount);
+        $this->assertSame('Superior Medicaid', $claim->rawRow?->raw_payload['payer']);
+        $this->assertArrayHasKey('posted_date_month_year', $claim->rawRow?->raw_payload ?? []);
         $this->assertNull($import->stored_path);
         $this->assertSame([], Storage::allFiles('claim-imports'));
     }
@@ -75,7 +83,7 @@ class TricityQueuedImportTest extends TestCase
         $this->assertNull($claim->true_balance);
     }
 
-    public function test_reimport_overrides_untouched_source_fields_and_refreshes_automatic_status(): void
+    public function test_reimport_overrides_untouched_source_fields_and_keeps_unworked_rows_in_draft(): void
     {
         config(['queue.default' => 'sync', 'claims.import.chunk_size' => 1]);
         $user = User::factory()->create(['is_admin' => true]);
@@ -90,7 +98,7 @@ class TricityQueuedImportTest extends TestCase
         $claim->refresh();
 
         $this->assertSame('250.00', $claim->true_charge);
-        $this->assertSame('historical_posted_payments', $claim->work_status);
+        $this->assertSame('draft', $claim->work_status);
         $this->assertFalse($claim->work_status_manually_set);
         $this->assertSame([], Storage::allFiles('claim-imports'));
     }
@@ -99,7 +107,7 @@ class TricityQueuedImportTest extends TestCase
     {
         $user = User::factory()->create(['is_admin' => true]);
         $path = 'claim-imports/failed.csv';
-        Storage::put($path, 'Claim ID');
+        Storage::put($path, 'Bill ID');
         $import = ClaimImport::query()->create([
             'account_type' => AccountType::Tricity->value,
             'file_name' => 'failed.csv',
@@ -125,39 +133,39 @@ class TricityQueuedImportTest extends TestCase
         $agent = User::factory()->create();
         $imports = app(ClaimImportService::class);
         $imports->queue($this->tricityFile(), AccountType::Tricity->value, $admin);
-        Claim::query()->where('external_id', 'TC-1001')->update(['assigned_to' => $agent->id]);
+        Claim::query()->where('bill_id', 'BILL-1')->update(['assigned_to' => $agent->id]);
 
         $imports->queue($this->tricityFileWithExtraLine(), AccountType::Tricity->value, $admin);
 
-        $this->assertSame(3, Claim::query()->where('external_id', 'TC-1001')->count());
-        $this->assertSame(3, Claim::query()->where('external_id', 'TC-1001')->where('assigned_to', $agent->id)->count());
+        $this->assertSame(3, Claim::query()->where('bill_id', 'BILL-1')->count());
+        $this->assertSame(3, Claim::query()->where('bill_id', 'BILL-1')->where('assigned_to', $agent->id)->count());
     }
 
     private function tricityFile(): UploadedFile
     {
         return UploadedFile::fake()->createWithContent('tricity.csv', implode("\n", [
-            'Patient First Name,Patient Last Name,Patient Name,CPT/Product,Service Date,Charges,Bill ID,Activity Type,Claim ID,Patient MRN,Payer,Primary Provider',
-            'Jamie,Doe,"Doe, Jamie",99490,2026-07-01,185,BILL-1,Charge,TC-1001,MRN-1,Medicare,"Smith, Alex"',
-            'Jamie,Doe,"Doe, Jamie",99439,2026-07-01,140,BILL-1,Charge,TC-1001,MRN-1,Medicare,"Smith, Alex"',
+            'CPT,Location,Bill ID,Payments,True Balance,True Charge,ModMed_Claim_Status,CF Invoice Date,CF Invoice Amount,Patient First Name,Patient Last Name,Patient Name,Patient MRN,Payer,Place of Service Code,Posted Date Month/Year,Primary Provider,Service Date,Units',
+            '99490,Hardy Oak Office,BILL-1,0,,185,REVIEW NEEDED,2026-07-01,30,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,11 - Office,2026-07-01,"Smith, Alex",2026-07-01,1',
+            '99439,Hardy Oak Office,BILL-1,0,,140,REVIEW NEEDED,2026-07-01,40,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,11 - Office,2026-07-01,"Smith, Alex",2026-07-01,1',
         ]));
     }
 
     private function tricityFileWithExtraLine(): UploadedFile
     {
         return UploadedFile::fake()->createWithContent('tricity-expanded.csv', implode("\n", [
-            'Patient First Name,Patient Last Name,Patient Name,CPT/Product,Service Date,Charges,Bill ID,Activity Type,Claim ID,Patient MRN,Payer,Primary Provider',
-            'Jamie,Doe,"Doe, Jamie",99490,2026-07-01,185,BILL-1,Charge,TC-1001,MRN-1,Medicare,"Smith, Alex"',
-            'Jamie,Doe,"Doe, Jamie",99439,2026-07-01,140,BILL-1,Charge,TC-1001,MRN-1,Medicare,"Smith, Alex"',
-            'Jamie,Doe,"Doe, Jamie",G0511,2026-07-01,95,BILL-1,Charge,TC-1001,MRN-1,Medicare,"Smith, Alex"',
+            'CPT,Location,Bill ID,Payments,True Balance,True Charge,ModMed_Claim_Status,CF Invoice Date,Patient First Name,Patient Last Name,Patient Name,Patient MRN,Payer,Primary Provider,Service Date,Units',
+            '99490,Hardy Oak Office,BILL-1,0,,185,REVIEW NEEDED,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
+            '99439,Hardy Oak Office,BILL-1,0,,140,REVIEW NEEDED,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
+            'G0511,Hardy Oak Office,BILL-1,0,,95,REVIEW NEEDED,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
         ]));
     }
 
     private function tricityUpdatedFile(): UploadedFile
     {
         return UploadedFile::fake()->createWithContent('tricity-updated.csv', implode("\n", [
-            'Patient First Name,Patient Last Name,Patient Name,CPT/Product,Service Date,Charges,Historical Posted Payments,Bill ID,Activity Type,Claim ID,Patient MRN,Payer,Primary Provider',
-            'Jamie,Doe,"Doe, Jamie",99490,2026-07-01,250,35,BILL-1,Charge,TC-1001,MRN-1,Medicare,"Smith, Alex"',
-            'Jamie,Doe,"Doe, Jamie",99439,2026-07-01,175,20,BILL-1,Charge,TC-1001,MRN-1,Medicare,"Smith, Alex"',
+            'CPT,Location,Bill ID,Payments,True Balance,True Charge,ModMed_Claim_Status,CF Invoice Date,Patient First Name,Patient Last Name,Patient Name,Patient MRN,Payer,Primary Provider,Service Date,Units',
+            '99490,Hardy Oak Office,BILL-1,35,,250,REVIEW NEEDED,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
+            '99439,Hardy Oak Office,BILL-1,20,,175,REVIEW NEEDED,2026-07-01,Jamie,Doe,"Doe, Jamie",MRN-1,Superior Medicaid,"Smith, Alex",2026-07-01,1',
         ]));
     }
 }

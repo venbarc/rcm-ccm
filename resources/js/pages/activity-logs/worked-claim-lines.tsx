@@ -92,7 +92,7 @@ export default function WorkedClaimLines({
                             </div>
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="flex flex-col gap-2">
-                                    <Label htmlFor="claim-number">Claim #</Label>
+                                    <Label htmlFor="claim-number">Bill ID</Label>
                                     <SearchInput
                                         id="claim-number"
                                         value={local.claim_number}

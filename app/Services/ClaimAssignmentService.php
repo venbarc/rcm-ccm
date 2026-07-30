@@ -10,14 +10,17 @@ use Illuminate\Support\Facades\DB;
 
 class ClaimAssignmentService
 {
+    private const BALANCE_VALUE_EXPRESSION = 'COALESCE(true_balance, balance)';
+
+    private const BALANCE_SUM_EXPRESSION = 'COALESCE(true_balance, balance, 0)';
+
     /** @var array<string, string> */
     private const GROUP_LABELS = [
         'procedure_code' => 'CPT code',
         'payer_name' => 'Payer',
-        'rendering_provider' => 'Rendering provider',
+        'primary_provider' => 'Primary provider',
         'denial_reason' => 'Denial reason',
         'service_month' => 'Service month',
-        'service_type' => 'Service type',
     ];
 
     /** @return array<int, array{key: string, label: string}> */
@@ -36,17 +39,27 @@ class ClaimAssignmentService
     public function assignmentSnapshot(string $account, Collection $assignees): array
     {
         $unassigned = $this->unassignedRows($account);
-        $unassignedBalanceRows = (clone $unassigned)->whereNotNull('true_balance')->count();
+        $unassignedBalanceRows = (clone $unassigned)
+            ->whereRaw(self::BALANCE_VALUE_EXPRESSION.' IS NOT NULL')
+            ->count();
         $assigneeIds = $assignees->pluck('id')->map(fn ($id): int => (int) $id)->all();
-        $assignedRows = Claim::query()
-            ->where('account_type', $account)
-            ->whereIn('assigned_to', $assigneeIds)
-            ->selectRaw('assigned_to')
-            ->selectRaw('COUNT(DISTINCT external_id) as claim_groups')
+        $assignedGroupRows = $this->assignedGroupRows($account);
+        $assignedSummary = DB::query()
+            ->fromSub(clone $assignedGroupRows, 'assigned_group_rows')
+            ->selectRaw('COUNT(DISTINCT bill_id) as claim_groups')
             ->selectRaw('COUNT(*) as claim_lines')
-            ->selectRaw('SUM(CASE WHEN true_balance IS NOT NULL THEN 1 ELSE 0 END) as balance_rows')
-            ->selectRaw('SUM(COALESCE(true_balance, 0)) as total_true_balance')
-            ->groupBy('assigned_to')
+            ->selectRaw('SUM(CASE WHEN '.self::BALANCE_VALUE_EXPRESSION.' IS NOT NULL THEN 1 ELSE 0 END) as balance_rows')
+            ->selectRaw('SUM('.self::BALANCE_SUM_EXPRESSION.') as total_true_balance')
+            ->first();
+        $assignedRows = DB::query()
+            ->fromSub($assignedGroupRows, 'assigned_group_rows')
+            ->whereIn('group_assigned_to', $assigneeIds)
+            ->selectRaw('group_assigned_to as assigned_to')
+            ->selectRaw('COUNT(DISTINCT bill_id) as claim_groups')
+            ->selectRaw('COUNT(*) as claim_lines')
+            ->selectRaw('SUM(CASE WHEN '.self::BALANCE_VALUE_EXPRESSION.' IS NOT NULL THEN 1 ELSE 0 END) as balance_rows')
+            ->selectRaw('SUM('.self::BALANCE_SUM_EXPRESSION.') as total_true_balance')
+            ->groupBy('group_assigned_to')
             ->get()
             ->keyBy(fn ($row): int => (int) $row->assigned_to);
 
@@ -65,19 +78,21 @@ class ClaimAssignmentService
             ];
         })->values();
 
-        $assignedBalanceRows = (int) $workloads->sum('balance_rows');
+        $assignedSummaryBalanceRows = (int) ($assignedSummary->balance_rows ?? 0);
 
         return [
             'summary' => [
-                'claim_groups' => (clone $unassigned)->distinct()->count('external_id'),
+                'claim_groups' => (clone $unassigned)->distinct()->count('bill_id'),
                 'claim_lines' => (clone $unassigned)->count(),
                 'balance_rows' => $unassignedBalanceRows,
-                'total_true_balance' => $unassignedBalanceRows > 0 ? (float) (clone $unassigned)->sum('true_balance') : null,
-                'assigned_claim_groups' => (int) $workloads->sum('claim_groups'),
-                'assigned_claim_lines' => (int) $workloads->sum('claim_lines'),
-                'assigned_balance_rows' => $assignedBalanceRows,
-                'assigned_total_true_balance' => $assignedBalanceRows > 0
-                    ? (float) $workloads->sum(fn (array $workload): float => (float) ($workload['total_true_balance'] ?? 0))
+                'total_true_balance' => $unassignedBalanceRows > 0
+                    ? (float) (clone $unassigned)->sum(DB::raw(self::BALANCE_SUM_EXPRESSION))
+                    : null,
+                'assigned_claim_groups' => (int) ($assignedSummary->claim_groups ?? 0),
+                'assigned_claim_lines' => (int) ($assignedSummary->claim_lines ?? 0),
+                'assigned_balance_rows' => $assignedSummaryBalanceRows,
+                'assigned_total_true_balance' => $assignedSummaryBalanceRows > 0
+                    ? (float) $assignedSummary->total_true_balance
                     : null,
             ],
             'workloads' => $workloads->all(),
@@ -113,9 +128,9 @@ class ClaimAssignmentService
             ->whereRaw("{$expression} != ''")
             ->when(trim((string) $search) !== '', fn (Builder $query) => $query->whereRaw("{$expression} LIKE ?", ['%'.trim((string) $search).'%']))
             ->selectRaw("{$expression} as group_value")
-            ->selectRaw('COUNT(DISTINCT external_id) as claim_count')
-            ->selectRaw('SUM(CASE WHEN true_balance IS NOT NULL THEN 1 ELSE 0 END) as balance_rows')
-            ->selectRaw('SUM(COALESCE(true_balance, 0)) as total_balance')
+            ->selectRaw('COUNT(DISTINCT bill_id) as claim_count')
+            ->selectRaw('SUM(CASE WHEN '.self::BALANCE_VALUE_EXPRESSION.' IS NOT NULL THEN 1 ELSE 0 END) as balance_rows')
+            ->selectRaw('SUM('.self::BALANCE_SUM_EXPRESSION.') as total_balance')
             ->groupByRaw($expression);
 
         $total = DB::query()->fromSub(clone $query, 'distribution_options')->count();
@@ -170,10 +185,10 @@ class ClaimAssignmentService
             $plan = $this->buildDistributionPlan($rows, $assignees, true);
 
             foreach ($plan['distribution'] as $bucket) {
-                foreach ($bucket['external_ids'] as $externalId) {
+                foreach ($bucket['bill_ids'] as $billId) {
                     Claim::query()
                         ->where('account_type', $account)
-                        ->where('external_id', $externalId)
+                        ->where('bill_id', $billId)
                         ->whereNull('assigned_to')
                         ->update([
                             'assigned_to' => $bucket['id'],
@@ -201,16 +216,44 @@ class ClaimAssignmentService
                 $query->selectRaw('1')
                     ->from('claims as assigned_sibling')
                     ->whereColumn('assigned_sibling.account_type', 'claims.account_type')
-                    ->whereColumn('assigned_sibling.external_id', 'claims.external_id')
+                    ->whereColumn('assigned_sibling.bill_id', 'claims.bill_id')
                     ->whereNotNull('assigned_sibling.assigned_to');
             });
+    }
+
+    private function assignedGroupRows(string $account): Builder
+    {
+        // A partially assigned Bill ID is one workload. Attribute every sibling
+        // line to the most recently updated assigned line so nothing is omitted
+        // or counted more than once.
+        return Claim::query()
+            ->where('claims.account_type', $account)
+            ->whereExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('claims as assigned_sibling')
+                    ->whereColumn('assigned_sibling.account_type', 'claims.account_type')
+                    ->whereColumn('assigned_sibling.bill_id', 'claims.bill_id')
+                    ->whereNotNull('assigned_sibling.assigned_to');
+            })
+            ->select('claims.*')
+            ->selectSub(function ($query): void {
+                $query->from('claims as group_owner')
+                    ->select('group_owner.assigned_to')
+                    ->whereColumn('group_owner.account_type', 'claims.account_type')
+                    ->whereColumn('group_owner.bill_id', 'claims.bill_id')
+                    ->whereNotNull('group_owner.assigned_to')
+                    ->orderByDesc('group_owner.updated_at')
+                    ->orderByDesc('group_owner.id')
+                    ->limit(1);
+            }, 'group_assigned_to');
     }
 
     /** @param array<int, string> $groupValues */
     private function candidateRows(string $account, string $groupBy, array $groupValues): Builder
     {
         $query = $this->unassignedRows($account)
-            ->select(['claims.id', 'claims.external_id', 'claims.true_balance']);
+            ->select(['claims.id', 'claims.bill_id'])
+            ->selectRaw(self::BALANCE_VALUE_EXPRESSION.' as true_balance');
 
         if ($groupBy === 'all') {
             return $query;
@@ -234,10 +277,9 @@ class ClaimAssignmentService
         return match ($groupBy) {
             'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
             'payer_name' => "COALESCE(NULLIF(payer_name, ''), NULLIF(payer, ''))",
-            'rendering_provider' => "COALESCE(NULLIF(rendering_provider, ''), NULLIF(provider, ''))",
+            'primary_provider' => "COALESCE(NULLIF(primary_provider, ''), NULLIF(provider, ''))",
             'denial_reason' => "NULLIF(denial_reason, '')",
             'service_month' => 'SUBSTR(COALESCE(service_date_start, date_of_service), 1, 7)',
-            'service_type' => "NULLIF(service_type, '')",
             default => null,
         };
     }
@@ -247,13 +289,13 @@ class ClaimAssignmentService
      * @param  Collection<int, User>  $assignees
      * @return array<string, mixed>
      */
-    private function buildDistributionPlan(Collection $rows, Collection $assignees, bool $includeExternalIds = false): array
+    private function buildDistributionPlan(Collection $rows, Collection $assignees, bool $includeBillIds = false): array
     {
         $groups = $rows
-            ->groupBy('external_id')
-            ->map(function (Collection $claimRows, string $externalId): array {
+            ->groupBy('bill_id')
+            ->map(function (Collection $claimRows, string $billId): array {
                 return [
-                    'external_id' => $externalId,
+                    'bill_id' => $billId,
                     'line_count' => $claimRows->count(),
                     'balance_rows' => $claimRows->whereNotNull('true_balance')->count(),
                     'balance' => (float) $claimRows->sum(fn ($row): float => (float) ($row->true_balance ?? 0)),
@@ -262,7 +304,7 @@ class ClaimAssignmentService
             ->sort(function (array $left, array $right): int {
                 return ($right['balance'] <=> $left['balance'])
                     ?: ($right['line_count'] <=> $left['line_count'])
-                    ?: strcmp($left['external_id'], $right['external_id']);
+                    ?: strcmp($left['bill_id'], $right['bill_id']);
             })
             ->values();
 
@@ -273,7 +315,7 @@ class ClaimAssignmentService
             'assign_count' => 0,
             'assign_line_count' => 0,
             'assign_balance' => 0.0,
-            'external_ids' => [],
+            'bill_ids' => [],
         ])->all();
 
         foreach ($groups as $group) {
@@ -295,7 +337,7 @@ class ClaimAssignmentService
             $distribution[$targetIndex]['assign_count']++;
             $distribution[$targetIndex]['assign_line_count'] += $group['line_count'];
             $distribution[$targetIndex]['assign_balance'] += $group['balance'];
-            $distribution[$targetIndex]['external_ids'][] = $group['external_id'];
+            $distribution[$targetIndex]['bill_ids'][] = $group['bill_id'];
         }
 
         $balanceRows = (int) $groups->sum('balance_rows');
@@ -303,12 +345,12 @@ class ClaimAssignmentService
         $balanceAvailable = $balanceRows > 0;
         $assigneeCount = count($distribution);
 
-        $formattedDistribution = array_map(function (array $bucket) use ($balanceAvailable, $includeExternalIds): array {
+        $formattedDistribution = array_map(function (array $bucket) use ($balanceAvailable, $includeBillIds): array {
             if (! $balanceAvailable) {
                 $bucket['assign_balance'] = null;
             }
-            if (! $includeExternalIds) {
-                unset($bucket['external_ids']);
+            if (! $includeBillIds) {
+                unset($bucket['bill_ids']);
             }
 
             return $bucket;

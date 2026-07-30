@@ -12,22 +12,22 @@ export function WorkedLinesTable({ lines, returnTo }: { lines: PaginatedData<Wor
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="text-base">Worked Claim Lines</CardTitle>
+                <CardTitle className="text-base">Worked Bill Lines</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[1100px] text-sm">
                         <thead className="bg-muted/50 border-b text-left">
                             <tr>
-                                <th className="px-3 py-3 font-semibold">Claim #</th>
+                                <th className="px-3 py-3 font-semibold">Bill ID</th>
                                 <th className="px-3 py-3 font-semibold">Patient</th>
                                 <th className="px-3 py-3 font-semibold">CPT</th>
                                 <th className="px-3 py-3 font-semibold">Status</th>
                                 <th className="px-3 py-3 font-semibold">Service Date</th>
                                 <th className="px-3 py-3 font-semibold">Last Worked</th>
-                                <th className="px-3 py-3 text-right font-semibold">Charges</th>
-                                <th className="px-3 py-3 text-right font-semibold">Paid</th>
-                                <th className="px-3 py-3 text-right font-semibold">Balance</th>
+                                <th className="px-3 py-3 text-right font-semibold">True Charge</th>
+                                <th className="px-3 py-3 text-right font-semibold">Payments</th>
+                                <th className="px-3 py-3 text-right font-semibold">True Balance</th>
                                 <th className="px-3 py-3 text-center font-semibold">Action</th>
                             </tr>
                         </thead>
@@ -50,7 +50,7 @@ export function WorkedLinesTable({ lines, returnTo }: { lines: PaginatedData<Wor
                                     <td className="px-3 py-3 text-center">
                                         <Button asChild size="icon" variant="ghost">
                                             <Link
-                                                aria-label={`View claim ${line.claim_number}`}
+                                                aria-label={`View Bill ID ${line.claim_number}`}
                                                 href={`/claims/${line.claim_id}?return_to=${encodeURIComponent(returnTo)}`}
                                             >
                                                 <Eye />

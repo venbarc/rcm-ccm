@@ -205,13 +205,13 @@ export default function Assignments({
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Assignments', href: '/assignments' }]}>
-            <Head title="Grouped Claim Distribution" />
+            <Head title="Grouped Bill Distribution" />
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
                 <div>
-                    <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">Claim-ID-safe routing</p>
+                    <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">Bill-ID-safe routing</p>
                     <h1 className="text-3xl font-semibold tracking-tight">Grouped claim distribution</h1>
                     <p className="text-muted-foreground text-sm">
-                        Use the same dropdown-style distribution flow as the RCM portal: pick a queue slice, apply it, then distribute complete Claim
+                        Use the same dropdown-style distribution flow as the RCM portal: pick a queue slice, apply it, then distribute complete Bill
                         IDs by True Balance target.
                     </p>
                 </div>
@@ -333,7 +333,7 @@ export default function Assignments({
                             <CardTitle className="flex items-center gap-2">
                                 <Users className="size-5" /> Assignees
                             </CardTitle>
-                            <CardDescription>Each person receives complete Claim ID groups.</CardDescription>
+                            <CardDescription>Each person receives complete Bill ID groups.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-2">
                             <div className="mb-3 flex gap-2">

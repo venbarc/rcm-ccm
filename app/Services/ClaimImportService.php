@@ -37,6 +37,9 @@ class ClaimImportService
         'payments' => ['Historical Posted Payments', 'Payments'],
         'new_payments' => ['New Payments'],
         'bill_id' => ['Bill ID'],
+        'modmed_claim_status' => ['ModMed_Claim_Status', 'ModMed Claim Status'],
+        'cf_invoice_date' => ['CF Invoice Date'],
+        'cf_invoice_amount' => ['CF Invoice Amount'],
         'activity_type' => ['Activity Type'],
         'batch_user' => ['Batch User'],
         'batch_name' => ['Batch Name'],
@@ -53,12 +56,13 @@ class ClaimImportService
         'patient_id' => ['Patient MRN', 'Patient ID', 'Patient Id'],
         'payer_name' => ['Payer', 'Payer Name'],
         'place_of_service_code' => ['Place of Service Code'],
-        'posted_date' => ['Posted Date'],
+        'posted_date' => ['Posted Date', 'Posted Date Month/Year'],
         'practice_location' => ['Practice Location'],
         'primary_biller' => ['Primary Biller'],
         'primary_biller_role' => ['Primary Biller Role'],
         'primary_modifier' => ['Primary Modifier'],
-        'rendering_provider' => ['Primary Provider', 'Rendering Provider'],
+        'primary_provider' => ['Primary Provider'],
+        'rendering_provider' => ['Rendering Provider'],
         'primary_provider_role' => ['Primary Provider Role'],
         'quick_code' => ['Quick Code'],
         'recorded_by' => ['Recorded By'],
@@ -81,9 +85,10 @@ class ClaimImportService
 
     /** @var array<int, string> */
     private const IMPORTED_FIELDS = [
-        'uid', 'bill_id', 'payer_name', 'cpt_code', 'rendering_provider', 'payments',
+        'uid', 'bill_id', 'payer_name', 'cpt_code', 'primary_provider', 'rendering_provider', 'payments',
         'new_payments', 'true_balance', 'true_charge', 'adjustments', 'aging_days',
-        'claim_status', 'claimed_amount', 'diagnosis_code', 'first_name', 'last_name',
+        'claim_status', 'modmed_claim_status', 'cf_invoice_date', 'cf_invoice_amount', 'claimed_amount',
+        'diagnosis_code', 'first_name', 'last_name',
         'modifiers', 'patient_dob', 'patient_id', 'payer_category', 'procedure_code',
         'service_type', 'service_date_start', 'service_date_end', 'subscriber_id', 'units',
         'activity_type', 'batch_user', 'batch_name', 'code_category', 'coverage_type',
@@ -97,13 +102,13 @@ class ClaimImportService
     /** @var array<int, string> */
     private const DECIMAL_FIELDS = [
         'payments', 'new_payments', 'true_balance', 'true_charge', 'adjustments',
-        'claimed_amount', 'units',
+        'claimed_amount', 'units', 'cf_invoice_amount',
     ];
 
     /** @var array<int, string> */
     private const DATE_FIELDS = [
         'patient_dob', 'service_date_start', 'service_date_end', 'posted_date',
-        'transaction_date',
+        'transaction_date', 'cf_invoice_date',
     ];
 
     public function __construct(private readonly ClaimActivityService $activities) {}
@@ -181,16 +186,16 @@ class ClaimImportService
                     continue;
                 }
 
-                $externalId = $this->string($data['external_id'] ?? null);
-                if ($externalId === null) {
+                $billId = $this->string($data['bill_id'] ?? null);
+                if ($billId === null) {
                     $skipped++;
 
                     continue;
                 }
 
                 $payload = $this->normalizePayload($data);
-                $sourceHash = $this->sourceHash($externalId, $payload);
-                $claim = $this->findExistingClaim($import, $externalId, $sourceHash, $payload)
+                $sourceHash = $this->sourceHash($billId, $payload);
+                $claim = $this->findExistingClaim($import, $billId, $sourceHash, $payload)
                     ?? new Claim(['account_type' => $import->account_type]);
                 $isNew = ! $claim->exists;
 
@@ -209,24 +214,20 @@ class ClaimImportService
                         $payload['last_name'] ?? null,
                         $payload['first_name'] ?? null,
                     ])))
-                    ?: $externalId;
+                    ?: $billId;
 
                 $existingGroupOwner = $isNew
                     ? Claim::query()
                         ->where('account_type', $import->account_type)
-                        ->where('external_id', $externalId)
+                        ->where('bill_id', $billId)
                         ->whereNotNull('assigned_to')
                         ->latest('updated_at')
                         ->first(['assigned_to', 'status', 'priority'])
                     : null;
 
                 $wasWorkedOrModified = ! $isNew && $this->wasWorkedOrModified($claim);
-                $automaticWorkStatus = ((float) ($payload['payments'] ?? 0)) > 0
-                    ? 'historical_posted_payments'
-                    : 'draft';
-
                 $managed = $isNew || ! $wasWorkedOrModified ? [
-                    'work_status' => $automaticWorkStatus,
+                    'work_status' => 'draft',
                     'work_status_manually_set' => false,
                     'denial_reason' => $payload['denial_reason'] ?? null,
                     'notes' => null,
@@ -242,14 +243,12 @@ class ClaimImportService
                     ...$payload,
                     ...$managed,
                     'source_hash' => $sourceHash,
-                    'external_id' => $externalId,
+                    'external_id' => $billId,
                     'patient_name' => $patientName,
                     'date_of_service' => $payload['service_date_start'],
                     'payer' => $payload['payer_name'],
-                    'provider' => $payload['rendering_provider'],
+                    'provider' => $payload['primary_provider'],
                     'cpt_code' => $payload['cpt_code'] ?? $payload['procedure_code'],
-                    'billed_amount' => $payload['true_charge'],
-                    'balance' => $payload['true_balance'],
                     'last_import_id' => $import->id,
                 ])->save();
 
@@ -498,8 +497,8 @@ class ClaimImportService
     /** @param array<int, mixed> $headers */
     private function validateHeaders(array $headers): void
     {
-        if (! array_key_exists('external_id', $this->mapColumns($headers))) {
-            throw new RuntimeException('Missing required Tricity column: Claim ID.');
+        if (! array_key_exists('bill_id', $this->mapColumns($headers))) {
+            throw new RuntimeException('Missing required Tricity column: Bill ID.');
         }
     }
 
@@ -530,13 +529,12 @@ class ClaimImportService
     }
 
     /** @param array<string, mixed> $payload */
-    private function sourceHash(string $externalId, array $payload): string
+    private function sourceHash(string $billId, array $payload): string
     {
         return hash('sha256', implode('|', array_map(
             fn ($value): string => strtolower(trim((string) ($value ?? ''))),
             [
-                $externalId,
-                $payload['bill_id'],
+                $billId,
                 $payload['procedure_code'] ?? $payload['cpt_code'],
                 $payload['service_date_start'],
                 $payload['activity_type'],
@@ -546,7 +544,7 @@ class ClaimImportService
     }
 
     /** @param array<string, mixed> $payload */
-    private function findExistingClaim(ClaimImport $import, string $externalId, string $sourceHash, array $payload): ?Claim
+    private function findExistingClaim(ClaimImport $import, string $billId, string $sourceHash, array $payload): ?Claim
     {
         $claim = Claim::query()
             ->where('account_type', $import->account_type)
@@ -558,7 +556,7 @@ class ClaimImportService
 
         $query = Claim::query()
             ->where('account_type', $import->account_type)
-            ->where('external_id', $externalId)
+            ->where('bill_id', $billId)
             ->where(fn ($nested) => $nested->whereNull('last_import_id')->orWhere('last_import_id', '!=', $import->id));
 
         foreach (['bill_id', 'service_date_start', 'activity_type', 'primary_modifier'] as $field) {
@@ -579,8 +577,7 @@ class ClaimImportService
 
         return Claim::query()
             ->where('account_type', $import->account_type)
-            ->where('external_id', $externalId)
-            ->whereNull('bill_id')
+            ->where('external_id', $billId)
             ->whereNull('procedure_code')
             ->where(fn ($nested) => $nested->whereNull('last_import_id')->orWhere('last_import_id', '!=', $import->id))
             ->first();

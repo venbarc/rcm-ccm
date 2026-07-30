@@ -20,20 +20,19 @@ use Throwable;
 class ClaimExportService
 {
     public const WORK_STATUSES = [
-        'draft', 'paid', 'historical_posted_payments', 'rebilled', 'appeal',
+        'draft', 'paid', 'rebilled', 'appeal',
         'pending', 'void', 'corrected', 'patient_balance',
     ];
 
     private const HEADERS = [
-        'Claim ID', 'Bill ID', 'UID', 'Patient Name', 'Patient First Name',
+        'Bill ID', 'UID', 'Patient Name', 'Patient First Name',
         'Patient Last Name', 'Patient DOB', 'Patient MRN', 'Subscriber ID',
         'CPT Code', 'Modifiers', 'Units', 'Service Date Start', 'Service Date End',
         'Service Type', 'Diagnosis Code', 'Payer', 'Payer Category', 'Coverage Type',
-        'Rendering Provider', 'Ordering Provider', 'Supervising Provider',
+        'Primary Provider', 'Ordering Provider', 'Supervising Provider',
         'Practice Location', 'Location', 'Division', 'Place of Service Code',
-        'Claim Status', 'Work Status', 'Priority', 'Assigned To', 'Denial Reason',
-        'Notes', 'Source Notes', 'Charges', 'Historical Posted Payments',
-        'New Payments', 'Adjustments', 'True Balance', 'Claimed Amount', 'Aging Days',
+        'ModMed Claim Status', 'CF Invoice Date', 'Work Status', 'Assigned To', 'Denial Reason',
+        'Notes', 'Source Notes', 'True Charge', 'Payments', 'True Balance', 'Claimed Amount', 'Aging Days',
         'Activity Type', 'Batch User', 'Batch Name', 'Code Category',
         'Financial Category', 'Package Name', 'Posted Date', 'Transaction Date',
         'Primary Biller', 'Primary Biller Role', 'Primary Modifier',
@@ -285,7 +284,6 @@ class ClaimExportService
     private function formatRow(Claim $claim): array
     {
         $row = [
-            $claim->external_id,
             $claim->bill_id,
             $claim->uid,
             $claim->patient_name,
@@ -304,24 +302,22 @@ class ClaimExportService
             $claim->payer_name ?: $claim->payer,
             $claim->payer_category,
             $claim->coverage_type,
-            $claim->rendering_provider ?: $claim->provider,
+            $claim->primary_provider ?: $claim->provider,
             $claim->ordering_provider,
             $claim->supervising_provider,
             $claim->practice_location,
             $claim->location,
             $claim->division,
             $claim->place_of_service_code,
-            $claim->claim_status,
+            $claim->modmed_claim_status,
+            $claim->cf_invoice_date?->format('Y-m-d'),
             $claim->work_status ?: 'draft',
-            $claim->priority,
             $claim->assignee?->name,
             $claim->denial_reason,
             $claim->notes,
             $claim->source_notes,
             $claim->true_charge ?? $claim->billed_amount,
             $claim->payments,
-            $claim->new_payments,
-            $claim->adjustments,
             $claim->true_balance ?? $claim->balance,
             $claim->claimed_amount,
             $claim->aging_days,

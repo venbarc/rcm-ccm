@@ -1,7 +1,8 @@
 import { ClaimsByStatusCard } from '@/components/dashboard/claims-by-status-card';
+import { FinancialSummaryCard } from '@/components/dashboard/financial-summary-card';
 import { RadialMetricCard } from '@/components/dashboard/radial-metric-card';
 import { DashboardRangeFilter } from '@/components/dashboard/range-filter';
-import type { ClaimByStatus, DashboardFilters, WorkSummary } from '@/components/dashboard/types';
+import type { ClaimByStatus, DashboardFilters, DashboardFinancialSummary, WorkSummary } from '@/components/dashboard/types';
 import { formatCount } from '@/components/dashboard/types';
 import { WorkSummaryTable } from '@/components/dashboard/work-summary-table';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
@@ -9,25 +10,30 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import AppLayout from '@/layouts/app-layout';
-import { Head } from '@inertiajs/react';
+import { type SharedData } from '@/types';
+import { Head, usePage } from '@inertiajs/react';
 
 interface DashboardProps {
     accountLabel: string;
     filters: DashboardFilters;
     workSummary: WorkSummary;
     claimsByStatus: ClaimByStatus[];
+    cptSummary?: DashboardFinancialSummary;
+    modmedStatusSummary?: DashboardFinancialSummary;
 }
 
-export default function Dashboard({ accountLabel, filters, workSummary, claimsByStatus }: DashboardProps) {
+export default function Dashboard({ accountLabel, filters, workSummary, claimsByStatus, cptSummary, modmedStatusSummary }: DashboardProps) {
+    const { auth } = usePage<SharedData>().props;
     const isLoading = useInertiaLoading();
     const workedLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.workedCount / workSummary.totalCount) * 100, 100) : 0;
     const paidLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.paidCount / workSummary.totalCount) * 100, 100) : 0;
+    const showAdminSummaries = auth.user.is_admin && cptSummary && modmedStatusSummary;
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }]}>
             <Head title="Dashboard" />
             <DataLoadingOverlay isLoading={isLoading} label="Updating dashboard..." className="flex-1">
-                <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+                <div className="flex w-full max-w-full min-w-0 flex-1 flex-col gap-6 p-4 md:p-6">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
@@ -49,6 +55,25 @@ export default function Dashboard({ accountLabel, filters, workSummary, claimsBy
                             <WorkSummaryTable summary={workSummary} />
                         </CardContent>
                     </Card>
+
+                    {showAdminSummaries && (
+                        <section aria-label="Admin financial summaries" className="flex min-w-0 flex-col gap-6">
+                            <FinancialSummaryCard
+                                description="CPT-level volume, collections, balances, and CF invoice totals for the selected range."
+                                groupHeading="CPT"
+                                groupKind="cpt"
+                                summary={cptSummary}
+                                title="Summary by CPT Codes"
+                            />
+                            <FinancialSummaryCard
+                                description="Financial performance grouped by the imported ModMed Claim Status."
+                                groupHeading="ModMed Claim Status"
+                                groupKind="modmed-status"
+                                summary={modmedStatusSummary}
+                                title="Summary by Claim Status"
+                            />
+                        </section>
+                    )}
 
                     <ClaimsByStatusCard statuses={claimsByStatus} />
 

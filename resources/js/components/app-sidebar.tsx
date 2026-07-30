@@ -21,29 +21,28 @@ export function AppSidebar() {
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <div className="flex flex-col gap-2 px-2 py-1">
-                            <SidebarMenuButton size="lg" asChild>
-                                <Link href="/dashboard" prefetch>
-                                    <AppLogo />
-                                </Link>
-                            </SidebarMenuButton>
-                            <a
-                                href="/oneaccess"
-                                className="inline-flex items-center gap-1.5 self-start rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
-                            >
-                                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                                OneAccess
+                        <SidebarMenuButton asChild size="lg" tooltip="RCM CCM dashboard">
+                            <Link href="/dashboard" prefetch>
+                                <AppLogo />
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            asChild
+                            className="border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                            tooltip="Back to OneAccess"
+                        >
+                            <a href="/oneaccess">
+                                <ArrowLeft aria-hidden="true" />
+                                <span>Back to OneAccess</span>
                             </a>
-                            {auth.user && (
-                                <AccountSwitcherBadge
-                                    activeAccount={activeAccount}
-                                    allowedAccountTypes={auth.user.account_types}
-                                    accountTypes={accountTypes}
-                                />
-                            )}
-                        </div>
+                        </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
+                {auth.user && (
+                    <AccountSwitcherBadge activeAccount={activeAccount} allowedAccountTypes={auth.user.account_types} accountTypes={accountTypes} />
+                )}
             </SidebarHeader>
 
             <SidebarContent>

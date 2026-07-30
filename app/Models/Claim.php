@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccountType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,8 +17,9 @@ class Claim extends Model
         'account_type', 'external_id', 'patient_name', 'date_of_service', 'payer',
         'provider', 'cpt_code', 'billed_amount', 'balance', 'status', 'priority',
         'assigned_to', 'notes', 'last_import_id', 'source_hash', 'uid', 'bill_id',
-        'payer_name', 'rendering_provider', 'payments', 'new_payments', 'true_balance',
-        'true_charge', 'adjustments', 'aging_days', 'denial_reason', 'claim_status',
+        'payer_name', 'rendering_provider', 'primary_provider', 'payments', 'new_payments',
+        'true_balance', 'true_charge', 'adjustments', 'aging_days', 'denial_reason', 'claim_status',
+        'modmed_claim_status', 'cf_invoice_date', 'cf_invoice_amount',
         'work_status', 'work_status_manually_set', 'claimed_amount', 'diagnosis_code',
         'first_name', 'last_name', 'modifiers', 'patient_dob', 'patient_id',
         'payer_category', 'procedure_code', 'service_type', 'service_date_start',
@@ -43,12 +45,31 @@ class Claim extends Model
             'claimed_amount' => 'decimal:2',
             'units' => 'decimal:2',
             'patient_dob' => 'date:Y-m-d',
+            'cf_invoice_date' => 'date:Y-m-d',
+            'cf_invoice_amount' => 'decimal:2',
             'service_date_start' => 'date:Y-m-d',
             'service_date_end' => 'date:Y-m-d',
             'posted_date' => 'date:Y-m-d',
             'transaction_date' => 'date:Y-m-d',
             'work_status_manually_set' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Claim $claim): void {
+            if ($claim->account_type !== AccountType::Tricity->value) {
+                return;
+            }
+
+            if (blank($claim->bill_id) && filled($claim->external_id)) {
+                $claim->bill_id = $claim->external_id;
+            }
+
+            if (blank($claim->external_id) && filled($claim->bill_id)) {
+                $claim->external_id = $claim->bill_id;
+            }
+        });
     }
 
     public function assignee(): BelongsTo

@@ -18,15 +18,13 @@ export interface ClaimLine {
     cpt_code: string | null;
     service_date_start: string | null;
     service_date_end: string | null;
-    payments: number | string | null;
     true_charge: number | string | null;
-    adjustments: number | string | null;
     true_balance: number | string | null;
-    rendering_provider: string | null;
+    primary_provider: string | null;
     payer_name: string | null;
     patient_id: string | null;
-    priority: string | null;
-    claim_status: string | null;
+    modmed_claim_status: string | null;
+    cf_invoice_date: string | null;
     work_status: string;
     denial_reason: string | null;
     notes: string | null;
@@ -43,23 +41,23 @@ export interface ClaimLine {
 
 export interface ClaimGroup {
     id: number;
-    external_id: string;
+    bill_id: string;
     patient_name: string;
     first_name: string | null;
     last_name: string | null;
     patient_dob: string | null;
     patient_id: string | null;
     payer_name: string | null;
-    rendering_provider: string | null;
+    primary_provider: string | null;
     facility: string | null;
     modified_by: UserOption | null;
     service_date_start: string | null;
     service_date_end: string | null;
     payments: number | string | null;
     true_charge: number | string | null;
-    adjustments: number | string | null;
     true_balance: number | string | null;
-    claim_status: string | null;
+    modmed_claim_status: string | null;
+    cf_invoice_date: string | null;
     work_status: string;
     denial_reason: string | null;
     notes: string | null;
@@ -72,7 +70,6 @@ export interface ClaimGroup {
     updated_at: string;
     line_count: number;
     cpt_codes: string[];
-    bill_ids: string[];
     is_modified: boolean;
     lines: ClaimLine[];
 }
@@ -96,15 +93,17 @@ export interface Summary {
 export interface Filters {
     [key: string]: string;
     search: string;
-    claim_status: string;
+    modmed_claim_status: string;
     payer_name: string;
-    rendering_provider: string;
+    primary_provider: string;
     denial_reason: string;
     work_status: string;
     assigned_to: string;
     worked_from: string;
     worked_to: string;
     service_month: string;
+    cf_invoice_from: string;
+    cf_invoice_to: string;
     procedure_code: string;
     expanded: string;
     sort_by: string;
@@ -112,10 +111,11 @@ export interface Filters {
 }
 
 export type SortColumn =
+    | 'bill_id'
+    | 'patient_name'
+    | 'location'
     | 'service_date_start'
-    | 'service_date_end'
-    | 'first_name'
-    | 'last_name'
+    | 'line_count'
     | 'true_charge'
     | 'true_balance'
     | 'payments'

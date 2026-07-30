@@ -215,7 +215,7 @@ history.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
  * @see app/Http/Controllers/ClaimExportController.php:54
  * @route '/claims-export/{claimExport}/progress'
  */
-export const progress = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+export const progress = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: progress.url(args, options),
     method: 'get',
 })
@@ -230,7 +230,7 @@ progress.definition = {
  * @see app/Http/Controllers/ClaimExportController.php:54
  * @route '/claims-export/{claimExport}/progress'
  */
-progress.url = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions) => {
+progress.url = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
     if (typeof args === 'string' || typeof args === 'number') {
         args = { claimExport: args }
     }
@@ -263,7 +263,7 @@ progress.url = (args: { claimExport: string | number | { id: string | number } }
  * @see app/Http/Controllers/ClaimExportController.php:54
  * @route '/claims-export/{claimExport}/progress'
  */
-progress.get = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+progress.get = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: progress.url(args, options),
     method: 'get',
 })
@@ -272,7 +272,7 @@ progress.get = (args: { claimExport: string | number | { id: string | number } }
  * @see app/Http/Controllers/ClaimExportController.php:54
  * @route '/claims-export/{claimExport}/progress'
  */
-progress.head = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+progress.head = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: progress.url(args, options),
     method: 'head',
 })
@@ -282,7 +282,7 @@ progress.head = (args: { claimExport: string | number | { id: string | number } 
  * @see app/Http/Controllers/ClaimExportController.php:54
  * @route '/claims-export/{claimExport}/progress'
  */
-    const progressForm = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    const progressForm = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
         action: progress.url(args, options),
         method: 'get',
     })
@@ -292,7 +292,7 @@ progress.head = (args: { claimExport: string | number | { id: string | number } 
  * @see app/Http/Controllers/ClaimExportController.php:54
  * @route '/claims-export/{claimExport}/progress'
  */
-        progressForm.get = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        progressForm.get = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: progress.url(args, options),
             method: 'get',
         })
@@ -301,7 +301,7 @@ progress.head = (args: { claimExport: string | number | { id: string | number } 
  * @see app/Http/Controllers/ClaimExportController.php:54
  * @route '/claims-export/{claimExport}/progress'
  */
-        progressForm.head = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        progressForm.head = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: progress.url(args, {
                         [options?.mergeQuery ? 'mergeQuery' : 'query']: {
                             _method: 'HEAD',
@@ -317,7 +317,7 @@ progress.head = (args: { claimExport: string | number | { id: string | number } 
  * @see app/Http/Controllers/ClaimExportController.php:78
  * @route '/claims-export/{claimExport}/download'
  */
-export const download = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+export const download = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: download.url(args, options),
     method: 'get',
 })
@@ -332,7 +332,7 @@ download.definition = {
  * @see app/Http/Controllers/ClaimExportController.php:78
  * @route '/claims-export/{claimExport}/download'
  */
-download.url = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions) => {
+download.url = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
     if (typeof args === 'string' || typeof args === 'number') {
         args = { claimExport: args }
     }
@@ -365,7 +365,7 @@ download.url = (args: { claimExport: string | number | { id: string | number } }
  * @see app/Http/Controllers/ClaimExportController.php:78
  * @route '/claims-export/{claimExport}/download'
  */
-download.get = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+download.get = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
     url: download.url(args, options),
     method: 'get',
 })
@@ -374,7 +374,7 @@ download.get = (args: { claimExport: string | number | { id: string | number } }
  * @see app/Http/Controllers/ClaimExportController.php:78
  * @route '/claims-export/{claimExport}/download'
  */
-download.head = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+download.head = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: download.url(args, options),
     method: 'head',
 })
@@ -384,7 +384,7 @@ download.head = (args: { claimExport: string | number | { id: string | number } 
  * @see app/Http/Controllers/ClaimExportController.php:78
  * @route '/claims-export/{claimExport}/download'
  */
-    const downloadForm = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    const downloadForm = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
         action: download.url(args, options),
         method: 'get',
     })
@@ -394,7 +394,7 @@ download.head = (args: { claimExport: string | number | { id: string | number } 
  * @see app/Http/Controllers/ClaimExportController.php:78
  * @route '/claims-export/{claimExport}/download'
  */
-        downloadForm.get = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        downloadForm.get = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: download.url(args, options),
             method: 'get',
         })
@@ -403,7 +403,7 @@ download.head = (args: { claimExport: string | number | { id: string | number } 
  * @see app/Http/Controllers/ClaimExportController.php:78
  * @route '/claims-export/{claimExport}/download'
  */
-        downloadForm.head = (args: { claimExport: string | number | { id: string | number } } | [claimExport: string | number | { id: string | number } ] | string | number | { id: string | number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        downloadForm.head = (args: { claimExport: number | { id: number } } | [claimExport: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
             action: download.url(args, {
                         [options?.mergeQuery ? 'mergeQuery' : 'query']: {
                             _method: 'HEAD',

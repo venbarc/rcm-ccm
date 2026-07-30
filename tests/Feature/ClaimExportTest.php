@@ -74,9 +74,9 @@ class ClaimExportTest extends TestCase
         $rows = array_map('str_getcsv', preg_split('/\r\n|\r|\n/', trim(Storage::get($export->file_path))));
 
         $this->assertCount(3, $rows);
-        $this->assertSame('Claim ID', $rows[0][0]);
-        $this->assertSame(['99490', '99439'], array_column(array_slice($rows, 1), 9));
-        $this->assertSame('\'=HYPERLINK("https://example.test")', $rows[1][3]);
+        $this->assertSame('Bill ID', $rows[0][0]);
+        $this->assertSame(['99490', '99439'], array_column(array_slice($rows, 1), 8));
+        $this->assertSame('\'=HYPERLINK("https://example.test")', $rows[1][2]);
         $this->assertStringNotContainsString('PR-HIDDEN-1', Storage::get($export->file_path));
 
         $this->actingAs($admin)

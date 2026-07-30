@@ -54,10 +54,10 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
         <AppLayout
             breadcrumbs={[
                 { title: 'Claims', href: returnTo },
-                { title: claim.external_id, href: `/claims/${claim.id}` },
+                { title: claim.bill_id, href: `/claims/${claim.id}` },
             ]}
         >
-            <Head title={`Claim ${claim.external_id}`} />
+            <Head title={`Bill ${claim.bill_id}`} />
             <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
@@ -67,7 +67,7 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                             </Link>
                         </Button>
                         <div>
-                            <h1 className="text-2xl font-bold">Claim {claim.external_id}</h1>
+                            <h1 className="text-2xl font-bold">Bill ID {claim.bill_id}</h1>
                             <p className="text-muted-foreground text-sm">
                                 {claim.line_count} CPT line{claim.line_count === 1 ? '' : 's'}
                             </p>
@@ -87,7 +87,7 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                         </CardHeader>
                         <CardContent className="space-y-1">
                             <p className="font-medium">{claim.patient_name || '-'}</p>
-                            <p className="text-muted-foreground text-sm">ID: {claim.patient_id || '-'}</p>
+                            <p className="text-muted-foreground text-sm">MRN: {claim.patient_id || '-'}</p>
                             <p className="text-muted-foreground text-sm">DOB: {date(claim.patient_dob)}</p>
                         </CardContent>
                     </Card>
@@ -117,10 +117,9 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                             <CardTitle>Financial Summary</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-2 text-sm">
-                            <DetailRow label="Charges" value={currency(claim.total_charges)} />
-                            <DetailRow label="Paid" value={<span className="text-green-600">{currency(claim.total_paid)}</span>} />
-                            <DetailRow label="Adjustments" value={currency(claim.total_adjustments)} />
-                            <DetailRow label="Balance" value={<span className="text-orange-600">{currency(claim.total_balance)}</span>} />
+                            <DetailRow label="True Charge" value={currency(claim.total_true_charge)} />
+                            <DetailRow label="Payments" value={<span className="text-green-600">{currency(claim.total_payments)}</span>} />
+                            <DetailRow label="True Balance" value={<span className="text-orange-600">{currency(claim.total_true_balance)}</span>} />
                         </CardContent>
                     </Card>
                 </div>
