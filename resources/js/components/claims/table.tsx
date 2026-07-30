@@ -1,6 +1,14 @@
 import { ClaimSourceLineCells, ClaimSourceLineHeaders } from '@/components/claims/claim-source-line-columns';
 import type { ClaimGroup, Filters, SortColumn } from '@/components/claims/types';
-import { EMPTY_VALUE, currency, lineProcedureCode, serviceDateRange, statusClass, statusLabel, statusRowClass } from '@/components/claims/utils';
+import {
+    EMPTY_VALUE,
+    currency,
+    lineProcedureCode,
+    serviceDateRange,
+    statusLabel,
+    workStatusBackgroundStyle,
+    workStatusBadgeStyle,
+} from '@/components/claims/utils';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
 import { Pagination } from '@/components/pagination';
 import { Badge } from '@/components/ui/badge';
@@ -193,11 +201,9 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                 <tbody>
                                                                     {claim.lines.map((line) => (
                                                                         <tr
-                                                                            className={cn(
-                                                                                'group border-muted-foreground/20 border-b last:border-0',
-                                                                                statusRowClass[line.work_status] ?? statusRowClass.draft,
-                                                                            )}
+                                                                            className="group border-muted-foreground/20 border-b last:border-0"
                                                                             key={line.id}
+                                                                            style={workStatusBackgroundStyle(line.work_status_color)}
                                                                         >
                                                                             <ClaimSourceLineCells
                                                                                 line={{
@@ -207,14 +213,15 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                                 showPayer={false}
                                                                             />
                                                                             <td className="text-muted-foreground px-3 py-3">
-                                                                                {line.denial_reason || EMPTY_VALUE}
+                                                                                {line.denial_reason_label || line.denial_reason || EMPTY_VALUE}
                                                                             </td>
                                                                             <td className="px-3 py-3">
                                                                                 <Badge
-                                                                                    className={statusClass[line.work_status] ?? statusClass.draft}
+                                                                                    className="font-medium"
+                                                                                    style={workStatusBadgeStyle(line.work_status_color)}
                                                                                     variant="outline"
                                                                                 >
-                                                                                    {statusLabel(line.work_status)}
+                                                                                    {line.work_status_label || statusLabel(line.work_status)}
                                                                                 </Badge>
                                                                             </td>
                                                                             <td className="px-3 py-3">

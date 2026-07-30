@@ -19,11 +19,6 @@ use Throwable;
 
 class ClaimExportService
 {
-    public const WORK_STATUSES = [
-        'draft', 'paid', 'rebilled', 'appeal',
-        'pending', 'void', 'corrected', 'patient_balance',
-    ];
-
     private const HEADERS = [
         'CPT', 'Location', 'Bill ID', 'Invoice Rate Per Unit', 'CF Invoice Amount',
         'Payments', 'True Balance', 'True Charge', 'Units', 'BillingID-CPT',
@@ -36,27 +31,17 @@ class ClaimExportService
         'Credit Status Date', 'Credit Reason', 'Last Updated',
     ];
 
-    private const WORK_STATUS_LABELS = [
-        'draft' => 'Draft',
-        'paid' => 'Paid',
-        'rebilled' => 'Rebilled',
-        'appeal' => 'Appeal',
-        'pending' => 'Pending',
-        'void' => 'Void',
-        'corrected' => 'Corrected',
-        'patient_balance' => 'Patient Balance',
-    ];
-
     private const INVOICED_STATUS_LABELS = [
         'invoiced' => 'Invoiced',
     ];
 
-    private const CREDIT_REASON_LABELS = [
-        'inactive_insurance' => 'Inactive Insurance',
-        'not_covered_by_insurance' => 'Not Covered by the Insurance',
-    ];
+    /** @var array<string, array<string, string>> */
+    private array $configurationLabels = [];
 
-    public function __construct(private readonly TeamService $teams) {}
+    public function __construct(
+        private readonly ClaimConfigurationService $configurations,
+        private readonly TeamService $teams,
+    ) {}
 
     /**
      * @param  array{type:string,status?:string|null,assigned_to?:string|null}  $filters
@@ -329,19 +314,19 @@ class ClaimExportService
             $claim->primary_provider ?: $claim->provider,
             ($claim->service_date_start ?? $claim->date_of_service)?->format('Y-m-d'),
             $this->sourceValue($claim, 'true_charge_per_unit'),
-            self::WORK_STATUS_LABELS[$claim->work_status ?: 'draft'] ?? $claim->work_status,
+            $this->configurationLabel($claim->account_type, ClaimConfigurationService::WORK_STATUS, $claim->work_status ?: 'draft'),
             $claim->assignee?->name,
-            $claim->denial_reason,
+            $this->configurationLabel($claim->account_type, ClaimConfigurationService::DENIAL_REASON, $claim->denial_reason),
             $claim->notes,
             self::INVOICED_STATUS_LABELS['invoiced'],
             $claim->cf_invoice_date?->format('Y-m-d'),
             match ($claim->credit_status) {
-                true => 'Yes',
-                false => 'No',
-                null => 'Open',
+                true => $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'yes'),
+                false => $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'no'),
+                null => '--',
             },
             $claim->credit_status_date?->format('Y-m-d'),
-            $this->label(self::CREDIT_REASON_LABELS, $claim->credit_reason),
+            $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_REASON, $claim->credit_reason),
             $claim->updated_at?->format('Y-m-d H:i:s'),
         ];
 
@@ -355,10 +340,16 @@ class ClaimExportService
         return $value === null || $value === '' ? $fallback : $value;
     }
 
-    /** @param array<string, string> $labels */
-    private function label(array $labels, ?string $value): ?string
+    private function configurationLabel(string $account, string $type, ?string $value): ?string
     {
-        return $value === null ? null : ($labels[$value] ?? $value);
+        if ($value === null) {
+            return null;
+        }
+
+        $cacheKey = "{$account}:{$type}";
+        $this->configurationLabels[$cacheKey] ??= $this->configurations->labelMap($account, $type);
+
+        return $this->configurationLabels[$cacheKey][$value] ?? $value;
     }
 
     private function sanitizeCsvValue(mixed $value): bool|float|int|string|null

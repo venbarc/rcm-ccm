@@ -12,7 +12,10 @@ export interface ClaimDetailLine {
     true_charge: number;
     true_balance: number;
     work_status: string;
+    work_status_label: string;
+    work_status_color: string | null;
     denial_reason: string | null;
+    denial_reason_label: string | null;
     payer_name: string | null;
     primary_provider: string | null;
     modmed_claim_status: string | null;
@@ -20,8 +23,10 @@ export interface ClaimDetailLine {
     invoiced_status: string | null;
     invoiced_status_date: string | null;
     credit_status: boolean | null;
+    credit_status_label: string;
     credit_status_date: string | null;
     credit_reason: string | null;
+    credit_reason_label: string | null;
     patient_id: string | null;
     notes: string | null;
     assigned_to: ClaimDetailUser | null;

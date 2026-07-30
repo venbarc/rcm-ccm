@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Enums\AccountType;
 use App\Models\Claim;
 use App\Models\ClaimActivity;
+use App\Models\ClaimConfigurationOption;
 use App\Models\GroupMember;
 use App\Models\User;
+use App\Services\ClaimConfigurationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -440,6 +442,14 @@ class ClaimsWorkflowTest extends TestCase
             'cf_invoice_date' => '2026-07-02',
             'work_status' => 'draft',
         ]);
+        ClaimConfigurationOption::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::DENIAL_REASON,
+            'value' => 'Missing documentation',
+            'label' => 'Missing documentation',
+            'sort_order' => 0,
+            'added_by' => $user->id,
+        ]);
 
         $this->actingAs($user)
             ->withSession(['account_type' => AccountType::Tricity->value])
@@ -497,35 +507,8 @@ class ClaimsWorkflowTest extends TestCase
 
         $this->actingAs($user)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->get('/claims?invoiced_status_date=2026-07-01')
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->where('filters.invoiced_status_date', '2026-07-01')
-                ->where('claims.total', 1));
-
-        $this->actingAs($user)
-            ->withSession(['account_type' => AccountType::Tricity->value])
-            ->get('/claims?invoiced_status_date=2026-07-30')
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('claims.total', 0));
-
-        $this->actingAs($user)
-            ->withSession(['account_type' => AccountType::Tricity->value])
             ->getJson('/claims/options?filter=invoiced_status_date')
-            ->assertOk()
-            ->assertJsonPath('total', 2)
-            ->assertJsonPath('data.0.id', '2026-07-02')
-            ->assertJsonPath('data.0.name', 'July 2, 2026')
-            ->assertJsonPath('data.1.id', '2026-07-01')
-            ->assertJsonPath('data.1.name', 'July 1, 2026');
-
-        $this->actingAs($user)
-            ->withSession(['account_type' => AccountType::Tricity->value])
-            ->getJson('/claims/options?filter=invoiced_status_date&search=July%202')
-            ->assertOk()
-            ->assertJsonPath('total', 1)
-            ->assertJsonPath('data.0.id', '2026-07-02')
-            ->assertJsonPath('data.0.name', 'July 2, 2026');
+            ->assertStatus(422);
     }
 
     public function test_credit_status_requires_a_date_and_reason(): void

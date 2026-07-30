@@ -1,6 +1,6 @@
 import type { PaginatedData, WorkedLine } from '@/components/activity-logs/types';
 import { formatCurrency } from '@/components/activity-logs/types';
-import { date, statusClass, statusLabel } from '@/components/claims/utils';
+import { date, statusLabel, workStatusBadgeStyle } from '@/components/claims/utils';
 import { Pagination } from '@/components/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,8 +38,8 @@ export function WorkedLinesTable({ lines, returnTo }: { lines: PaginatedData<Wor
                                     <td className="px-3 py-3">{line.patient_name || '-'}</td>
                                     <td className="px-3 py-3 font-medium">{line.cpt_code || '-'}</td>
                                     <td className="px-3 py-3">
-                                        <Badge className={statusClass[line.status] ?? statusClass.draft} variant="outline">
-                                            {statusLabel(line.status)}
+                                        <Badge className="font-medium" style={workStatusBadgeStyle(line.status_color)} variant="outline">
+                                            {line.status_label || statusLabel(line.status)}
                                         </Badge>
                                     </td>
                                     <td className="px-3 py-3">{date(line.date_of_service)}</td>

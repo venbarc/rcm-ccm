@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Claim;
+use App\Services\ClaimConfigurationService;
 use App\Support\CurrentAccount;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -31,10 +32,7 @@ class DashboardController extends Controller
 
     private const WORK_STATUS_EXPRESSION = "COALESCE(NULLIF(TRIM(work_status), ''), 'draft')";
 
-    private const WORK_STATUSES = [
-        'draft', 'paid', 'rebilled', 'appeal',
-        'pending', 'void', 'corrected', 'patient_balance',
-    ];
+    public function __construct(private readonly ClaimConfigurationService $configurations) {}
 
     public function __invoke(Request $request): Response
     {
@@ -43,6 +41,7 @@ class DashboardController extends Controller
         $claims = Claim::query()->where('account_type', $account->value);
         $this->applyDateRange($claims, $filters['startDate'], $filters['endDate']);
         $isAdmin = (bool) $request->user()?->is_admin;
+        $workStatuses = $this->configurations->selectOptions($account->value, ClaimConfigurationService::WORK_STATUS);
 
         $totalQuery = (clone $claims)
             ->selectRaw('COUNT(*) as line_count')
@@ -113,13 +112,13 @@ class DashboardController extends Controller
                     ? round(($paidCount / $totalCount) * 100, 2)
                     : 0.0,
             ],
-            'claimsByStatus' => $this->claimsByStatus($claims),
+            'claimsByStatus' => $this->claimsByStatus($claims, $workStatuses),
             ...$adminSummaryProps,
         ]);
     }
 
     /** @return array<int, array{status: string, label: string, count: int, amount: float}> */
-    private function claimsByStatus(Builder $query): array
+    private function claimsByStatus(Builder $query, array $workStatuses): array
     {
         $statuses = (clone $query)
             ->selectRaw(self::WORK_STATUS_EXPRESSION.' as status_key')
@@ -129,13 +128,14 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('status_key');
 
-        return collect(self::WORK_STATUSES)
-            ->map(function (string $status) use ($statuses): array {
-                $row = $statuses->get($status);
+        return collect($workStatuses)
+            ->map(function (array $status) use ($statuses): array {
+                $row = $statuses->get($status['value']);
 
                 return [
-                    'status' => $status,
-                    'label' => str($status)->replace('_', ' ')->title()->toString(),
+                    'status' => $status['value'],
+                    'label' => $status['label'],
+                    'color' => $status['color'],
                     'count' => (int) ($row?->line_count ?? 0),
                     'amount' => (float) ($row?->amount ?? 0),
                 ];

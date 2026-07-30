@@ -1,22 +1,9 @@
 import type { StatusSummaryItem } from '@/components/activity-logs/types';
 import { formatCurrency, formatNumber } from '@/components/activity-logs/types';
+import { workStatusBackgroundStyle } from '@/components/claims/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download } from 'lucide-react';
-
-const statusBackground = (status: string) => {
-    const colors: Record<string, string> = {
-        appeal: 'bg-purple-50',
-        rebilled: 'bg-blue-50',
-        corrected: 'bg-blue-50',
-        paid: 'bg-emerald-50',
-        patient_balance: 'bg-pink-50',
-        pending: 'bg-yellow-50',
-        void: 'bg-gray-100',
-    };
-
-    return colors[status] ?? 'bg-gray-50';
-};
 
 interface ActivityStatusSummaryProps {
     statuses: StatusSummaryItem[];
@@ -55,10 +42,11 @@ export function ActivityStatusSummary({ statuses, description, onSelect, exportH
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                     {sortedStatuses.map((status, index) => (
                         <button
-                            className={`border-muted/60 hover:border-primary/40 flex h-full w-full flex-col gap-2 rounded-lg border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${statusBackground(status.status)}`}
+                            className="border-muted/60 hover:border-primary/40 flex h-full w-full flex-col gap-2 rounded-lg border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={status.count === 0}
                             key={status.status}
                             onClick={() => onSelect?.(status)}
+                            style={workStatusBackgroundStyle(status.color)}
                             type="button"
                         >
                             <div className="flex items-start justify-between gap-2">

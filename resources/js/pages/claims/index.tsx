@@ -21,7 +21,9 @@ interface ClaimsIndexProps {
     summary: Summary;
     workStatuses: StatusOption[];
     invoicedStatuses: StatusOption[];
+    creditStatuses: StatusOption[];
     creditReasons: StatusOption[];
+    denialReasons: StatusOption[];
     assignees: UserOption[];
     hasActiveImport: boolean;
     canEditClaims: boolean;
@@ -37,7 +39,9 @@ function ClaimsIndexContent({
     summary,
     workStatuses,
     invoicedStatuses,
+    creditStatuses,
     creditReasons,
+    denialReasons,
     assignees,
     hasActiveImport,
     canEditClaims,
@@ -191,8 +195,18 @@ function ClaimsIndexContent({
         const denialReason = editForm.denial_reason.trim() || null;
         const notes = editForm.notes.trim() || null;
         const creditStatus = editForm.credit_status === '' ? null : editForm.credit_status === 'yes';
+        const creditStatusLabel =
+            editForm.credit_status === ''
+                ? '--'
+                : (creditStatuses.find((option) => option.value === editForm.credit_status)?.label ??
+                  (editForm.credit_status === 'yes' ? 'Yes' : 'No'));
         const creditStatusDate = creditStatus === true ? editForm.credit_status_date || null : null;
         const creditReason = creditStatus === true ? editForm.credit_reason || null : null;
+        const workStatusOption = workStatuses.find((option) => option.value === workStatus);
+        const workStatusLabel = workStatusOption?.label ?? workStatus;
+        const workStatusColor = workStatusOption?.color ?? null;
+        const denialReasonLabel = denialReasons.find((option) => option.value === denialReason)?.label ?? denialReason;
+        const creditReasonLabel = creditReasons.find((option) => option.value === creditReason)?.label ?? creditReason;
         const currentUser = {
             id: auth.user.id,
             name: auth.user.name,
@@ -228,11 +242,16 @@ function ClaimsIndexContent({
                                     ? {
                                           ...line,
                                           work_status: workStatus,
+                                          work_status_label: workStatusLabel,
+                                          work_status_color: workStatusColor,
                                           denial_reason: denialReason,
+                                          denial_reason_label: denialReasonLabel,
                                           notes,
                                           credit_status: creditStatus,
+                                          credit_status_label: creditStatusLabel,
                                           credit_status_date: creditStatusDate,
                                           credit_reason: creditReason,
+                                          credit_reason_label: creditReasonLabel,
                                           assigned_to: currentUser.id,
                                           assignee: currentUser,
                                           is_modified: workStatus !== 'draft' || denialReason !== null || notes !== null || creditStatus !== null,
@@ -246,11 +265,16 @@ function ClaimsIndexContent({
                             return {
                                 ...claim,
                                 work_status: workStatus,
+                                work_status_label: workStatusLabel,
+                                work_status_color: workStatusColor,
                                 denial_reason: denialReason,
+                                denial_reason_label: denialReasonLabel,
                                 notes,
                                 credit_status: reviewedLine?.credit_status ?? null,
+                                credit_status_label: reviewedLine?.credit_status_label ?? '--',
                                 credit_status_date: creditedLine?.credit_status_date ?? null,
                                 credit_reason: creditedLine?.credit_reason ?? null,
+                                credit_reason_label: creditedLine?.credit_reason_label ?? null,
                                 assigned_to: currentUser.id,
                                 assignee: currentUser,
                                 modified_by: currentUser,
@@ -320,6 +344,7 @@ function ClaimsIndexContent({
 
                 <ClaimsFilters
                     assignees={assignees}
+                    denialReasons={denialReasons}
                     invoicedStatuses={invoicedStatuses}
                     local={local}
                     onClear={clearFilters}
@@ -341,7 +366,9 @@ function ClaimsIndexContent({
                 claim={editingClaim}
                 editForm={editForm}
                 line={editingLine}
+                creditStatuses={creditStatuses}
                 creditReasons={creditReasons}
+                denialReasons={denialReasons}
                 onOpenChange={(open) => {
                     if (!open) {
                         setEditingClaim(null);

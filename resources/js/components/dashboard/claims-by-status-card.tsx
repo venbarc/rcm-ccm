@@ -1,4 +1,4 @@
-import { statusClass } from '@/components/claims/utils';
+import { workStatusBadgeStyle } from '@/components/claims/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -32,8 +32,9 @@ export function ClaimsByStatusCard({ statuses }: ClaimsByStatusCardProps) {
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Badge
+                                                    style={workStatusBadgeStyle(item.color)}
                                                     variant="outline"
-                                                    className={`${statusClass[item.status] ?? statusClass.draft} inline-flex max-w-[calc(100%-4.75rem)] border text-[11px]`}
+                                                    className="inline-flex max-w-[calc(100%-4.75rem)] border text-[11px]"
                                                 >
                                                     <span className="block truncate">{item.label}</span>
                                                 </Badge>

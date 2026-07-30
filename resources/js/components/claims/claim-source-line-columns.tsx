@@ -11,8 +11,10 @@ export interface ClaimSourceLine {
     invoiced_status: string | null;
     invoiced_status_date: string | null;
     credit_status: boolean | null;
+    credit_status_label: string;
     credit_status_date: string | null;
     credit_reason: string | null;
+    credit_reason_label: string | null;
     patient_id: string | null;
     true_charge: number | string | null;
     true_balance: number | string | null;
@@ -53,11 +55,11 @@ export function ClaimSourceLineCells({ line, showPayer = true }: { line: ClaimSo
             </td>
             <td className="px-3 py-3 whitespace-nowrap">{date(line.invoiced_status_date)}</td>
             <td className="px-3 py-3">
-                <CreditStatusBadge credited={line.credit_status} />
+                <CreditStatusBadge credited={line.credit_status} label={line.credit_status_label} />
             </td>
             <td className="px-3 py-3 whitespace-nowrap">{date(line.credit_status_date)}</td>
             <td className="px-3 py-3">
-                <CreditReasonBadge reason={line.credit_reason} />
+                <CreditReasonBadge label={line.credit_reason_label} reason={line.credit_reason} />
             </td>
             <td className="px-3 py-3">{line.patient_id || EMPTY_VALUE}</td>
             <td className="px-3 py-3 text-right tabular-nums">{currency(line.true_charge)}</td>
