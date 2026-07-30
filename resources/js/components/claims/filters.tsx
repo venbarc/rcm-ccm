@@ -20,7 +20,7 @@ export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees
         <Card className="w-full max-w-full min-w-0">
             <CardContent className="min-w-0 p-4">
                 <div className="min-w-0 space-y-3">
-                    <div className="grid gap-3 xl:grid-cols-[minmax(240px,1.5fr)_repeat(4,minmax(170px,1fr))]">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(260px,1.5fr)_repeat(4,minmax(180px,1fr))]">
                         <SearchInput
                             aria-label="Search claims"
                             onChange={(event) => onSearchChange(event.target.value)}
@@ -71,7 +71,7 @@ export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees
                             ))}
                         </select>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[repeat(5,minmax(140px,1fr))_repeat(2,minmax(220px,1.4fr))_auto]">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                         <FilterSearchSelect
                             filter="modmed_claim_status"
                             value={local.modmed_claim_status}
@@ -116,23 +116,30 @@ export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees
                             searchPlaceholder="Search service months..."
                             emptyMessage="No service months found."
                         />
+                    </div>
+                    <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(220px,1fr))_auto]">
                         <DateRangeFilterField
                             from={local.cf_invoice_from}
-                            hideLabel
                             label="CF Invoice Date Range"
                             onApply={({ from, to }) => onFilterChange({ cf_invoice_from: from, cf_invoice_to: to })}
                             placeholder="CF invoice date range"
                             to={local.cf_invoice_to}
                         />
                         <DateRangeFilterField
+                            from={local.invoiced_status_from}
+                            label="Invoiced Status Date Range"
+                            onApply={({ from, to }) => onFilterChange({ invoiced_status_from: from, invoiced_status_to: to })}
+                            placeholder="Invoiced status date range"
+                            to={local.invoiced_status_to}
+                        />
+                        <DateRangeFilterField
                             from={local.worked_from}
-                            hideLabel
                             label="Worked Date Range"
                             onApply={({ from, to }) => onFilterChange({ worked_from: from, worked_to: to })}
                             placeholder="Worked date range"
                             to={local.worked_to}
                         />
-                        <Button onClick={onClear} type="button" variant="ghost">
+                        <Button className="xl:justify-self-end" onClick={onClear} type="button" variant="ghost">
                             Clear
                         </Button>
                     </div>

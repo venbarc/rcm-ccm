@@ -237,6 +237,8 @@ class ClaimController extends Controller
                 'service_month' => $serviceMonth,
                 'cf_invoice_from' => (string) $request->input('cf_invoice_from', ''),
                 'cf_invoice_to' => (string) $request->input('cf_invoice_to', ''),
+                'invoiced_status_from' => (string) $request->input('invoiced_status_from', ''),
+                'invoiced_status_to' => (string) $request->input('invoiced_status_to', ''),
                 'procedure_code' => (string) $request->input('procedure_code', ''),
                 'expanded' => (string) $request->input('expanded', ''),
                 'sort_by' => $sortBy,
@@ -597,6 +599,8 @@ class ClaimController extends Controller
         $this->applyDateFilter($query, 'updated_at', '<=', $request->input('worked_to'));
         $this->applyDateFilter($query, 'cf_invoice_date', '>=', $request->input('cf_invoice_from'));
         $this->applyDateFilter($query, 'cf_invoice_date', '<=', $request->input('cf_invoice_to'));
+        $this->applyDateFilter($query, 'invoiced_status_date', '>=', $request->input('invoiced_status_from'));
+        $this->applyDateFilter($query, 'invoiced_status_date', '<=', $request->input('invoiced_status_to'));
 
         $serviceMonth = trim((string) $request->input('service_month', ''));
         if (preg_match('/^\d{4}-\d{2}$/', $serviceMonth) === 1) {

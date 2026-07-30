@@ -479,6 +479,21 @@ class ClaimsWorkflowTest extends TestCase
                 ->where('invoicedStatuses.2.value', 'credited')
                 ->where('creditReasons.0.value', 'inactive_insurance')
                 ->where('creditReasons.1.value', 'not_covered_by_insurance'));
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims?invoiced_status_from=2026-07-29&invoiced_status_to=2026-07-29')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.invoiced_status_from', '2026-07-29')
+                ->where('filters.invoiced_status_to', '2026-07-29')
+                ->where('claims.total', 1));
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims?invoiced_status_from=2026-07-30&invoiced_status_to=2026-07-31')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('claims.total', 0));
     }
 
     public function test_pending_credit_and_credited_statuses_require_a_credit_reason(): void

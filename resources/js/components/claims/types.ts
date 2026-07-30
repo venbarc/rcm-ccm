@@ -111,6 +111,8 @@ export interface Filters {
     service_month: string;
     cf_invoice_from: string;
     cf_invoice_to: string;
+    invoiced_status_from: string;
+    invoiced_status_to: string;
     procedure_code: string;
     expanded: string;
     sort_by: string;
