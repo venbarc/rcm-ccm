@@ -111,7 +111,10 @@ class ClaimImportService
         'transaction_date', 'cf_invoice_date',
     ];
 
-    public function __construct(private readonly ClaimActivityService $activities) {}
+    public function __construct(
+        private readonly ClaimActivityService $activities,
+        private readonly ClaimConfigurationService $configurations,
+    ) {}
 
     public function queue(UploadedFile $file, string $account, User $user): ClaimImport
     {
@@ -194,6 +197,10 @@ class ClaimImportService
                 }
 
                 $payload = $this->normalizePayload($data);
+                $payload['denial_reason'] = $this->configurations->resolveDenialReason(
+                    $import->account_type,
+                    $payload['denial_reason'] ?? null,
+                );
                 $sourceHash = $this->sourceHash($billId, $payload);
                 $claim = $this->findExistingClaim($import, $billId, $sourceHash, $payload)
                     ?? new Claim(['account_type' => $import->account_type]);

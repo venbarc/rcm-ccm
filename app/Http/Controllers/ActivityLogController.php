@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Claim;
 use App\Models\User;
+use App\Services\ClaimConfigurationService;
 use App\Services\TeamService;
 use App\Support\CurrentAccount;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,16 +16,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivityLogController extends Controller
 {
-    private const WORK_STATUSES = [
-        'draft', 'paid', 'rebilled', 'appeal',
-        'pending', 'void', 'corrected', 'patient_balance',
-    ];
-
     private const BALANCE_EXPRESSION = 'COALESCE(true_balance, balance, 0)';
 
     private const STATUS_EXPRESSION = "COALESCE(NULLIF(TRIM(work_status), ''), 'draft')";
 
-    public function __construct(private readonly TeamService $teams) {}
+    public function __construct(
+        private readonly ClaimConfigurationService $configurations,
+        private readonly TeamService $teams,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
@@ -58,7 +57,7 @@ class ActivityLogController extends Controller
 
         return Inertia::render('activity-logs/index', [
             'metrics' => $metrics,
-            'statusSummary' => $this->statusSummary($claims, $userIds),
+            'statusSummary' => $this->statusSummary($claims, $userIds, $account->value),
             'filters' => [
                 'search' => (string) $request->input('search', ''),
                 'role' => (string) $request->input('role', 'all'),
@@ -77,7 +76,14 @@ class ActivityLogController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         $status = (string) $request->input('status');
-        abort_unless(in_array($status, self::WORK_STATUSES, true), 422, 'Choose a valid status.');
+        abort_unless(
+            in_array($status, $this->configurations->values($account->value, ClaimConfigurationService::WORK_STATUS), true),
+            422,
+            'Choose a valid status.',
+        );
+        $statusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
+        $statusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::WORK_STATUS);
+        $denialReasonLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::DENIAL_REASON);
 
         $userIds = $this->filteredVisibleUsers($request, $account->value)->pluck('id')->all();
         $lines = $this->metricClaims($request, $account->value)
@@ -88,7 +94,9 @@ class ActivityLogController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'data' => $lines->getCollection()->map(fn (Claim $line): array => $this->workedLinePayload($line))->all(),
+            'data' => $lines->getCollection()
+                ->map(fn (Claim $line): array => $this->workedLinePayload($line, $statusLabels, $statusColors, $denialReasonLabels))
+                ->all(),
             'current_page' => $lines->currentPage(),
             'has_more' => $lines->hasMorePages(),
         ]);
@@ -97,6 +105,7 @@ class ActivityLogController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $account = CurrentAccount::resolve($request);
+        $statusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
         $userIds = $this->filteredVisibleUsers($request, $account->value)->pluck('id')->all();
 
         if ($request->filled('user_id')) {
@@ -114,7 +123,7 @@ class ActivityLogController extends Controller
         }
         $this->applyWorkedLineFilters($claims, $request);
 
-        return response()->streamDownload(function () use ($claims): void {
+        return response()->streamDownload(function () use ($claims, $statusLabels): void {
             $stream = fopen('php://output', 'w');
             if ($stream === false) {
                 return;
@@ -128,7 +137,7 @@ class ActivityLogController extends Controller
                     $line->bill_id,
                     $line->patient_name,
                     $line->procedure_code ?: $line->cpt_code,
-                    $line->work_status ?: 'draft',
+                    $statusLabels[$line->work_status ?: 'draft'] ?? ($line->work_status ?: 'draft'),
                     (float) ($line->true_charge ?? $line->billed_amount ?? 0),
                     (float) ($line->payments ?? 0),
                     (float) ($line->true_balance ?? $line->balance ?? 0),
@@ -151,16 +160,19 @@ class ActivityLogController extends Controller
 
         $this->applyWorkedDateFilters($claims, $request);
         $this->applyWorkedLineFilters($claims, $request);
+        $statusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
+        $statusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::WORK_STATUS);
+        $denialReasonLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::DENIAL_REASON);
 
         return Inertia::render('activity-logs/worked-claim-lines', [
             'user' => $user->only(['id', 'name', 'email', 'is_admin']),
-            'workedStatusSummary' => $this->statusSummary($claims, [$user->id], false),
-            'statusOptions' => $this->statusOptions(),
+            'workedStatusSummary' => $this->statusSummary($claims, [$user->id], $account->value, false),
+            'statusOptions' => $this->statusOptions($account->value),
             'workedLines' => (clone $claims)
                 ->latest('updated_at')
                 ->paginate(30)
                 ->withQueryString()
-                ->through(fn (Claim $line): array => $this->workedLinePayload($line)),
+                ->through(fn (Claim $line): array => $this->workedLinePayload($line, $statusLabels, $statusColors, $denialReasonLabels)),
             'filters' => [
                 'claim_number' => (string) $request->input('claim_number', ''),
                 'cpt_code' => (string) $request->input('cpt_code', ''),
@@ -218,7 +230,7 @@ class ActivityLogController extends Controller
     }
 
     /** @param array<int, int> $userIds */
-    private function statusSummary(Builder $claims, array $userIds, bool $applyAssignedScope = true): array
+    private function statusSummary(Builder $claims, array $userIds, string $account, bool $applyAssignedScope = true): array
     {
         $rows = (clone $claims)
             ->when($applyAssignedScope, fn (Builder $query) => $query->whereIn('assigned_to', $userIds))
@@ -230,7 +242,7 @@ class ActivityLogController extends Controller
             ->get()
             ->keyBy('status_key');
 
-        return collect($this->statusOptions())
+        return collect($this->statusOptions($account))
             ->reject(fn (array $status): bool => $status['value'] === 'draft')
             ->map(function (array $status) use ($rows): array {
                 $row = $rows->get($status['value']);
@@ -238,6 +250,7 @@ class ActivityLogController extends Controller
                 return [
                     'status' => $status['value'],
                     'label' => $status['label'],
+                    'color' => $status['color'],
                     'count' => (int) ($row->line_count ?? 0),
                     'amount' => (float) ($row->amount ?? 0),
                 ];
@@ -246,15 +259,10 @@ class ActivityLogController extends Controller
             ->all();
     }
 
-    /** @return array<int, array{value: string, label: string}> */
-    private function statusOptions(): array
+    /** @return array<int, array{value: string, label: string, color: string|null}> */
+    private function statusOptions(string $account): array
     {
-        return collect(self::WORK_STATUSES)
-            ->map(fn (string $status): array => [
-                'value' => $status,
-                'label' => str($status)->replace('_', ' ')->title()->toString(),
-            ])
-            ->all();
+        return $this->configurations->selectOptions($account, ClaimConfigurationService::WORK_STATUS);
     }
 
     private function applyWorkedDateFilters(Builder $query, Request $request, string $fromKey = 'date_from', string $toKey = 'date_to'): void
@@ -288,7 +296,12 @@ class ActivityLogController extends Controller
         }
     }
 
-    private function workedLinePayload(Claim $line): array
+    /**
+     * @param  array<string, string>  $statusLabels
+     * @param  array<string, string>  $statusColors
+     * @param  array<string, string>  $denialReasonLabels
+     */
+    private function workedLinePayload(Claim $line, array $statusLabels, array $statusColors, array $denialReasonLabels): array
     {
         return [
             'id' => $line->id,
@@ -297,12 +310,15 @@ class ActivityLogController extends Controller
             'patient_name' => $line->patient_name,
             'cpt_code' => $line->procedure_code ?: $line->cpt_code,
             'status' => $line->work_status ?: 'draft',
+            'status_label' => $statusLabels[$line->work_status ?: 'draft']
+                ?? str($line->work_status ?: 'draft')->replace('_', ' ')->title()->toString(),
+            'status_color' => $statusColors[$line->work_status ?: 'draft'] ?? null,
             'date_of_service' => ($line->service_date_start ?? $line->date_of_service)?->toDateString(),
             'worked_at' => $line->updated_at?->toIso8601String(),
             'charges' => (float) ($line->true_charge ?? $line->billed_amount ?? 0),
             'paid' => (float) ($line->payments ?? 0),
             'balance' => (float) ($line->true_balance ?? $line->balance ?? 0),
-            'denial_reason' => $line->denial_reason,
+            'denial_reason' => $denialReasonLabels[$line->denial_reason] ?? $line->denial_reason,
             'assigned_to' => $line->assignee?->only(['id', 'name', 'email']),
         ];
     }

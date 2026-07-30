@@ -10,15 +10,20 @@ const statusClasses: Record<string, string> = {
     invoiced: 'border-green-300 bg-green-50 text-green-800',
 };
 
-const creditReasonLabels: Record<string, string> = {
-    inactive_insurance: 'Inactive Insurance',
-    not_covered_by_insurance: 'Not Covered by the Insurance',
-};
+const creditReasonClasses = [
+    'border-amber-300 bg-amber-50 text-amber-800',
+    'border-violet-300 bg-violet-50 text-violet-800',
+    'border-sky-300 bg-sky-50 text-sky-800',
+    'border-emerald-300 bg-emerald-50 text-emerald-800',
+];
 
-const creditReasonClasses: Record<string, string> = {
-    inactive_insurance: 'border-amber-300 bg-amber-50 text-amber-800',
-    not_covered_by_insurance: 'border-violet-300 bg-violet-50 text-violet-800',
-};
+const EMPTY_CREDIT_STATUS = '--';
+
+function creditReasonClass(reason: string): string {
+    const colorIndex = Array.from(reason).reduce((total, character) => total + character.charCodeAt(0), 0) % creditReasonClasses.length;
+
+    return creditReasonClasses[colorIndex];
+}
 
 export function invoicedStatusLabel(status: string | null): string {
     if (!status) {
@@ -28,12 +33,12 @@ export function invoicedStatusLabel(status: string | null): string {
     return statusLabels[status] ?? status;
 }
 
-export function creditReasonLabel(reason: string | null): string {
+export function creditReasonLabel(reason: string | null, label?: string | null): string {
     if (!reason) {
         return EMPTY_VALUE;
     }
 
-    return creditReasonLabels[reason] ?? reason;
+    return label || reason;
 }
 
 export function InvoicedStatusBadge({ className, status }: { className?: string; status: string | null }) {
@@ -52,42 +57,35 @@ export function InvoicedStatusBadge({ className, status }: { className?: string;
     );
 }
 
-export function CreditStatusBadge({ className, credited }: { className?: string; credited: boolean | null }) {
-    return (
-        <Badge
-            className={cn(
-                'gap-1.5 px-2 py-0.5 font-medium whitespace-nowrap',
-                credited === true
-                    ? 'border-blue-300 bg-blue-50 text-blue-800'
-                    : credited === false
-                      ? 'border-slate-300 bg-slate-50 text-slate-700'
-                      : 'border-amber-300 bg-amber-50 text-amber-800',
-                className,
-            )}
-            variant="outline"
-        >
-            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current opacity-70" />
-            {credited === null ? 'Open' : credited ? 'Yes' : 'No'}
-        </Badge>
-    );
-}
-
-export function CreditReasonBadge({ className, reason }: { className?: string; reason: string | null }) {
-    if (!reason) {
-        return <span className={cn('text-muted-foreground', className)}>{EMPTY_VALUE}</span>;
+export function CreditStatusBadge({ className, credited, label }: { className?: string; credited: boolean | null; label?: string | null }) {
+    if (credited === null) {
+        return <span className={cn('text-muted-foreground', className)}>{EMPTY_CREDIT_STATUS}</span>;
     }
 
     return (
         <Badge
             className={cn(
                 'gap-1.5 px-2 py-0.5 font-medium whitespace-nowrap',
-                creditReasonClasses[reason] ?? 'border-slate-300 bg-slate-50 text-slate-700',
+                credited ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-slate-300 bg-slate-50 text-slate-700',
                 className,
             )}
             variant="outline"
         >
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current opacity-70" />
-            {creditReasonLabel(reason)}
+            {label || (credited ? 'Yes' : 'No')}
+        </Badge>
+    );
+}
+
+export function CreditReasonBadge({ className, label, reason }: { className?: string; label?: string | null; reason: string | null }) {
+    if (!reason) {
+        return <span className={cn('text-muted-foreground', className)}>{EMPTY_VALUE}</span>;
+    }
+
+    return (
+        <Badge className={cn('gap-1.5 px-2 py-0.5 font-medium whitespace-nowrap', creditReasonClass(reason), className)} variant="outline">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current opacity-70" />
+            {creditReasonLabel(reason, label)}
         </Badge>
     );
 }

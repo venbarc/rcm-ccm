@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClaimExport;
+use App\Services\ClaimConfigurationService;
 use App\Services\ClaimExportService;
 use App\Support\CurrentAccount;
 use Illuminate\Http\JsonResponse;
@@ -13,17 +14,21 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ClaimExportController extends Controller
 {
-    public function __construct(private readonly ClaimExportService $exports) {}
+    public function __construct(
+        private readonly ClaimConfigurationService $configurations,
+        private readonly ClaimExportService $exports,
+    ) {}
 
     public function start(Request $request): JsonResponse
     {
         $account = CurrentAccount::resolve($request);
+        $workStatuses = $this->configurations->values($account->value, ClaimConfigurationService::WORK_STATUS);
         $validated = $request->validate([
             'type' => ['required', Rule::in(['all', 'status', 'assignee'])],
             'status' => [
                 'nullable',
                 'required_if:type,status',
-                Rule::in(ClaimExportService::WORK_STATUSES),
+                Rule::in($workStatuses),
             ],
             'assigned_to' => ['nullable', 'required_if:type,assignee', 'string', 'max:30'],
         ]);

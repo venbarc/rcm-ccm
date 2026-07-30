@@ -9,6 +9,7 @@ use App\Http\Controllers\ClaimExportController;
 use App\Http\Controllers\ClaimImportController;
 use App\Http\Controllers\CurrentAccountController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SystemConfigurationController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 
@@ -57,6 +58,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/activity-logs/users/{user}/worked-claim-lines', [ActivityLogController::class, 'workedClaimLines'])->name('activity-logs.worked-claim-lines');
 
     Route::middleware('admin')->group(function (): void {
+        Route::get('/system-configuration', [SystemConfigurationController::class, 'index'])->name('system-configuration.index');
+        Route::post('/system-configuration', [SystemConfigurationController::class, 'store'])->name('system-configuration.store');
+        Route::patch('/system-configuration/{configurationOption}', [SystemConfigurationController::class, 'update'])->name('system-configuration.update');
+        Route::delete('/system-configuration/{configurationOption}', [SystemConfigurationController::class, 'destroy'])->name('system-configuration.destroy');
+
         Route::get('/user-management', [UserManagementController::class, 'index'])->name('users.index');
         Route::get('/user-management/available-members', [UserManagementController::class, 'availableMembers'])->name('users.available-members');
         Route::get('/user-management/{user}/members', [UserManagementController::class, 'members'])->name('users.members');

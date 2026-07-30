@@ -1,7 +1,7 @@
 import { ClaimActivityTimeline } from '@/components/claims/claim-activity-timeline';
 import { ClaimLinesDetailTable } from '@/components/claims/claim-lines-detail-table';
 import type { ClaimDetail, ClaimDetailActivity } from '@/components/claims/detail-types';
-import { currency, date, serviceDateRange, statusClass, statusLabel } from '@/components/claims/utils';
+import { currency, date, serviceDateRange, statusLabel, workStatusBadgeStyle } from '@/components/claims/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,7 +30,11 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
     const [activityPage, setActivityPage] = useState(activitiesPage);
     const [hasMoreActivities, setHasMoreActivities] = useState(activitiesHasMore);
     const [isLoadingActivities, setIsLoadingActivities] = useState(false);
-    const statuses = [...new Set(claim.lines.map((line) => line.work_status))];
+    const statuses = [
+        ...new Map(
+            claim.lines.map((line) => [line.work_status, { value: line.work_status, label: line.work_status_label, color: line.work_status_color }]),
+        ).values(),
+    ];
     const notes = claim.lines.filter((line) => line.notes);
 
     const loadMoreActivities = async () => {
@@ -73,8 +77,8 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                             </p>
                         </div>
                         {statuses.map((status) => (
-                            <Badge className={statusClass[status] ?? statusClass.draft} key={status} variant="outline">
-                                {statusLabel(status)}
+                            <Badge className="font-medium" key={status.value} style={workStatusBadgeStyle(status.color)} variant="outline">
+                                {status.label || statusLabel(status.value)}
                             </Badge>
                         ))}
                     </div>

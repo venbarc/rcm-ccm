@@ -21,6 +21,7 @@ export interface WorkSummary {
 export interface ClaimByStatus {
     status: string;
     label: string;
+    color: string | null;
     count: number;
     amount: number;
 }

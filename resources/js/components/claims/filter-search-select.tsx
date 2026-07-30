@@ -1,8 +1,8 @@
-import { formatServiceMonth, longDate } from '@/components/claims/utils';
+import { formatServiceMonth } from '@/components/claims/utils';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface FilterSearchSelectProps {
-    filter: 'modmed_claim_status' | 'payer_name' | 'primary_provider' | 'denial_reason' | 'procedure_code' | 'service_month' | 'invoiced_status_date';
+    filter: 'modmed_claim_status' | 'payer_name' | 'primary_provider' | 'procedure_code' | 'service_month';
     value: string;
     onValueChange: (value: string) => void;
     placeholder: string;
@@ -11,8 +11,7 @@ interface FilterSearchSelectProps {
 }
 
 export function FilterSearchSelect({ filter, value, onValueChange, placeholder, searchPlaceholder, emptyMessage }: FilterSearchSelectProps) {
-    const selectedLabel =
-        filter === 'service_month' && value ? formatServiceMonth(value) : filter === 'invoiced_status_date' && value ? longDate(value) : value;
+    const selectedLabel = filter === 'service_month' && value ? formatServiceMonth(value) : value;
 
     return (
         <SearchableSelect

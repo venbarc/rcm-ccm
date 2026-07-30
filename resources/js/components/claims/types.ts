@@ -9,6 +9,7 @@ export interface UserOption {
 export interface StatusOption {
     value: string;
     label: string;
+    color?: string | null;
 }
 
 export interface ClaimLine {
@@ -28,10 +29,15 @@ export interface ClaimLine {
     invoiced_status: string | null;
     invoiced_status_date: string | null;
     credit_status: boolean | null;
+    credit_status_label: string;
     credit_status_date: string | null;
     credit_reason: string | null;
+    credit_reason_label: string | null;
     work_status: string;
+    work_status_label: string;
+    work_status_color: string | null;
     denial_reason: string | null;
+    denial_reason_label: string | null;
     notes: string | null;
     source_notes: string | null;
     activity_type: string | null;
@@ -66,10 +72,15 @@ export interface ClaimGroup {
     invoiced_status: string | null;
     invoiced_status_date: string | null;
     credit_status: boolean | null;
+    credit_status_label: string;
     credit_status_date: string | null;
     credit_reason: string | null;
+    credit_reason_label: string | null;
     work_status: string;
+    work_status_label: string;
+    work_status_color: string | null;
     denial_reason: string | null;
+    denial_reason_label: string | null;
     notes: string | null;
     activity_type: string | null;
     batch_name: string | null;
@@ -115,7 +126,6 @@ export interface Filters {
     service_month: string;
     cf_invoice_from: string;
     cf_invoice_to: string;
-    invoiced_status_date: string;
     procedure_code: string;
     expanded: string;
     sort_by: string;

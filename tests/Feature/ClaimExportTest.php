@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Enums\AccountType;
 use App\Models\Claim;
+use App\Models\ClaimConfigurationOption;
 use App\Models\ClaimExport;
 use App\Models\ClaimImport;
 use App\Models\ClaimRawRow;
 use App\Models\GroupMember;
 use App\Models\User;
+use App\Services\ClaimConfigurationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -39,6 +41,16 @@ class ClaimExportTest extends TestCase
             'user_id' => $agent->id,
             'account_type' => AccountType::Tricity->value,
         ]);
+        ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::CREDIT_STATUS)
+            ->where('value', 'yes')
+            ->update(['label' => 'Approved']);
+        ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::CREDIT_STATUS)
+            ->where('value', 'no')
+            ->update(['label' => 'Declined']);
 
         $firstClaim = $this->claim([
             'external_id' => 'TC-EXPORT-1',
@@ -149,13 +161,13 @@ class ClaimExportTest extends TestCase
         $this->assertSame('\'=HYPERLINK("https://example.test")', $rows[1][17]);
         $this->assertSame('Invoiced', $rows[1][array_search('Invoiced Status', $rows[0], true)]);
         $this->assertSame('2026-06-30', $rows[1][array_search('Invoiced Status Date', $rows[0], true)]);
-        $this->assertSame('Yes', $rows[1][array_search('Credit Status', $rows[0], true)]);
+        $this->assertSame('Approved', $rows[1][array_search('Credit Status', $rows[0], true)]);
         $this->assertSame('2026-07-29', $rows[1][array_search('Credit Status Date', $rows[0], true)]);
         $this->assertSame('Not Covered by the Insurance', $rows[1][array_search('Credit Reason', $rows[0], true)]);
-        $this->assertSame('No', $rows[2][array_search('Credit Status', $rows[0], true)]);
+        $this->assertSame('Declined', $rows[2][array_search('Credit Status', $rows[0], true)]);
         $this->assertSame('', $rows[2][array_search('Credit Status Date', $rows[0], true)]);
         $this->assertSame('', $rows[2][array_search('Credit Reason', $rows[0], true)]);
-        $this->assertSame('Open', $rows[3][array_search('Credit Status', $rows[0], true)]);
+        $this->assertSame('--', $rows[3][array_search('Credit Status', $rows[0], true)]);
         $this->assertSame('', $rows[3][array_search('Credit Status Date', $rows[0], true)]);
         $this->assertSame('', $rows[3][array_search('Credit Reason', $rows[0], true)]);
         $this->assertSame('Paid', $rows[1][array_search('Work Status', $rows[0], true)]);

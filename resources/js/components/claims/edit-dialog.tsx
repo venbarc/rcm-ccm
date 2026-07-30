@@ -19,7 +19,9 @@ interface ClaimEditDialogProps {
     editForm: EditFormState;
     setEditForm: (value: EditFormState) => void;
     workStatuses: StatusOption[];
+    creditStatuses: StatusOption[];
     creditReasons: StatusOption[];
+    denialReasons: StatusOption[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: () => void;
@@ -31,12 +33,15 @@ export function ClaimEditDialog({
     editForm,
     setEditForm,
     workStatuses,
+    creditStatuses,
     creditReasons,
+    denialReasons,
     open,
     onOpenChange,
     onSave,
 }: ClaimEditDialogProps) {
     const isCredited = editForm.credit_status === 'yes';
+    const affirmativeCreditStatusLabel = creditStatuses.find((item) => item.value === 'yes')?.label ?? 'Yes';
     const isCreditStatusDateMissing = isCredited && editForm.credit_status_date === '';
     const isCreditReasonMissing = isCredited && editForm.credit_reason === '';
     const creditFieldsComplete = !isCreditStatusDateMissing && !isCreditReasonMissing;
@@ -68,6 +73,9 @@ export function ClaimEditDialog({
                             onChange={(event) => setEditForm({ ...editForm, work_status: event.target.value })}
                             value={editForm.work_status}
                         >
+                            {!workStatuses.some((item) => item.value === editForm.work_status) && editForm.work_status && (
+                                <option value={editForm.work_status}>{editForm.work_status}</option>
+                            )}
                             {workStatuses.map((item) => (
                                 <option key={item.value} value={item.value}>
                                     {item.label}
@@ -101,9 +109,14 @@ export function ClaimEditDialog({
                                 }}
                                 value={editForm.credit_status}
                             >
-                                <option value="">Open</option>
-                                <option value="no">No</option>
-                                <option value="yes">Yes</option>
+                                <option value="">--</option>
+                                {creditStatuses
+                                    .filter((item) => item.value === 'yes' || item.value === 'no')
+                                    .map((item) => (
+                                        <option key={item.value} value={item.value}>
+                                            {item.label}
+                                        </option>
+                                    ))}
                             </select>
                         </label>
                         <label className="grid gap-1.5 text-sm font-medium">
@@ -127,7 +140,9 @@ export function ClaimEditDialog({
                                 value={editForm.credit_status_date}
                             />
                             {isCreditStatusDateMissing && (
-                                <span className="text-destructive text-xs">Credit Status Date is required when Credit Status is Yes.</span>
+                                <span className="text-destructive text-xs">
+                                    Credit Status Date is required when Credit Status is {affirmativeCreditStatusLabel}.
+                                </span>
                             )}
                         </label>
                     </div>
@@ -150,6 +165,9 @@ export function ClaimEditDialog({
                                 value={editForm.credit_reason}
                             >
                                 <option value="">Select a credit reason</option>
+                                {!creditReasons.some((item) => item.value === editForm.credit_reason) && editForm.credit_reason && (
+                                    <option value={editForm.credit_reason}>{editForm.credit_reason}</option>
+                                )}
                                 {creditReasons.map((item) => (
                                     <option key={item.value} value={item.value}>
                                         {item.label}
@@ -157,13 +175,29 @@ export function ClaimEditDialog({
                                 ))}
                             </select>
                             {isCreditReasonMissing && (
-                                <span className="text-destructive text-xs">Credit Reason is required when Credit Status is Yes.</span>
+                                <span className="text-destructive text-xs">
+                                    Credit Reason is required when Credit Status is {affirmativeCreditStatusLabel}.
+                                </span>
                             )}
                         </label>
                     )}
                     <label className="grid gap-1.5 text-sm font-medium">
                         Denial reason
-                        <Input onChange={(event) => setEditForm({ ...editForm, denial_reason: event.target.value })} value={editForm.denial_reason} />
+                        <select
+                            className="bg-background h-10 rounded-md border px-3 font-normal"
+                            onChange={(event) => setEditForm({ ...editForm, denial_reason: event.target.value })}
+                            value={editForm.denial_reason}
+                        >
+                            <option value="">No denial reason</option>
+                            {!denialReasons.some((item) => item.value === editForm.denial_reason) && editForm.denial_reason && (
+                                <option value={editForm.denial_reason}>{editForm.denial_reason}</option>
+                            )}
+                            {denialReasons.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </select>
                     </label>
                     <label className="grid gap-1.5 text-sm font-medium">
                         Notes

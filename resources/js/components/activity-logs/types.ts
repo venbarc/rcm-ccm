@@ -10,6 +10,7 @@ export interface ActivityFilters {
 export interface StatusSummaryItem {
     status: string;
     label: string;
+    color: string | null;
     count: number;
     amount: number;
 }
@@ -33,6 +34,8 @@ export interface WorkedLine {
     patient_name: string | null;
     cpt_code: string | null;
     status: string;
+    status_label: string;
+    status_color: string | null;
     date_of_service: string | null;
     worked_at: string | null;
     charges: number;

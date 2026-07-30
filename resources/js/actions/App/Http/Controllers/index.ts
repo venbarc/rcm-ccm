@@ -6,6 +6,7 @@ import ClaimExportController from './ClaimExportController'
 import ClaimImportController from './ClaimImportController'
 import AssignmentController from './AssignmentController'
 import ActivityLogController from './ActivityLogController'
+import SystemConfigurationController from './SystemConfigurationController'
 import UserManagementController from './UserManagementController'
 import Settings from './Settings'
 const Controllers = {
@@ -17,6 +18,7 @@ ClaimExportController: Object.assign(ClaimExportController, ClaimExportControlle
 ClaimImportController: Object.assign(ClaimImportController, ClaimImportController),
 AssignmentController: Object.assign(AssignmentController, AssignmentController),
 ActivityLogController: Object.assign(ActivityLogController, ActivityLogController),
+SystemConfigurationController: Object.assign(SystemConfigurationController, SystemConfigurationController),
 UserManagementController: Object.assign(UserManagementController, UserManagementController),
 Settings: Object.assign(Settings, Settings),
 }

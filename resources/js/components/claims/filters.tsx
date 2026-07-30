@@ -4,19 +4,28 @@ import { DateRangeFilterField } from '@/components/date-range-filter-field';
 import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 
 interface ClaimsFiltersProps {
     local: Filters;
     workStatuses: StatusOption[];
     invoicedStatuses: StatusOption[];
+    denialReasons: StatusOption[];
     assignees: UserOption[];
     onFilterChange: (values: Record<string, string>) => void;
     onSearchChange: (value: string) => void;
     onClear: () => void;
 }
 
-export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees, onFilterChange, onSearchChange, onClear }: ClaimsFiltersProps) {
+export function ClaimsFilters({
+    local,
+    workStatuses,
+    invoicedStatuses,
+    denialReasons,
+    assignees,
+    onFilterChange,
+    onSearchChange,
+    onClear,
+}: ClaimsFiltersProps) {
     return (
         <Card className="w-full max-w-full min-w-0">
             <CardContent className="min-w-0 p-4">
@@ -101,14 +110,18 @@ export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees
                                 </option>
                             ))}
                         </select>
-                        <FilterSearchSelect
-                            filter="denial_reason"
+                        <select
+                            className="bg-background h-10 rounded-md border px-3 text-sm"
+                            onChange={(event) => onFilterChange({ denial_reason: event.target.value })}
                             value={local.denial_reason}
-                            onValueChange={(value) => onFilterChange({ denial_reason: value })}
-                            placeholder="All denial reasons"
-                            searchPlaceholder="Search denial reasons..."
-                            emptyMessage="No denial reasons found."
-                        />
+                        >
+                            <option value="">All denial reasons</option>
+                            {denialReasons.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </select>
                         <FilterSearchSelect
                             filter="service_month"
                             value={local.service_month}
@@ -118,7 +131,7 @@ export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees
                             emptyMessage="No service months found."
                         />
                     </div>
-                    <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(220px,1fr))_auto]">
+                    <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[repeat(2,minmax(260px,1fr))_auto]">
                         <DateRangeFilterField
                             from={local.cf_invoice_from}
                             label="CF Invoice Date Range"
@@ -126,17 +139,6 @@ export function ClaimsFilters({ local, workStatuses, invoicedStatuses, assignees
                             placeholder="CF invoice date range"
                             to={local.cf_invoice_to}
                         />
-                        <div className="flex min-w-0 flex-col gap-2">
-                            <Label>Invoiced Status Date</Label>
-                            <FilterSearchSelect
-                                emptyMessage="No invoiced dates found."
-                                filter="invoiced_status_date"
-                                onValueChange={(value) => onFilterChange({ invoiced_status_date: value })}
-                                placeholder="All invoiced status dates"
-                                searchPlaceholder="Search invoiced dates..."
-                                value={local.invoiced_status_date}
-                            />
-                        </div>
                         <DateRangeFilterField
                             from={local.worked_from}
                             label="Worked Date Range"

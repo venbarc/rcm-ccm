@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 export const EMPTY_VALUE = '-';
 
 export const currency = (value: string | number | null) =>
@@ -40,32 +42,26 @@ export const formatServiceMonth = (value: string) => {
 
 export const lineProcedureCode = (procedureCode: string | null, cptCode: string | null) => procedureCode || cptCode || EMPTY_VALUE;
 
-export const statusClass: Record<string, string> = {
-    draft: 'border-gray-300 bg-gray-100 text-gray-800',
-    appeal: 'border-purple-300 bg-purple-100 text-purple-800',
-    rebilled: 'border-blue-300 bg-blue-100 text-blue-800',
-    called_pt_for_info: 'border-orange-300 bg-orange-100 text-orange-800',
-    corrected: 'border-blue-300 bg-blue-100 text-blue-800',
-    paid: 'border-green-300 bg-green-100 text-green-800',
-    patient_balance: 'border-pink-300 bg-pink-100 text-pink-800',
-    adjustment: 'border-orange-300 bg-orange-100 text-orange-800',
-    other: 'border-gray-300 bg-gray-100 text-gray-800',
-    project: 'border-blue-300 bg-blue-100 text-blue-800',
-    pending: 'border-yellow-300 bg-yellow-100 text-yellow-800',
-    void: 'border-gray-400 bg-gray-200 text-gray-600',
+export const DEFAULT_WORK_STATUS_COLOR = '#F3F4F6';
+
+const normalizedWorkStatusColor = (color: string | null | undefined) => (color && /^#[0-9A-F]{6}$/i.test(color) ? color : DEFAULT_WORK_STATUS_COLOR);
+
+export const workStatusForegroundColor = (color: string | null | undefined) => {
+    const normalized = normalizedWorkStatusColor(color);
+    const red = Number.parseInt(normalized.slice(1, 3), 16);
+    const green = Number.parseInt(normalized.slice(3, 5), 16);
+    const blue = Number.parseInt(normalized.slice(5, 7), 16);
+    const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+
+    return luminance > 0.55 ? '#0F172A' : '#FFFFFF';
 };
 
-export const statusRowClass: Record<string, string> = {
-    draft: 'bg-gray-100',
-    appeal: 'bg-purple-100',
-    rebilled: 'bg-blue-100',
-    called_pt_for_info: 'bg-orange-100',
-    corrected: 'bg-blue-100',
-    paid: 'bg-green-100',
-    patient_balance: 'bg-pink-100',
-    adjustment: 'bg-orange-100',
-    other: 'bg-gray-100',
-    project: 'bg-blue-100',
-    pending: 'bg-yellow-100',
-    void: 'bg-gray-200',
-};
+export const workStatusBackgroundStyle = (color: string | null | undefined): CSSProperties => ({
+    backgroundColor: normalizedWorkStatusColor(color),
+    color: workStatusForegroundColor(color),
+});
+
+export const workStatusBadgeStyle = (color: string | null | undefined): CSSProperties => ({
+    ...workStatusBackgroundStyle(color),
+    borderColor: '#94A3B8',
+});
