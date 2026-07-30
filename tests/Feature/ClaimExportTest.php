@@ -46,6 +46,9 @@ class ClaimExportTest extends TestCase
             'work_status' => 'paid',
             'assigned_to' => $agent->id,
             'true_charge' => 185,
+            'invoiced_status' => 'credited',
+            'invoiced_status_date' => '2026-07-29',
+            'credit_reason' => 'not_covered_by_insurance',
         ]);
         $this->claim([
             'external_id' => 'TC-EXPORT-1',
@@ -77,6 +80,9 @@ class ClaimExportTest extends TestCase
         $this->assertSame('Bill ID', $rows[0][0]);
         $this->assertSame(['99490', '99439'], array_column(array_slice($rows, 1), 8));
         $this->assertSame('\'=HYPERLINK("https://example.test")', $rows[1][2]);
+        $this->assertSame('credited', $rows[1][array_search('Invoiced Status', $rows[0], true)]);
+        $this->assertSame('2026-07-29', $rows[1][array_search('Invoiced Status Date', $rows[0], true)]);
+        $this->assertSame('not_covered_by_insurance', $rows[1][array_search('Credit Reason', $rows[0], true)]);
         $this->assertStringNotContainsString('PR-HIDDEN-1', Storage::get($export->file_path));
 
         $this->actingAs($admin)

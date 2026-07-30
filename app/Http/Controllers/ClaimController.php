@@ -35,8 +35,19 @@ class ClaimController extends Controller
         'pending', 'void', 'corrected', 'patient_balance',
     ];
 
+    private const INVOICED_STATUSES = [
+        'invoiced' => 'Invoiced',
+        'pending_credit' => 'Pending Credit',
+        'credited' => 'Credited',
+    ];
+
+    private const CREDIT_REASONS = [
+        'inactive_insurance' => 'Inactive Insurance',
+        'not_covered_by_insurance' => 'Not Covered by the Insurance',
+    ];
+
     private const SORTABLE_COLUMNS = [
-        'bill_id', 'patient_name', 'location', 'service_date_start', 'line_count',
+        'bill_id', 'patient_name', 'payer_name', 'location', 'service_date_start', 'line_count',
         'true_charge', 'true_balance', 'payments', 'updated_at',
     ];
 
@@ -77,6 +88,9 @@ class ClaimController extends Controller
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('MAX(CASE WHEN work_status IS NULL OR work_status = \'\' THEN \'draft\' ELSE work_status END) as work_status')
             ->selectRaw('MAX(NULLIF(modmed_claim_status, \'\')) as modmed_claim_status')
+            ->selectRaw('MAX(NULLIF(invoiced_status, \'\')) as invoiced_status')
+            ->selectRaw('MAX(invoiced_status_date) as invoiced_status_date')
+            ->selectRaw('MAX(NULLIF(credit_reason, \'\')) as credit_reason')
             ->selectRaw('MAX(NULLIF(denial_reason, \'\')) as denial_reason')
             ->selectRaw('MAX(NULLIF(notes, \'\')) as notes')
             ->selectRaw('MAX(NULLIF(activity_type, \'\')) as activity_type')
@@ -85,7 +99,7 @@ class ClaimController extends Controller
             ->selectRaw('MAX(NULLIF(primary_provider, \'\')) as primary_provider')
             ->selectRaw('MAX(NULLIF(payer_name, \'\')) as payer_name')
             ->selectRaw('MAX(NULLIF(place_of_service_code, \'\')) as place_of_service_code')
-            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') THEN 1 ELSE 0 END) as is_modified')
+            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') OR (invoiced_status IS NOT NULL AND TRIM(invoiced_status) != \'\') THEN 1 ELSE 0 END) as is_modified')
             ->groupBy('bill_id')
             ->orderBy($sortBy, $sortDirection)
             ->orderBy('bill_id')
@@ -150,6 +164,10 @@ class ClaimController extends Controller
                 'modmed_claim_status' => $representative?->modmed_claim_status ?: $group->modmed_claim_status,
                 'cf_invoice_date' => $representative?->cf_invoice_date?->toDateString()
                     ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
+                'invoiced_status' => $representative?->invoiced_status ?: $group->invoiced_status,
+                'invoiced_status_date' => $representative?->invoiced_status_date?->toDateString()
+                    ?? ($group->invoiced_status_date ? Carbon::parse($group->invoiced_status_date)->toDateString() : null),
+                'credit_reason' => $representative?->credit_reason ?: $group->credit_reason,
                 'work_status' => $representative?->work_status ?: ($group->work_status ?: 'draft'),
                 'denial_reason' => $representative?->denial_reason ?: $group->denial_reason,
                 'notes' => $representative?->notes ?: $group->notes,
@@ -177,6 +195,9 @@ class ClaimController extends Controller
                     'patient_id' => $claim->patient_id,
                     'modmed_claim_status' => $claim->modmed_claim_status,
                     'cf_invoice_date' => $claim->cf_invoice_date?->toDateString(),
+                    'invoiced_status' => $claim->invoiced_status,
+                    'invoiced_status_date' => $claim->invoiced_status_date?->toDateString(),
+                    'credit_reason' => $claim->credit_reason,
                     'work_status' => $claim->work_status ?: 'draft',
                     'denial_reason' => $claim->denial_reason,
                     'notes' => $claim->notes,
@@ -189,7 +210,8 @@ class ClaimController extends Controller
                     'assignee' => $claim->assignee?->only(['id', 'name', 'email']),
                     'is_modified' => (bool) ($claim->work_status_manually_set
                         || filled($claim->notes)
-                        || filled($claim->denial_reason)),
+                        || filled($claim->denial_reason)
+                        || filled($claim->invoiced_status)),
                     'updated_at' => $claim->updated_at->toIso8601String(),
                 ])->all(),
             ];
@@ -204,6 +226,7 @@ class ClaimController extends Controller
             'filters' => [
                 'search' => $search,
                 'modmed_claim_status' => (string) $request->input('modmed_claim_status', ''),
+                'invoiced_status' => (string) $request->input('invoiced_status', ''),
                 'payer_name' => (string) $request->input('payer_name', ''),
                 'primary_provider' => (string) $request->input('primary_provider', ''),
                 'denial_reason' => (string) $request->input('denial_reason', ''),
@@ -229,6 +252,8 @@ class ClaimController extends Controller
                 'value' => $value,
                 'label' => str($value)->replace('_', ' ')->title()->toString(),
             ], self::WORK_STATUSES),
+            'invoicedStatuses' => $this->selectOptions(self::INVOICED_STATUSES),
+            'creditReasons' => $this->selectOptions(self::CREDIT_REASONS),
             'assignees' => fn () => $request->user()->canAssignClaims()
                 ? $this->teams->assignmentCandidates($request->user(), $accountValue)
                 : collect(),
@@ -377,6 +402,9 @@ class ClaimController extends Controller
                     'primary_provider' => $line->primary_provider ?: $line->provider,
                     'modmed_claim_status' => $line->modmed_claim_status,
                     'cf_invoice_date' => $line->cf_invoice_date?->toDateString(),
+                    'invoiced_status' => $line->invoiced_status,
+                    'invoiced_status_date' => $line->invoiced_status_date?->toDateString(),
+                    'credit_reason' => $line->credit_reason,
                     'patient_id' => $line->patient_id,
                     'notes' => $line->notes,
                     'assigned_to' => $line->assignee?->only(['id', 'name', 'email']),
@@ -416,11 +444,33 @@ class ClaimController extends Controller
             'work_status' => ['sometimes', Rule::in(self::WORK_STATUSES)],
             'denial_reason' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:10000'],
+            'invoiced_status' => ['sometimes', 'nullable', Rule::in(array_keys(self::INVOICED_STATUSES))],
+            'invoiced_status_date' => [
+                'nullable',
+                'date_format:Y-m-d',
+                Rule::requiredIf(fn (): bool => filled($request->input('invoiced_status'))),
+            ],
+            'credit_reason' => [
+                'nullable',
+                Rule::in(array_keys(self::CREDIT_REASONS)),
+                Rule::requiredIf(fn (): bool => in_array($request->input('invoiced_status'), ['pending_credit', 'credited'], true)),
+            ],
         ]);
 
-        foreach (['denial_reason', 'notes'] as $field) {
+        foreach (['denial_reason', 'notes', 'credit_reason'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $validated[$field] = trim((string) $validated[$field]) ?: null;
+            }
+        }
+
+        if (array_key_exists('invoiced_status', $validated)) {
+            $validated['invoiced_status'] = trim((string) $validated['invoiced_status']) ?: null;
+
+            if ($validated['invoiced_status'] === null) {
+                $validated['invoiced_status_date'] = null;
+                $validated['credit_reason'] = null;
+            } elseif ($validated['invoiced_status'] === 'invoiced') {
+                $validated['credit_reason'] = null;
             }
         }
 
@@ -527,6 +577,7 @@ class ClaimController extends Controller
         }
 
         $this->applyExactFilter($query, 'modmed_claim_status', $request->input('modmed_claim_status'));
+        $this->applyExactFilter($query, 'invoiced_status', $request->input('invoiced_status'));
         $this->applyExpressionExactFilter($query, $this->filterExpression('payer_name'), $request->input('payer_name'));
         $this->applyExpressionExactFilter($query, $this->filterExpression('primary_provider'), $request->input('primary_provider'));
         $this->applyExactFilter($query, 'denial_reason', $request->input('denial_reason'));
@@ -601,5 +652,14 @@ class ClaimController extends Controller
             'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
             default => null,
         };
+    }
+
+    /** @param array<string, string> $options @return array<int, array{value: string, label: string}> */
+    private function selectOptions(array $options): array
+    {
+        return collect($options)
+            ->map(fn (string $label, string $value): array => compact('value', 'label'))
+            ->values()
+            ->all();
     }
 }
