@@ -12,7 +12,7 @@ class UserManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_manage_only_available_users_on_their_active_account_team(): void
+    public function test_admin_can_see_all_member_candidates_but_only_select_unassigned_or_owned_users(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $otherAdmin = User::factory()->create(['is_admin' => true]);
@@ -23,13 +23,28 @@ class UserManagementTest extends TestCase
         $admin->members()->attach($currentMember->id, ['account_type' => AccountType::Tricity->value]);
         $otherAdmin->members()->attach($ownedByAnotherAdmin->id, ['account_type' => AccountType::Tricity->value]);
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
             ->getJson('/user-management/available-members')
+            ->assertOk();
+
+        $candidates = collect($response->json('data'))->keyBy('name');
+        $this->assertTrue($candidates['Current Member']['is_selectable']);
+        $this->assertTrue($candidates['Current Member']['is_selected']);
+        $this->assertTrue($candidates['Available User']['is_selectable']);
+        $this->assertFalse($candidates['Available User']['is_selected']);
+        $this->assertFalse($candidates['Protected User']['is_selectable']);
+        $this->assertFalse($candidates['Protected User']['is_selected']);
+        $this->assertSame($otherAdmin->name, $candidates['Protected User']['owner']['name']);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->getJson('/user-management/available-members?search=Protected')
             ->assertOk()
-            ->assertJsonFragment(['name' => 'Current Member'])
-            ->assertJsonFragment(['name' => 'Available User'])
-            ->assertJsonMissing(['name' => 'Protected User']);
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.name', 'Protected User')
+            ->assertJsonPath('data.0.is_selectable', false)
+            ->assertJsonPath('data.0.owner.name', $otherAdmin->name);
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
@@ -75,7 +90,7 @@ class UserManagementTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_index_only_shows_their_team_and_unassigned_users_for_the_active_account(): void
+    public function test_admin_index_shows_member_ownership_and_supports_membership_filters(): void
     {
         $admin = User::factory()->create(['is_admin' => true, 'name' => 'Current Admin']);
         $otherAdmin = User::factory()->create(['is_admin' => true, 'name' => 'Other Admin']);
@@ -98,11 +113,94 @@ class UserManagementTest extends TestCase
             ->withSession(['account_type' => AccountType::Tricity->value])
             ->get('/user-management')
             ->assertOk()
-            ->assertSee('Current Admin')
-            ->assertSee('Current Member')
-            ->assertSee('Available User')
-            ->assertDontSee('Other Admin')
-            ->assertDontSee('Protected User');
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.team', '')
+                ->has('users.data', 4)
+                ->where('users.data.0.name', 'Current Admin')
+                ->where('users.data.0.members_under_you_count', 1)
+                ->where('users.data', function ($users): bool {
+                    $users = collect($users);
+                    $protected = $users->firstWhere('name', 'Protected User');
+
+                    return $users->pluck('name')->contains('Current Member')
+                        && $users->pluck('name')->contains('Available User')
+                        && $protected['can_manage'] === false
+                        && $protected['admins'][0]['name'] === 'Other Admin';
+                }));
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/user-management?team=mine')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.team', 'mine')
+                ->where('users.total', 1)
+                ->where('users.data.0.name', 'Current Member'));
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/user-management?team=unassigned')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.team', 'unassigned')
+                ->where('users.total', 1)
+                ->where('users.data.0.name', 'Available User'));
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/user-management?team=other')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.team', 'other')
+                ->where('users.total', 1)
+                ->where('users.data.0.name', 'Protected User'));
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/user-management?role=user')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.role', 'user')
+                ->where('users.total', 3)
+                ->where('summary.users', 3)
+                ->where('summary.admins', 1));
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/user-management?role=admin')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.role', 'admin')
+                ->where('users.total', 1)
+                ->where('users.data.0.name', 'Current Admin'));
+    }
+
+    public function test_user_access_updates_accounts_but_prohibits_role_changes(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $user = User::factory()->create(['is_admin' => false]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->patch("/user-management/{$user->id}", [
+                'account_types' => [AccountType::Tricity->value],
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame([AccountType::Tricity->value], $user->fresh()->account_types);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/user-management')
+            ->patch("/user-management/{$user->id}", [
+                'is_admin' => true,
+                'account_types' => AccountType::values(),
+            ])
+            ->assertRedirect('/user-management')
+            ->assertSessionHasErrors('is_admin');
+
+        $this->assertFalse($user->fresh()->is_admin);
     }
 
     public function test_admin_cannot_update_another_admin_or_a_user_owned_by_another_admin(): void
@@ -118,16 +216,12 @@ class UserManagementTest extends TestCase
         ]);
 
         $payload = [
-            'is_admin' => false,
-            'can_assign_claims' => false,
             'account_types' => [AccountType::Tricity->value],
         ];
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
             ->patch("/user-management/{$otherAdmin->id}", [
-                'is_admin' => true,
-                'can_assign_claims' => true,
                 'account_types' => AccountType::values(),
             ])
             ->assertForbidden();

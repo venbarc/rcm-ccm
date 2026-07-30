@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\UserManagementController::sync
- * @see app/Http/Controllers/UserManagementController.php:107
+ * @see app/Http/Controllers/UserManagementController.php:148
  * @route '/user-management/{user}/members'
  */
 export const sync = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -16,7 +16,7 @@ sync.definition = {
 
 /**
 * @see \App\Http\Controllers\UserManagementController::sync
- * @see app/Http/Controllers/UserManagementController.php:107
+ * @see app/Http/Controllers/UserManagementController.php:148
  * @route '/user-management/{user}/members'
  */
 sync.url = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -49,7 +49,7 @@ sync.url = (args: { user: number | { id: number } } | [user: number | { id: numb
 
 /**
 * @see \App\Http\Controllers\UserManagementController::sync
- * @see app/Http/Controllers/UserManagementController.php:107
+ * @see app/Http/Controllers/UserManagementController.php:148
  * @route '/user-management/{user}/members'
  */
 sync.patch = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -59,7 +59,7 @@ sync.patch = (args: { user: number | { id: number } } | [user: number | { id: nu
 
     /**
 * @see \App\Http\Controllers\UserManagementController::sync
- * @see app/Http/Controllers/UserManagementController.php:107
+ * @see app/Http/Controllers/UserManagementController.php:148
  * @route '/user-management/{user}/members'
  */
     const syncForm = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -74,7 +74,7 @@ sync.patch = (args: { user: number | { id: number } } | [user: number | { id: nu
 
             /**
 * @see \App\Http\Controllers\UserManagementController::sync
- * @see app/Http/Controllers/UserManagementController.php:107
+ * @see app/Http/Controllers/UserManagementController.php:148
  * @route '/user-management/{user}/members'
  */
         syncForm.patch = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

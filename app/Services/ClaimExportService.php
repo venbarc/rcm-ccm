@@ -25,19 +25,35 @@ class ClaimExportService
     ];
 
     private const HEADERS = [
-        'Bill ID', 'UID', 'Patient Name', 'Patient First Name',
-        'Patient Last Name', 'Patient DOB', 'Patient MRN', 'Subscriber ID',
-        'CPT Code', 'Modifiers', 'Units', 'Service Date Start', 'Service Date End',
-        'Service Type', 'Diagnosis Code', 'Payer', 'Payer Category', 'Coverage Type',
-        'Primary Provider', 'Ordering Provider', 'Supervising Provider',
-        'Practice Location', 'Location', 'Division', 'Place of Service Code',
-        'ModMed Claim Status', 'CF Invoice Date', 'Invoiced Status', 'Invoiced Status Date',
-        'Credit Reason', 'Work Status', 'Assigned To', 'Denial Reason',
-        'Notes', 'Source Notes', 'True Charge', 'Payments', 'True Balance', 'Claimed Amount', 'Aging Days',
-        'Activity Type', 'Batch User', 'Batch Name', 'Code Category',
-        'Financial Category', 'Package Name', 'Posted Date', 'Transaction Date',
-        'Primary Biller', 'Primary Biller Role', 'Primary Modifier',
-        'Primary Provider Role', 'Quick Code', 'Recorded By',
+        'CPT', 'Location', 'Bill ID', 'Invoice Rate Per Unit', 'CF Invoice Amount',
+        'Payments', 'True Balance', 'True Charge', 'Units', 'BillingID-CPT',
+        'Charges', 'ModMed_Claim_Status', 'CF Invoice Date', 'Patient DOB',
+        'Patient First Name', 'Patient Last Name', 'Patient MRN', 'Patient Name',
+        'Payer', 'Payer-CPT', 'Place of Service Code', 'Posted Date Month/Year',
+        'Primary Provider', 'Service Date', 'True Charge Per Unit',
+        'Work Status', 'Assigned To', 'Denial Reason', 'Notes',
+        'Invoiced Status', 'Invoiced Status Date', 'Credit Status',
+        'Credit Status Date', 'Credit Reason', 'Last Updated',
+    ];
+
+    private const WORK_STATUS_LABELS = [
+        'draft' => 'Draft',
+        'paid' => 'Paid',
+        'rebilled' => 'Rebilled',
+        'appeal' => 'Appeal',
+        'pending' => 'Pending',
+        'void' => 'Void',
+        'corrected' => 'Corrected',
+        'patient_balance' => 'Patient Balance',
+    ];
+
+    private const INVOICED_STATUS_LABELS = [
+        'invoiced' => 'Invoiced',
+    ];
+
+    private const CREDIT_REASON_LABELS = [
+        'inactive_insurance' => 'Inactive Insurance',
+        'not_covered_by_insurance' => 'Not Covered by the Insurance',
     ];
 
     public function __construct(private readonly TeamService $teams) {}
@@ -137,7 +153,7 @@ class ClaimExportService
 
         $chunkSize = max((int) config('claims.export.chunk_size', 1000), 1);
         $claims = $this->buildQuery($export->account_type, $export->filters ?? [])
-            ->with('assignee:id,name,email')
+            ->with(['assignee:id,name,email', 'rawRow:id,claim_id,raw_payload'])
             ->orderBy('id')
             ->forPage($chunkNumber, $chunkSize)
             ->get();
@@ -284,64 +300,65 @@ class ClaimExportService
      */
     private function formatRow(Claim $claim): array
     {
+        $procedureCode = $claim->procedure_code ?: $claim->cpt_code;
+        $payer = $claim->payer_name ?: $claim->payer;
+
         $row = [
-            $claim->bill_id,
-            $claim->uid,
-            $claim->patient_name,
-            $claim->first_name,
-            $claim->last_name,
-            $claim->patient_dob?->format('Y-m-d'),
-            $claim->patient_id,
-            $claim->subscriber_id,
-            $claim->procedure_code ?: $claim->cpt_code,
-            $claim->modifiers,
-            $claim->units,
-            $claim->service_date_start?->format('Y-m-d'),
-            $claim->service_date_end?->format('Y-m-d'),
-            $claim->service_type,
-            $claim->diagnosis_code,
-            $claim->payer_name ?: $claim->payer,
-            $claim->payer_category,
-            $claim->coverage_type,
-            $claim->primary_provider ?: $claim->provider,
-            $claim->ordering_provider,
-            $claim->supervising_provider,
-            $claim->practice_location,
+            $procedureCode,
             $claim->location,
-            $claim->division,
-            $claim->place_of_service_code,
+            $claim->bill_id,
+            $this->sourceValue($claim, 'invoice_rate_per_unit'),
+            $claim->cf_invoice_amount,
+            $claim->payments,
+            $claim->true_balance ?? $claim->balance,
+            $claim->true_charge ?? $claim->billed_amount,
+            $claim->units,
+            $this->sourceValue($claim, 'billingid_cpt', filled($claim->bill_id) && filled($procedureCode) ? "{$claim->bill_id}-{$procedureCode}" : null),
+            $this->sourceValue($claim, 'charges'),
             $claim->modmed_claim_status,
             $claim->cf_invoice_date?->format('Y-m-d'),
-            $claim->invoiced_status,
-            $claim->invoiced_status_date?->format('Y-m-d'),
-            $claim->credit_reason,
-            $claim->work_status ?: 'draft',
+            $claim->patient_dob?->format('Y-m-d'),
+            $claim->first_name,
+            $claim->last_name,
+            $claim->patient_id,
+            $claim->patient_name,
+            $payer,
+            $this->sourceValue($claim, 'payer_cpt', filled($payer) && filled($procedureCode) ? "{$payer}-{$procedureCode}" : null),
+            $claim->place_of_service_code,
+            $claim->posted_date?->format('Y-m-d'),
+            $claim->primary_provider ?: $claim->provider,
+            ($claim->service_date_start ?? $claim->date_of_service)?->format('Y-m-d'),
+            $this->sourceValue($claim, 'true_charge_per_unit'),
+            self::WORK_STATUS_LABELS[$claim->work_status ?: 'draft'] ?? $claim->work_status,
             $claim->assignee?->name,
             $claim->denial_reason,
             $claim->notes,
-            $claim->source_notes,
-            $claim->true_charge ?? $claim->billed_amount,
-            $claim->payments,
-            $claim->true_balance ?? $claim->balance,
-            $claim->claimed_amount,
-            $claim->aging_days,
-            $claim->activity_type,
-            $claim->batch_user,
-            $claim->batch_name,
-            $claim->code_category,
-            $claim->financial_category,
-            $claim->package_name,
-            $claim->posted_date?->format('Y-m-d'),
-            $claim->transaction_date?->format('Y-m-d'),
-            $claim->primary_biller,
-            $claim->primary_biller_role,
-            $claim->primary_modifier,
-            $claim->primary_provider_role,
-            $claim->quick_code,
-            $claim->recorded_by,
+            self::INVOICED_STATUS_LABELS['invoiced'],
+            $claim->cf_invoice_date?->format('Y-m-d'),
+            match ($claim->credit_status) {
+                true => 'Yes',
+                false => 'No',
+                null => 'Open',
+            },
+            $claim->credit_status_date?->format('Y-m-d'),
+            $this->label(self::CREDIT_REASON_LABELS, $claim->credit_reason),
+            $claim->updated_at?->format('Y-m-d H:i:s'),
         ];
 
         return array_map($this->sanitizeCsvValue(...), $row);
+    }
+
+    private function sourceValue(Claim $claim, string $key, mixed $fallback = null): mixed
+    {
+        $value = $claim->rawRow?->raw_payload[$key] ?? null;
+
+        return $value === null || $value === '' ? $fallback : $value;
+    }
+
+    /** @param array<string, string> $labels */
+    private function label(array $labels, ?string $value): ?string
+    {
+        return $value === null ? null : ($labels[$value] ?? $value);
     }
 
     private function sanitizeCsvValue(mixed $value): bool|float|int|string|null

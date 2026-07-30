@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { ManagedUser } from '@/components/users/types';
 import type { AccountTypeOption } from '@/types';
 import { useForm } from '@inertiajs/react';
-import { ShieldCheck } from 'lucide-react';
+import { Save } from 'lucide-react';
 
 interface EditAccessDialogProps {
     user: ManagedUser;
@@ -15,8 +15,6 @@ interface EditAccessDialogProps {
 
 export function EditAccessDialog({ user, accountTypes, onClose }: EditAccessDialogProps) {
     const form = useForm({
-        is_admin: user.is_admin,
-        can_assign_claims: user.can_assign_claims,
         account_types: user.account_types ?? [],
     });
     const toggleAccount = (value: string) =>
@@ -32,38 +30,12 @@ export function EditAccessDialog({ user, accountTypes, onClose }: EditAccessDial
                 <DialogHeader>
                     <DialogTitle>Edit user access</DialogTitle>
                     <DialogDescription>
-                        Permissions apply to {user.name}. OneAccess remains the identity provider and no local approval is required.
+                        Manage account access for {user.name}. Roles are controlled by OneAccess and cannot be changed here.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4">
                     <p className="font-semibold text-slate-900">{user.name}</p>
                     <p className="text-sm text-slate-600">{user.email}</p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm">
-                        <input
-                            checked={form.data.is_admin}
-                            className="mt-1 accent-blue-700"
-                            onChange={(event) => form.setData('is_admin', event.target.checked)}
-                            type="checkbox"
-                        />
-                        <span>
-                            <strong className="block text-slate-900">Administrator</strong>
-                            <span className="text-muted-foreground text-xs">Manages access and their own team</span>
-                        </span>
-                    </label>
-                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm">
-                        <input
-                            checked={form.data.can_assign_claims}
-                            className="mt-1 accent-blue-700"
-                            onChange={(event) => form.setData('can_assign_claims', event.target.checked)}
-                            type="checkbox"
-                        />
-                        <span>
-                            <strong className="block text-slate-900">Claims manager</strong>
-                            <span className="text-muted-foreground text-xs">Can assign claims within their scope</span>
-                        </span>
-                    </label>
                 </div>
                 <div>
                     <p className="mb-2 text-sm font-semibold text-slate-900">Account access</p>
@@ -96,7 +68,7 @@ export function EditAccessDialog({ user, accountTypes, onClose }: EditAccessDial
                         Cancel
                     </Button>
                     <Button disabled={form.processing} onClick={save}>
-                        <ShieldCheck />
+                        <Save />
                         {form.processing ? 'Saving...' : 'Save access'}
                     </Button>
                 </DialogFooter>

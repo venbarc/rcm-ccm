@@ -10,18 +10,19 @@ import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import AppLayout from '@/layouts/app-layout';
 import type { AccountTypeOption, SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Check, ShieldCheck, UserRoundCog, UsersRound } from 'lucide-react';
+import { ShieldCheck, UserRound, UserRoundCog, UsersRound } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 
 interface Filters {
     search: string;
     role: string;
+    team: string;
 }
 
 interface Summary {
     total: number;
     admins: number;
-    claimsManagers: number;
+    users: number;
     myTeam: number;
 }
 
@@ -37,12 +38,16 @@ export default function UsersIndex({ users, accountTypes, filters, summary, myTe
     const { auth } = usePage<SharedData>().props;
     const isPageLoading = useInertiaLoading();
     const [editing, setEditing] = useState<ManagedUser | null>(null);
-    const [managingTeam, setManagingTeam] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
     const [roleFilter, setRoleFilter] = useState(filters.role ?? '');
+    const [teamFilter, setTeamFilter] = useState(filters.team ?? '');
     const applyFilters = (event: FormEvent) => {
         event.preventDefault();
-        router.get('/user-management', { search: search || undefined, role: roleFilter || undefined }, { preserveState: true, replace: true });
+        router.get(
+            '/user-management',
+            { search: search || undefined, role: roleFilter || undefined, team: teamFilter || undefined },
+            { preserveState: true, replace: true },
+        );
     };
 
     return (
@@ -57,10 +62,6 @@ export default function UsersIndex({ users, accountTypes, filters, summary, myTe
                             Control Tricity access, review unassigned users, and choose who belongs to your active-account team.
                         </p>
                     </div>
-                    <Button onClick={() => setManagingTeam(true)}>
-                        <UserRoundCog />
-                        Manage my team
-                    </Button>
                 </div>
 
                 <Card className="border-blue-100 bg-blue-50/60">
@@ -81,7 +82,7 @@ export default function UsersIndex({ users, accountTypes, filters, summary, myTe
                     {[
                         { label: 'Total users', value: summary.total, icon: UsersRound },
                         { label: 'My team', value: summary.myTeam, icon: UserRoundCog },
-                        { label: 'Claims managers', value: summary.claimsManagers, icon: Check },
+                        { label: 'Users', value: summary.users, icon: UserRound },
                         { label: 'Administrators', value: summary.admins, icon: ShieldCheck },
                     ].map(({ label, value, icon: Icon }, index) => (
                         <Card className={index === 0 ? 'border-l-4 border-l-blue-800' : 'border-blue-100'} key={label}>
@@ -100,7 +101,7 @@ export default function UsersIndex({ users, accountTypes, filters, summary, myTe
 
                 <Card className="border-blue-100">
                     <CardContent className="p-4">
-                        <form className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_200px_auto_auto]" onSubmit={applyFilters}>
+                        <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_200px_220px_auto_auto]" onSubmit={applyFilters}>
                             <SearchInput onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email" value={search} />
                             <select
                                 className="h-10 rounded-md border bg-white px-3 text-sm"
@@ -109,8 +110,17 @@ export default function UsersIndex({ users, accountTypes, filters, summary, myTe
                             >
                                 <option value="">All roles</option>
                                 <option value="admin">Administrators</option>
-                                <option value="assigner">Claims managers</option>
-                                <option value="user">Claims users</option>
+                                <option value="user">Users</option>
+                            </select>
+                            <select
+                                className="h-10 rounded-md border bg-white px-3 text-sm"
+                                onChange={(event) => setTeamFilter(event.target.value)}
+                                value={teamFilter}
+                            >
+                                <option value="">All membership statuses</option>
+                                <option value="mine">Members under you</option>
+                                <option value="unassigned">Unassigned members</option>
+                                <option value="other">Under another admin</option>
                             </select>
                             <Button type="submit">Apply filters</Button>
                             <Button onClick={() => router.get('/user-management')} type="button" variant="ghost">
@@ -128,8 +138,11 @@ export default function UsersIndex({ users, accountTypes, filters, summary, myTe
                     users={users}
                 />
             </div>
-            {editing && <EditAccessDialog accountTypes={accountTypes} key={editing.id} onClose={() => setEditing(null)} user={editing} />}
-            {managingTeam && <ManageTeamDialog adminId={auth.user.id} initialMembers={myTeamMembers} onClose={() => setManagingTeam(false)} />}
+            {editing?.id === auth.user.id && editing.is_admin ? (
+                <ManageTeamDialog admin={editing} initialMembers={myTeamMembers} key={editing.id} onClose={() => setEditing(null)} />
+            ) : (
+                editing && <EditAccessDialog accountTypes={accountTypes} key={editing.id} onClose={() => setEditing(null)} user={editing} />
+            )}
         </AppLayout>
     );
 }

@@ -3,20 +3,20 @@ import InputError from '@/components/input-error';
 import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { TeamUser } from '@/components/users/types';
+import type { TeamCandidate, TeamUser } from '@/components/users/types';
 import { useForm } from '@inertiajs/react';
-import { Check, UsersRound } from 'lucide-react';
+import { UsersRound, X } from 'lucide-react';
 import { useDeferredValue, useEffect, useState } from 'react';
 
 interface CandidatePage {
-    data: TeamUser[];
+    data: TeamCandidate[];
     current_page: number;
     last_page: number;
     total: number;
 }
 
 interface ManageTeamDialogProps {
-    adminId: number;
+    admin: TeamUser;
     initialMembers: TeamUser[];
     onClose: () => void;
 }
@@ -30,7 +30,7 @@ const initials = (name: string) =>
         .join('')
         .toUpperCase();
 
-export function ManageTeamDialog({ adminId, initialMembers, onClose }: ManageTeamDialogProps) {
+export function ManageTeamDialog({ admin, initialMembers, onClose }: ManageTeamDialogProps) {
     const form = useForm({ member_ids: initialMembers.map((member) => member.id) });
     const [selected, setSelected] = useState<TeamUser[]>(initialMembers);
     const [search, setSearch] = useState('');
@@ -66,23 +66,26 @@ export function ManageTeamDialog({ adminId, initialMembers, onClose }: ManageTea
             next.map((item) => item.id),
         );
     };
-    const save = () => form.patch(`/user-management/${adminId}/members`, { preserveScroll: true, onSuccess: onClose });
-    const available = candidates.data.filter((candidate) => !selected.some((member) => member.id === candidate.id));
+    const save = () => form.patch(`/user-management/${admin.id}/members`, { preserveScroll: true, onSuccess: onClose });
 
     return (
         <Dialog open onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Manage my team</DialogTitle>
+                    <DialogTitle>Edit administrator team</DialogTitle>
                     <DialogDescription>
-                        Select Tricity users who should receive claims from you. Users assigned to another administrator are protected and will not
-                        appear here.
+                        Select multiple users for your active-account team. Users assigned to another administrator remain visible but cannot be
+                        selected.
                     </DialogDescription>
                 </DialogHeader>
+                <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4">
+                    <p className="font-semibold text-slate-900">{admin.name}</p>
+                    <p className="text-sm text-slate-600">{admin.email}</p>
+                </div>
                 <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
                     <div className="flex items-center justify-between gap-3">
                         <div>
-                            <p className="font-semibold text-slate-950">Current team</p>
+                            <p className="font-semibold text-slate-950">Members under you</p>
                             <p className="text-muted-foreground text-sm">
                                 {selected.length} {selected.length === 1 ? 'member' : 'members'} selected
                             </p>
@@ -98,9 +101,8 @@ export function ManageTeamDialog({ adminId, initialMembers, onClose }: ManageTea
                                     onClick={() => toggleMember(member)}
                                     type="button"
                                 >
-                                    <Check className="size-3.5" />
                                     {member.name}
-                                    <span className="text-blue-500">x</span>
+                                    <X className="size-3.5 text-blue-500" />
                                 </button>
                             ))}
                         </div>
@@ -114,39 +116,64 @@ export function ManageTeamDialog({ adminId, initialMembers, onClose }: ManageTea
                             setSearch(event.target.value);
                             setPage(1);
                         }}
-                        placeholder="Search available users"
+                        placeholder="Search users by name or email"
                         value={search}
                     />
                     <DataLoadingOverlay className="min-h-48 overflow-hidden rounded-xl border" isLoading={loading} label="Loading users...">
                         <div className="border-b bg-slate-50 px-4 py-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                            Available for your team
+                            Non-administrator users
                         </div>
-                        {available.length > 0 ? (
+                        {candidates.data.length > 0 ? (
                             <div className="divide-y">
-                                {available.map((member) => (
-                                    <button
-                                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-blue-50/60"
-                                        key={member.id}
-                                        onClick={() => toggleMember(member)}
-                                        type="button"
-                                    >
-                                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-900">
-                                            {initials(member.name)}
-                                        </span>
-                                        <span className="min-w-0">
-                                            <strong className="block truncate text-sm text-slate-950">{member.name}</strong>
-                                            <span className="text-muted-foreground block truncate text-xs">{member.email}</span>
-                                        </span>
-                                        <span className="ml-auto text-xs font-semibold text-blue-700">Add</span>
-                                    </button>
-                                ))}
+                                {candidates.data.map((member) => {
+                                    const isSelected = selected.some((selectedMember) => selectedMember.id === member.id);
+                                    const ownedByAnotherAdmin = member.owner !== null && member.owner.id !== admin.id;
+
+                                    return (
+                                        <label
+                                            className={`flex w-full items-center gap-3 px-4 py-3 text-left ${
+                                                member.is_selectable ? 'cursor-pointer hover:bg-blue-50/60' : 'cursor-not-allowed bg-slate-50/70'
+                                            }`}
+                                            key={member.id}
+                                        >
+                                            <input
+                                                aria-label={`Select ${member.name}`}
+                                                checked={isSelected}
+                                                className="size-4 shrink-0 accent-blue-700"
+                                                disabled={!member.is_selectable}
+                                                onChange={() => toggleMember(member)}
+                                                type="checkbox"
+                                            />
+                                            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-900">
+                                                {initials(member.name)}
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <strong className="block truncate text-sm text-slate-950">{member.name}</strong>
+                                                <span className="text-muted-foreground block truncate text-xs">{member.email}</span>
+                                                {ownedByAnotherAdmin && (
+                                                    <span className="mt-1 block text-xs font-medium text-amber-700">
+                                                        This user is under admin {member.owner?.name}.
+                                                    </span>
+                                                )}
+                                                {member.owner?.id === admin.id && (
+                                                    <span className="mt-1 block text-xs font-medium text-blue-700">
+                                                        Currently a member under you.
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className={`text-xs font-semibold ${ownedByAnotherAdmin ? 'text-amber-700' : 'text-blue-700'}`}>
+                                                {ownedByAnotherAdmin ? 'Unavailable' : isSelected ? 'Selected' : 'Available'}
+                                            </span>
+                                        </label>
+                                    );
+                                })}
                             </div>
                         ) : (
-                            <p className="text-muted-foreground p-8 text-center text-sm">No available users match this search.</p>
+                            <p className="text-muted-foreground p-8 text-center text-sm">No users match this search.</p>
                         )}
                     </DataLoadingOverlay>
                     <div className="flex items-center justify-between">
-                        <p className="text-muted-foreground text-xs">{candidates.total} eligible users</p>
+                        <p className="text-muted-foreground text-xs">{candidates.total} non-administrator users</p>
                         <div className="flex gap-2">
                             <Button
                                 disabled={page <= 1 || loading}
@@ -176,7 +203,7 @@ export function ManageTeamDialog({ adminId, initialMembers, onClose }: ManageTea
                     </Button>
                     <Button disabled={form.processing} onClick={save}>
                         <UsersRound />
-                        {form.processing ? 'Saving...' : 'Save team'}
+                        {form.processing ? 'Saving...' : 'Save members'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

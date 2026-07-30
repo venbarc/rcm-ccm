@@ -80,7 +80,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\UserManagementController::availableMembers
- * @see app/Http/Controllers/UserManagementController.php:78
+ * @see app/Http/Controllers/UserManagementController.php:99
  * @route '/user-management/available-members'
  */
 export const availableMembers = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -95,7 +95,7 @@ availableMembers.definition = {
 
 /**
 * @see \App\Http\Controllers\UserManagementController::availableMembers
- * @see app/Http/Controllers/UserManagementController.php:78
+ * @see app/Http/Controllers/UserManagementController.php:99
  * @route '/user-management/available-members'
  */
 availableMembers.url = (options?: RouteQueryOptions) => {
@@ -104,7 +104,7 @@ availableMembers.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\UserManagementController::availableMembers
- * @see app/Http/Controllers/UserManagementController.php:78
+ * @see app/Http/Controllers/UserManagementController.php:99
  * @route '/user-management/available-members'
  */
 availableMembers.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -113,7 +113,7 @@ availableMembers.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => 
 })
 /**
 * @see \App\Http\Controllers\UserManagementController::availableMembers
- * @see app/Http/Controllers/UserManagementController.php:78
+ * @see app/Http/Controllers/UserManagementController.php:99
  * @route '/user-management/available-members'
  */
 availableMembers.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -123,7 +123,7 @@ availableMembers.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
     /**
 * @see \App\Http\Controllers\UserManagementController::availableMembers
- * @see app/Http/Controllers/UserManagementController.php:78
+ * @see app/Http/Controllers/UserManagementController.php:99
  * @route '/user-management/available-members'
  */
     const availableMembersForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -133,7 +133,7 @@ availableMembers.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
 
             /**
 * @see \App\Http\Controllers\UserManagementController::availableMembers
- * @see app/Http/Controllers/UserManagementController.php:78
+ * @see app/Http/Controllers/UserManagementController.php:99
  * @route '/user-management/available-members'
  */
         availableMembersForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -142,7 +142,7 @@ availableMembers.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
         })
             /**
 * @see \App\Http\Controllers\UserManagementController::availableMembers
- * @see app/Http/Controllers/UserManagementController.php:78
+ * @see app/Http/Controllers/UserManagementController.php:99
  * @route '/user-management/available-members'
  */
         availableMembersForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -158,7 +158,7 @@ availableMembers.head = (options?: RouteQueryOptions): RouteDefinition<'head'> =
     availableMembers.form = availableMembersForm
 /**
 * @see \App\Http\Controllers\UserManagementController::members
- * @see app/Http/Controllers/UserManagementController.php:95
+ * @see app/Http/Controllers/UserManagementController.php:136
  * @route '/user-management/{user}/members'
  */
 export const members = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -173,7 +173,7 @@ members.definition = {
 
 /**
 * @see \App\Http\Controllers\UserManagementController::members
- * @see app/Http/Controllers/UserManagementController.php:95
+ * @see app/Http/Controllers/UserManagementController.php:136
  * @route '/user-management/{user}/members'
  */
 members.url = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -206,7 +206,7 @@ members.url = (args: { user: number | { id: number } } | [user: number | { id: n
 
 /**
 * @see \App\Http\Controllers\UserManagementController::members
- * @see app/Http/Controllers/UserManagementController.php:95
+ * @see app/Http/Controllers/UserManagementController.php:136
  * @route '/user-management/{user}/members'
  */
 members.get = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -215,7 +215,7 @@ members.get = (args: { user: number | { id: number } } | [user: number | { id: n
 })
 /**
 * @see \App\Http\Controllers\UserManagementController::members
- * @see app/Http/Controllers/UserManagementController.php:95
+ * @see app/Http/Controllers/UserManagementController.php:136
  * @route '/user-management/{user}/members'
  */
 members.head = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -225,7 +225,7 @@ members.head = (args: { user: number | { id: number } } | [user: number | { id: 
 
     /**
 * @see \App\Http\Controllers\UserManagementController::members
- * @see app/Http/Controllers/UserManagementController.php:95
+ * @see app/Http/Controllers/UserManagementController.php:136
  * @route '/user-management/{user}/members'
  */
     const membersForm = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -235,7 +235,7 @@ members.head = (args: { user: number | { id: number } } | [user: number | { id: 
 
             /**
 * @see \App\Http\Controllers\UserManagementController::members
- * @see app/Http/Controllers/UserManagementController.php:95
+ * @see app/Http/Controllers/UserManagementController.php:136
  * @route '/user-management/{user}/members'
  */
         membersForm.get = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -244,7 +244,7 @@ members.head = (args: { user: number | { id: number } } | [user: number | { id: 
         })
             /**
 * @see \App\Http\Controllers\UserManagementController::members
- * @see app/Http/Controllers/UserManagementController.php:95
+ * @see app/Http/Controllers/UserManagementController.php:136
  * @route '/user-management/{user}/members'
  */
         membersForm.head = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -260,7 +260,7 @@ members.head = (args: { user: number | { id: number } } | [user: number | { id: 
     members.form = membersForm
 /**
 * @see \App\Http\Controllers\UserManagementController::update
- * @see app/Http/Controllers/UserManagementController.php:131
+ * @see app/Http/Controllers/UserManagementController.php:172
  * @route '/user-management/{user}'
  */
 export const update = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -275,7 +275,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\UserManagementController::update
- * @see app/Http/Controllers/UserManagementController.php:131
+ * @see app/Http/Controllers/UserManagementController.php:172
  * @route '/user-management/{user}'
  */
 update.url = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -308,7 +308,7 @@ update.url = (args: { user: number | { id: number } } | [user: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\UserManagementController::update
- * @see app/Http/Controllers/UserManagementController.php:131
+ * @see app/Http/Controllers/UserManagementController.php:172
  * @route '/user-management/{user}'
  */
 update.patch = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -318,7 +318,7 @@ update.patch = (args: { user: number | { id: number } } | [user: number | { id: 
 
     /**
 * @see \App\Http\Controllers\UserManagementController::update
- * @see app/Http/Controllers/UserManagementController.php:131
+ * @see app/Http/Controllers/UserManagementController.php:172
  * @route '/user-management/{user}'
  */
     const updateForm = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -333,7 +333,7 @@ update.patch = (args: { user: number | { id: number } } | [user: number | { id: 
 
             /**
 * @see \App\Http\Controllers\UserManagementController::update
- * @see app/Http/Controllers/UserManagementController.php:131
+ * @see app/Http/Controllers/UserManagementController.php:172
  * @route '/user-management/{user}'
  */
         updateForm.patch = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

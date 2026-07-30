@@ -178,7 +178,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                 <td className="max-w-0 p-0" colSpan={12}>
                                                     <div className="w-full max-w-full min-w-0 px-8 py-3">
                                                         <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain [contain:inline-size]">
-                                                            <table className="w-full min-w-[1810px] text-sm">
+                                                            <table className="w-full min-w-[2070px] text-sm">
                                                                 <thead className="text-muted-foreground">
                                                                     <tr className="border-b">
                                                                         <ClaimSourceLineHeaders showPayer={false} />

@@ -71,7 +71,6 @@ class SsoCallbackController extends Controller
                 'email' => $email,
                 'password' => Str::random(64),
                 'is_admin' => $isBootstrapAdmin,
-                'can_assign_claims' => $isBootstrapAdmin,
                 'account_types' => [$account->value],
             ]);
 
@@ -81,7 +80,7 @@ class SsoCallbackController extends Controller
         if ($matches->count() === 1) {
             $user = $matches->first();
             if ($isBootstrapAdmin && ! $user->is_admin) {
-                $user->update(['is_admin' => true, 'can_assign_claims' => true]);
+                $user->update(['is_admin' => true]);
             }
 
             return $this->loginCompleter->complete($request, $user, $account);

@@ -11,6 +11,7 @@ import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Download, FileSpreadsheet, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -23,6 +24,7 @@ interface ClaimsIndexProps {
     creditReasons: StatusOption[];
     assignees: UserOption[];
     hasActiveImport: boolean;
+    canEditClaims: boolean;
 }
 
 export default function ClaimsIndex(props: ClaimsIndexProps) {
@@ -38,6 +40,7 @@ function ClaimsIndexContent({
     creditReasons,
     assignees,
     hasActiveImport,
+    canEditClaims,
 }: ClaimsIndexProps) {
     const { auth } = usePage<SharedData>().props;
     const [local, setLocal] = useState(filters);
@@ -53,8 +56,8 @@ function ClaimsIndexContent({
         work_status: 'draft',
         denial_reason: '',
         notes: '',
-        invoiced_status: '',
-        invoiced_status_date: '',
+        credit_status: '' as '' | 'yes' | 'no',
+        credit_status_date: '',
         credit_reason: '',
     });
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -160,14 +163,20 @@ function ClaimsIndexContent({
         return params.toString();
     };
     const openEditLine = (claim: ClaimGroup, line: ClaimLine) => {
+        if (!canEditClaims) {
+            toast.error('You are not assigned to an administrator. Ask an administrator to add you as a member before editing claims.');
+
+            return;
+        }
+
         setEditingClaim(claim);
         setEditingLine(line);
         setEditForm({
             work_status: line.work_status || 'draft',
             denial_reason: line.denial_reason || '',
             notes: line.notes || '',
-            invoiced_status: line.invoiced_status || '',
-            invoiced_status_date: line.invoiced_status_date || '',
+            credit_status: line.credit_status === null ? '' : line.credit_status ? 'yes' : 'no',
+            credit_status_date: line.credit_status_date || '',
             credit_reason: line.credit_reason || '',
         });
     };
@@ -181,9 +190,9 @@ function ClaimsIndexContent({
         const workStatus = editForm.work_status;
         const denialReason = editForm.denial_reason.trim() || null;
         const notes = editForm.notes.trim() || null;
-        const invoicedStatus = editForm.invoiced_status || null;
-        const invoicedStatusDate = invoicedStatus ? editForm.invoiced_status_date || null : null;
-        const creditReason = ['pending_credit', 'credited'].includes(editForm.invoiced_status) ? editForm.credit_reason || null : null;
+        const creditStatus = editForm.credit_status === '' ? null : editForm.credit_status === 'yes';
+        const creditStatusDate = creditStatus === true ? editForm.credit_status_date || null : null;
+        const creditReason = creditStatus === true ? editForm.credit_reason || null : null;
         const currentUser = {
             id: auth.user.id,
             name: auth.user.name,
@@ -196,8 +205,8 @@ function ClaimsIndexContent({
                 work_status: workStatus,
                 denial_reason: denialReason,
                 notes,
-                invoiced_status: invoicedStatus,
-                invoiced_status_date: invoicedStatusDate,
+                credit_status: creditStatus,
+                credit_status_date: creditStatusDate,
                 credit_reason: creditReason,
             },
             {
@@ -221,25 +230,27 @@ function ClaimsIndexContent({
                                           work_status: workStatus,
                                           denial_reason: denialReason,
                                           notes,
-                                          invoiced_status: invoicedStatus,
-                                          invoiced_status_date: invoicedStatusDate,
+                                          credit_status: creditStatus,
+                                          credit_status_date: creditStatusDate,
                                           credit_reason: creditReason,
                                           assigned_to: currentUser.id,
                                           assignee: currentUser,
-                                          is_modified: workStatus !== 'draft' || denialReason !== null || notes !== null || invoicedStatus !== null,
+                                          is_modified: workStatus !== 'draft' || denialReason !== null || notes !== null || creditStatus !== null,
                                           updated_at: updatedAt,
                                       }
                                     : line,
                             );
+                            const creditedLine = lines.find((line) => line.credit_status === true);
+                            const reviewedLine = creditedLine ?? lines.find((line) => line.credit_status === false);
 
                             return {
                                 ...claim,
                                 work_status: workStatus,
                                 denial_reason: denialReason,
                                 notes,
-                                invoiced_status: invoicedStatus,
-                                invoiced_status_date: invoicedStatusDate,
-                                credit_reason: creditReason,
+                                credit_status: reviewedLine?.credit_status ?? null,
+                                credit_status_date: creditedLine?.credit_status_date ?? null,
+                                credit_reason: creditedLine?.credit_reason ?? null,
                                 assigned_to: currentUser.id,
                                 assignee: currentUser,
                                 modified_by: currentUser,
@@ -251,6 +262,10 @@ function ClaimsIndexContent({
                     );
                     setEditingClaim(null);
                     setEditingLine(null);
+                },
+                onError: (errors) => {
+                    const message = typeof errors.claim === 'string' ? errors.claim : 'The claim line could not be updated.';
+                    toast.error(message);
                 },
             },
         );
@@ -270,7 +285,7 @@ function ClaimsIndexContent({
                         <Button variant="outline" onClick={() => setExportOpen(true)}>
                             <Download /> Export
                         </Button>
-                        {(auth.user.is_admin || auth.user.can_assign_claims) && (
+                        {auth.user.is_admin && (
                             <Button variant="outline" asChild>
                                 <Link href="/assignments">
                                     <Users /> Distribute claims
@@ -326,7 +341,6 @@ function ClaimsIndexContent({
                 claim={editingClaim}
                 editForm={editForm}
                 line={editingLine}
-                invoicedStatuses={invoicedStatuses}
                 creditReasons={creditReasons}
                 onOpenChange={(open) => {
                     if (!open) {
@@ -341,7 +355,7 @@ function ClaimsIndexContent({
             />
             <ClaimsExportDialog
                 assignees={assignees}
-                canExportByAssignee={auth.user.is_admin || auth.user.can_assign_claims}
+                canExportByAssignee={auth.user.is_admin}
                 hasActiveImport={hasActiveImport}
                 onOpenChange={setExportOpen}
                 open={exportOpen}

@@ -26,7 +26,6 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
-        'can_assign_claims',
         'account_types',
     ];
 
@@ -54,7 +53,6 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_admin' => 'boolean',
-            'can_assign_claims' => 'boolean',
             'account_types' => 'array',
         ];
     }
@@ -76,7 +74,7 @@ class User extends Authenticatable
 
     public function canAssignClaims(): bool
     {
-        return $this->is_admin || $this->can_assign_claims;
+        return $this->is_admin;
     }
 
     public function members(): BelongsToMany

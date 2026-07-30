@@ -181,6 +181,8 @@ export function DateRangePicker({
             </PopoverTrigger>
             <PopoverContent
                 align="start"
+                avoidCollisions={false}
+                side="bottom"
                 sideOffset={8}
                 className="w-[min(720px,calc(100vw-2rem))] rounded-3xl border border-slate-200 p-0 shadow-2xl"
             >

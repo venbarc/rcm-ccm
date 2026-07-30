@@ -27,6 +27,8 @@ export interface ClaimLine {
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
+    credit_status: boolean | null;
+    credit_status_date: string | null;
     credit_reason: string | null;
     work_status: string;
     denial_reason: string | null;
@@ -63,6 +65,8 @@ export interface ClaimGroup {
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
+    credit_status: boolean | null;
+    credit_status_date: string | null;
     credit_reason: string | null;
     work_status: string;
     denial_reason: string | null;
@@ -111,6 +115,7 @@ export interface Filters {
     service_month: string;
     cf_invoice_from: string;
     cf_invoice_to: string;
+    invoiced_status_date: string;
     procedure_code: string;
     expanded: string;
     sort_by: string;

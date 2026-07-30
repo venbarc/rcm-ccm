@@ -20,7 +20,7 @@ class Claim extends Model
         'payer_name', 'rendering_provider', 'primary_provider', 'payments', 'new_payments',
         'true_balance', 'true_charge', 'adjustments', 'aging_days', 'denial_reason', 'claim_status',
         'modmed_claim_status', 'cf_invoice_date', 'cf_invoice_amount', 'invoiced_status',
-        'invoiced_status_date', 'credit_reason',
+        'invoiced_status_date', 'credit_status', 'credit_status_date', 'credit_reason',
         'work_status', 'work_status_manually_set', 'claimed_amount', 'diagnosis_code',
         'first_name', 'last_name', 'modifiers', 'patient_dob', 'patient_id',
         'payer_category', 'procedure_code', 'service_type', 'service_date_start',
@@ -49,6 +49,8 @@ class Claim extends Model
             'cf_invoice_date' => 'date:Y-m-d',
             'cf_invoice_amount' => 'decimal:2',
             'invoiced_status_date' => 'date:Y-m-d',
+            'credit_status' => 'boolean',
+            'credit_status_date' => 'date:Y-m-d',
             'service_date_start' => 'date:Y-m-d',
             'service_date_end' => 'date:Y-m-d',
             'posted_date' => 'date:Y-m-d',
@@ -71,6 +73,9 @@ class Claim extends Model
             if (blank($claim->external_id) && filled($claim->bill_id)) {
                 $claim->external_id = $claim->bill_id;
             }
+
+            $claim->invoiced_status = 'invoiced';
+            $claim->invoiced_status_date = $claim->cf_invoice_date;
         });
     }
 
