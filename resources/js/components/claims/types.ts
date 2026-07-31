@@ -140,6 +140,7 @@ export type SortColumn =
     | 'bill_id'
     | 'patient_name'
     | 'payer_name'
+    | 'primary_provider'
     | 'location'
     | 'service_date_start'
     | 'line_count'

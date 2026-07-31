@@ -101,6 +101,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                 <SortHeader column="bill_id" label="Bill ID" filters={filters} onSort={onSort} />
                                 <SortHeader column="patient_name" label="Patient" filters={filters} onSort={onSort} />
                                 <SortHeader column="payer_name" label="Payer" filters={filters} onSort={onSort} />
+                                <SortHeader column="primary_provider" label="Primary Provider" filters={filters} onSort={onSort} />
                                 <SortHeader column="location" label="Location" filters={filters} onSort={onSort} />
                                 <th className="px-4 py-3 text-center font-medium">Modified By</th>
                                 <SortHeader column="service_date_start" label="Service Date" filters={filters} onSort={onSort} />
@@ -132,6 +133,11 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                             <td className="max-w-56 px-4 py-3">
                                                 <p className="truncate" title={claim.payer_name || undefined}>
                                                     {claim.payer_name || EMPTY_VALUE}
+                                                </p>
+                                            </td>
+                                            <td className="max-w-56 px-4 py-3">
+                                                <p className="truncate" title={claim.primary_provider || undefined}>
+                                                    {claim.primary_provider || EMPTY_VALUE}
                                                 </p>
                                             </td>
                                             <td className="max-w-[420px] px-4 py-3">
@@ -183,13 +189,13 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                         </tr>
                                         {isExpanded && (
                                             <tr className="bg-muted/40">
-                                                <td className="max-w-0 p-0" colSpan={12}>
+                                                <td className="max-w-0 p-0" colSpan={13}>
                                                     <div className="w-full max-w-full min-w-0 px-8 py-3">
                                                         <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain [contain:inline-size]">
                                                             <table className="w-full min-w-[2070px] text-sm">
                                                                 <thead className="text-muted-foreground">
                                                                     <tr className="border-b">
-                                                                        <ClaimSourceLineHeaders showPayer={false} />
+                                                                        <ClaimSourceLineHeaders showPayer={false} showPrimaryProvider={false} />
                                                                         <th className="px-3 py-3 text-left font-medium">Denial Reason</th>
                                                                         <th className="px-3 py-3 text-left font-medium">Work Status</th>
                                                                         <th className="px-3 py-3 text-left font-medium">Assigned To</th>
@@ -211,6 +217,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                                     cpt_code: lineProcedureCode(line.procedure_code, line.cpt_code),
                                                                                 }}
                                                                                 showPayer={false}
+                                                                                showPrimaryProvider={false}
                                                                             />
                                                                             <td className="text-muted-foreground px-3 py-3">
                                                                                 {line.denial_reason_label || line.denial_reason || EMPTY_VALUE}
@@ -254,7 +261,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                             })}
                             {claims.data.length === 0 && (
                                 <tr>
-                                    <td className="text-muted-foreground p-14 text-center" colSpan={12}>
+                                    <td className="text-muted-foreground p-14 text-center" colSpan={13}>
                                         No claims match these filters.
                                     </td>
                                 </tr>
