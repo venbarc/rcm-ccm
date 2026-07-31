@@ -424,8 +424,8 @@ class ClaimsWorkflowTest extends TestCase
             'user_id' => $user->id,
             'action' => 'claim_updated',
             'description' => 'Updated CPT 99490',
-            'before' => ['work_status' => 'draft'],
-            'after' => ['work_status' => 'appeal'],
+            'before' => ['work_status' => 'draft', 'assigned_to' => null],
+            'after' => ['work_status' => 'appeal', 'assigned_to' => $user->id],
         ]);
         ClaimActivity::create([
             'account_type' => AccountType::Tricity->value,
@@ -452,6 +452,8 @@ class ClaimsWorkflowTest extends TestCase
             ->has('activities', 2)
             ->where('activities.0.cpt_code', '99439')
             ->where('activities.1.cpt_code', '99490')
+            ->where('activities.1.before.assigned_to', 'Unassigned')
+            ->where('activities.1.after.assigned_to', 'Claim Editor')
             ->where('returnTo', $returnTo));
     }
 

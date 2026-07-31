@@ -22,11 +22,16 @@ export interface ClaimSourceLine {
     true_balance: number | string | null;
 }
 
-export function ClaimSourceLineHeaders({ showPayer = true }: { showPayer?: boolean } = {}) {
+interface ClaimSourceLineVisibility {
+    showPayer?: boolean;
+    showPrimaryProvider?: boolean;
+}
+
+export function ClaimSourceLineHeaders({ showPayer = true, showPrimaryProvider = true }: ClaimSourceLineVisibility = {}) {
     return (
         <>
             <th className="px-3 py-3 text-left font-medium">CPT Code</th>
-            <th className="px-3 py-3 text-left font-medium">Primary Provider</th>
+            {showPrimaryProvider && <th className="px-3 py-3 text-left font-medium">Primary Provider</th>}
             {showPayer && <th className="px-3 py-3 text-left font-medium">Payer</th>}
             <th className="px-3 py-3 text-left font-medium">ModMed Claim Status</th>
             <th className="px-3 py-3 text-left font-medium">CF Invoice Date</th>
@@ -42,11 +47,11 @@ export function ClaimSourceLineHeaders({ showPayer = true }: { showPayer?: boole
     );
 }
 
-export function ClaimSourceLineCells({ line, showPayer = true }: { line: ClaimSourceLine; showPayer?: boolean }) {
+export function ClaimSourceLineCells({ line, showPayer = true, showPrimaryProvider = true }: { line: ClaimSourceLine } & ClaimSourceLineVisibility) {
     return (
         <>
             <td className="px-3 py-3 font-semibold">{line.cpt_code || EMPTY_VALUE}</td>
-            <td className="px-3 py-3">{line.primary_provider || EMPTY_VALUE}</td>
+            {showPrimaryProvider && <td className="px-3 py-3">{line.primary_provider || EMPTY_VALUE}</td>}
             {showPayer && <td className="px-3 py-3">{line.payer_name || EMPTY_VALUE}</td>}
             <td className="px-3 py-3">
                 <ModMedClaimStatusBadge

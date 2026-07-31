@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Claim;
 use App\Models\ClaimActivity;
 use App\Models\ClaimImport;
+use App\Models\User;
 use App\Services\ClaimActivityService;
 use App\Services\ClaimConfigurationService;
 use App\Services\ClaimFilterService;
@@ -37,7 +38,7 @@ class ClaimController extends Controller
     ];
 
     private const SORTABLE_COLUMNS = [
-        'bill_id', 'patient_name', 'payer_name', 'location', 'service_date_start', 'line_count',
+        'bill_id', 'patient_name', 'payer_name', 'primary_provider', 'location', 'service_date_start', 'line_count',
         'true_charge', 'true_balance', 'payments', 'updated_at',
     ];
 
@@ -636,9 +637,21 @@ class ClaimController extends Controller
             ->whereIn('claim_id', $linesById->keys()->all())
             ->latest('id')
             ->paginate(20, ['*'], 'page', $page);
+        $assigneeIds = $activities->getCollection()
+            ->flatMap(fn (ClaimActivity $activity): array => [
+                $activity->before['assigned_to'] ?? null,
+                $activity->after['assigned_to'] ?? null,
+            ])
+            ->filter(fn ($id): bool => is_numeric($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values();
+        $assigneeNames = User::query()
+            ->whereIn('id', $assigneeIds)
+            ->pluck('name', 'id');
 
         return [
-            'data' => $activities->getCollection()->map(function (ClaimActivity $activity) use ($linesById): array {
+            'data' => $activities->getCollection()->map(function (ClaimActivity $activity) use ($assigneeNames, $linesById): array {
                 $line = $linesById->get($activity->claim_id);
 
                 return [
@@ -647,8 +660,8 @@ class ClaimController extends Controller
                     'cpt_code' => $line?->procedure_code ?: $line?->cpt_code,
                     'action' => $activity->action,
                     'description' => $activity->description,
-                    'before' => $activity->before,
-                    'after' => $activity->after,
+                    'before' => $this->activityChangesWithAssigneeNames($activity->before, $assigneeNames),
+                    'after' => $this->activityChangesWithAssigneeNames($activity->after, $assigneeNames),
                     'created_at' => $activity->created_at?->toIso8601String(),
                     'user' => $activity->user?->only(['id', 'name', 'email']),
                 ];
@@ -656,6 +669,22 @@ class ClaimController extends Controller
             'current_page' => $activities->currentPage(),
             'has_more' => $activities->hasMorePages(),
         ];
+    }
+
+    private function activityChangesWithAssigneeNames(?array $changes, \Illuminate\Support\Collection $assigneeNames): ?array
+    {
+        if ($changes === null || ! array_key_exists('assigned_to', $changes)) {
+            return $changes;
+        }
+
+        $assigneeId = $changes['assigned_to'];
+        $changes['assigned_to'] = match (true) {
+            is_numeric($assigneeId) => $assigneeNames->get((int) $assigneeId) ?? 'Unknown user',
+            $assigneeId === null || $assigneeId === '' => 'Unassigned',
+            default => (string) $assigneeId,
+        };
+
+        return $changes;
     }
 
     private function safeClaimsReturnUrl(mixed $returnTo): string
