@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\SystemClaimConfiguration;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -13,16 +14,9 @@ return new class extends Migration
             $table->string('color', 7)->nullable();
         });
 
-        $defaultColors = [
-            'draft' => '#F3F4F6',
-            'paid' => '#DCFCE7',
-            'rebilled' => '#DBEAFE',
-            'appeal' => '#F3E8FF',
-            'pending' => '#FEF3C7',
-            'void' => '#E2E8F0',
-            'corrected' => '#CFFAFE',
-            'patient_balance' => '#FCE7F3',
-        ];
+        $defaultColors = collect(SystemClaimConfiguration::forType('work_status'))
+            ->mapWithKeys(fn (SystemClaimConfiguration $option): array => [$option->internalValue() => $option->color()])
+            ->all();
         $fallbackColors = [
             '#FFEDD5',
             '#CCFBF1',

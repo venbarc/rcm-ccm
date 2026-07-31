@@ -2,6 +2,7 @@ import { ConfigurationSection } from '@/components/system-configuration/configur
 import { ConfigurationTabs } from '@/components/system-configuration/configuration-tabs';
 import { DeleteConfigurationOptionDialog } from '@/components/system-configuration/delete-option-dialog';
 import { ConfigurationOptionDialog } from '@/components/system-configuration/option-dialog';
+import { RestoreConfigurationDefaultsDialog } from '@/components/system-configuration/restore-configuration-defaults-dialog';
 import type { ConfigurationOption, ConfigurationSectionData } from '@/components/system-configuration/types';
 import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
@@ -27,6 +28,7 @@ export default function SystemConfigurationIndex({ sections }: SystemConfigurati
     const [activeType, setActiveType] = useState(() => sections.find((section) => section.type === 'work_status')?.type ?? sections[0]?.type ?? '');
     const [optionDialog, setOptionDialog] = useState<OptionDialogState | null>(null);
     const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
+    const [restoreDefaultsSection, setRestoreDefaultsSection] = useState<ConfigurationSectionData | null>(null);
     const activeSection = sections.find((section) => section.type === activeType) ?? sections[0];
 
     return (
@@ -67,6 +69,7 @@ export default function SystemConfigurationIndex({ sections }: SystemConfigurati
                             onCreate={(selectedSection) => setOptionDialog({ section: selectedSection, option: null })}
                             onDelete={(selectedSection, option) => setDeleteDialog({ section: selectedSection, option })}
                             onEdit={(selectedSection, option) => setOptionDialog({ section: selectedSection, option })}
+                            onRestoreDefaults={() => setRestoreDefaultsSection(activeSection)}
                             section={activeSection}
                         />
                     </div>
@@ -93,6 +96,9 @@ export default function SystemConfigurationIndex({ sections }: SystemConfigurati
                     option={deleteDialog.option}
                     typeLabel={deleteDialog.section.label}
                 />
+            )}
+            {restoreDefaultsSection && (
+                <RestoreConfigurationDefaultsDialog onClose={() => setRestoreDefaultsSection(null)} section={restoreDefaultsSection} />
             )}
         </AppLayout>
     );

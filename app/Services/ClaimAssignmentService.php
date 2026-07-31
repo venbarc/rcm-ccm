@@ -124,10 +124,25 @@ class ClaimAssignmentService
         }
 
         $query = $this->unassignedRows($account)
+            ->when($groupBy === 'denial_reason', fn (Builder $query) => $query
+                ->leftJoin('claim_configuration_options as grouped_configuration', function ($join): void {
+                    $join->on('grouped_configuration.id', '=', 'claims.denial_reason_id')
+                        ->where('grouped_configuration.option_type', ClaimConfigurationService::DENIAL_REASON);
+                }))
             ->whereRaw("{$expression} IS NOT NULL")
-            ->whereRaw("{$expression} != ''")
-            ->when(trim((string) $search) !== '', fn (Builder $query) => $query->whereRaw("{$expression} LIKE ?", ['%'.trim((string) $search).'%']))
+            ->when($groupBy !== 'denial_reason', fn (Builder $query) => $query->whereRaw("{$expression} != ''"))
+            ->when(trim((string) $search) !== '', function (Builder $query) use ($expression, $groupBy, $search): void {
+                $searchExpression = $groupBy === 'denial_reason'
+                    ? "COALESCE(grouped_configuration.label, grouped_configuration.value, '')"
+                    : $expression;
+
+                $query->whereRaw("{$searchExpression} LIKE ?", ['%'.trim((string) $search).'%']);
+            })
             ->selectRaw("{$expression} as group_value")
+            ->when(
+                $groupBy === 'denial_reason',
+                fn (Builder $query) => $query->selectRaw('MAX(grouped_configuration.label) as group_name'),
+            )
             ->selectRaw('COUNT(DISTINCT bill_id) as claim_count')
             ->selectRaw('SUM(CASE WHEN '.self::BALANCE_VALUE_EXPRESSION.' IS NOT NULL THEN 1 ELSE 0 END) as balance_rows')
             ->selectRaw('SUM('.self::BALANCE_SUM_EXPRESSION.') as total_balance')
@@ -147,7 +162,7 @@ class ClaimAssignmentService
             'data' => $options->map(fn ($option): array => [
                 'id' => (string) $option->group_value,
                 'value' => (string) $option->group_value,
-                'name' => (string) $option->group_value,
+                'name' => (string) ($option->group_name ?? $option->group_value),
                 'count' => (int) $option->claim_count,
                 'claim_count' => (int) $option->claim_count,
                 'balance' => (int) $option->balance_rows > 0 ? (float) $option->total_balance : null,
@@ -278,7 +293,7 @@ class ClaimAssignmentService
             'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
             'payer_name' => "COALESCE(NULLIF(payer_name, ''), NULLIF(payer, ''))",
             'primary_provider' => "COALESCE(NULLIF(primary_provider, ''), NULLIF(provider, ''))",
-            'denial_reason' => "NULLIF(denial_reason, '')",
+            'denial_reason' => 'claims.denial_reason_id',
             'service_month' => 'SUBSTR(COALESCE(service_date_start, date_of_service), 1, 7)',
             default => null,
         };

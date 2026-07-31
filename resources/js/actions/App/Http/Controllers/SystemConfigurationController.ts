@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::index
- * @see app/Http/Controllers/SystemConfigurationController.php:20
+ * @see app/Http/Controllers/SystemConfigurationController.php:21
  * @route '/system-configuration'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::index
- * @see app/Http/Controllers/SystemConfigurationController.php:20
+ * @see app/Http/Controllers/SystemConfigurationController.php:21
  * @route '/system-configuration'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::index
- * @see app/Http/Controllers/SystemConfigurationController.php:20
+ * @see app/Http/Controllers/SystemConfigurationController.php:21
  * @route '/system-configuration'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::index
- * @see app/Http/Controllers/SystemConfigurationController.php:20
+ * @see app/Http/Controllers/SystemConfigurationController.php:21
  * @route '/system-configuration'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\SystemConfigurationController::index
- * @see app/Http/Controllers/SystemConfigurationController.php:20
+ * @see app/Http/Controllers/SystemConfigurationController.php:21
  * @route '/system-configuration'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\SystemConfigurationController::index
- * @see app/Http/Controllers/SystemConfigurationController.php:20
+ * @see app/Http/Controllers/SystemConfigurationController.php:21
  * @route '/system-configuration'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\SystemConfigurationController::index
- * @see app/Http/Controllers/SystemConfigurationController.php:20
+ * @see app/Http/Controllers/SystemConfigurationController.php:21
  * @route '/system-configuration'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -75,11 +75,11 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
                     }),
             method: 'get',
         })
-    
+
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::store
- * @see app/Http/Controllers/SystemConfigurationController.php:45
+ * @see app/Http/Controllers/SystemConfigurationController.php:47
  * @route '/system-configuration'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -94,7 +94,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::store
- * @see app/Http/Controllers/SystemConfigurationController.php:45
+ * @see app/Http/Controllers/SystemConfigurationController.php:47
  * @route '/system-configuration'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::store
- * @see app/Http/Controllers/SystemConfigurationController.php:45
+ * @see app/Http/Controllers/SystemConfigurationController.php:47
  * @route '/system-configuration'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -113,7 +113,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\SystemConfigurationController::store
- * @see app/Http/Controllers/SystemConfigurationController.php:45
+ * @see app/Http/Controllers/SystemConfigurationController.php:47
  * @route '/system-configuration'
  */
     const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -123,18 +123,92 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\SystemConfigurationController::store
- * @see app/Http/Controllers/SystemConfigurationController.php:45
+ * @see app/Http/Controllers/SystemConfigurationController.php:47
  * @route '/system-configuration'
  */
         storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
             action: store.url(options),
             method: 'post',
         })
-    
+
     store.form = storeForm
 /**
+* @see \App\Http\Controllers\SystemConfigurationController::restoreDefaults
+ * @see app/Http/Controllers/SystemConfigurationController.php:121
+ * @route '/system-configuration/{type}/restore-defaults'
+ */
+export const restoreDefaults = (args: { type: string | number } | [type: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: restoreDefaults.url(args, options),
+    method: 'post',
+})
+
+restoreDefaults.definition = {
+    methods: ["post"],
+    url: '/system-configuration/{type}/restore-defaults',
+} satisfies RouteDefinition<["post"]>
+
+/**
+* @see \App\Http\Controllers\SystemConfigurationController::restoreDefaults
+ * @see app/Http/Controllers/SystemConfigurationController.php:121
+ * @route '/system-configuration/{type}/restore-defaults'
+ */
+restoreDefaults.url = (args: { type: string | number } | [type: string | number ] | string | number, options?: RouteQueryOptions) => {
+    if (typeof args === 'string' || typeof args === 'number') {
+        args = { type: args }
+    }
+
+
+    if (Array.isArray(args)) {
+        args = {
+                    type: args[0],
+                }
+    }
+
+    args = applyUrlDefaults(args)
+
+    const parsedArgs = {
+                        type: args.type,
+                }
+
+    return restoreDefaults.definition.url
+            .replace('{type}', parsedArgs.type.toString())
+            .replace(/\/+$/, '') + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\SystemConfigurationController::restoreDefaults
+ * @see app/Http/Controllers/SystemConfigurationController.php:121
+ * @route '/system-configuration/{type}/restore-defaults'
+ */
+restoreDefaults.post = (args: { type: string | number } | [type: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
+    url: restoreDefaults.url(args, options),
+    method: 'post',
+})
+
+    /**
+* @see \App\Http\Controllers\SystemConfigurationController::restoreDefaults
+ * @see app/Http/Controllers/SystemConfigurationController.php:121
+ * @route '/system-configuration/{type}/restore-defaults'
+ */
+    const restoreDefaultsForm = (args: { type: string | number } | [type: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: restoreDefaults.url(args, options),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\SystemConfigurationController::restoreDefaults
+ * @see app/Http/Controllers/SystemConfigurationController.php:121
+ * @route '/system-configuration/{type}/restore-defaults'
+ */
+        restoreDefaultsForm.post = (args: { type: string | number } | [type: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: restoreDefaults.url(args, options),
+            method: 'post',
+        })
+
+    restoreDefaults.form = restoreDefaultsForm
+/**
 * @see \App\Http\Controllers\SystemConfigurationController::update
- * @see app/Http/Controllers/SystemConfigurationController.php:73
+ * @see app/Http/Controllers/SystemConfigurationController.php:76
  * @route '/system-configuration/{configurationOption}'
  */
 export const update = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -149,7 +223,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::update
- * @see app/Http/Controllers/SystemConfigurationController.php:73
+ * @see app/Http/Controllers/SystemConfigurationController.php:76
  * @route '/system-configuration/{configurationOption}'
  */
 update.url = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -160,7 +234,7 @@ update.url = (args: { configurationOption: number | { id: number } } | [configur
             if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
             args = { configurationOption: args.id }
         }
-    
+
     if (Array.isArray(args)) {
         args = {
                     configurationOption: args[0],
@@ -182,7 +256,7 @@ update.url = (args: { configurationOption: number | { id: number } } | [configur
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::update
- * @see app/Http/Controllers/SystemConfigurationController.php:73
+ * @see app/Http/Controllers/SystemConfigurationController.php:76
  * @route '/system-configuration/{configurationOption}'
  */
 update.patch = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -192,7 +266,7 @@ update.patch = (args: { configurationOption: number | { id: number } } | [config
 
     /**
 * @see \App\Http\Controllers\SystemConfigurationController::update
- * @see app/Http/Controllers/SystemConfigurationController.php:73
+ * @see app/Http/Controllers/SystemConfigurationController.php:76
  * @route '/system-configuration/{configurationOption}'
  */
     const updateForm = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -207,7 +281,7 @@ update.patch = (args: { configurationOption: number | { id: number } } | [config
 
             /**
 * @see \App\Http\Controllers\SystemConfigurationController::update
- * @see app/Http/Controllers/SystemConfigurationController.php:73
+ * @see app/Http/Controllers/SystemConfigurationController.php:76
  * @route '/system-configuration/{configurationOption}'
  */
         updateForm.patch = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -219,11 +293,11 @@ update.patch = (args: { configurationOption: number | { id: number } } | [config
                     }),
             method: 'post',
         })
-    
+
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::destroy
- * @see app/Http/Controllers/SystemConfigurationController.php:99
+ * @see app/Http/Controllers/SystemConfigurationController.php:105
  * @route '/system-configuration/{configurationOption}'
  */
 export const destroy = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -238,7 +312,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::destroy
- * @see app/Http/Controllers/SystemConfigurationController.php:99
+ * @see app/Http/Controllers/SystemConfigurationController.php:105
  * @route '/system-configuration/{configurationOption}'
  */
 destroy.url = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -249,7 +323,7 @@ destroy.url = (args: { configurationOption: number | { id: number } } | [configu
             if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
             args = { configurationOption: args.id }
         }
-    
+
     if (Array.isArray(args)) {
         args = {
                     configurationOption: args[0],
@@ -271,7 +345,7 @@ destroy.url = (args: { configurationOption: number | { id: number } } | [configu
 
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::destroy
- * @see app/Http/Controllers/SystemConfigurationController.php:99
+ * @see app/Http/Controllers/SystemConfigurationController.php:105
  * @route '/system-configuration/{configurationOption}'
  */
 destroy.delete = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -281,7 +355,7 @@ destroy.delete = (args: { configurationOption: number | { id: number } } | [conf
 
     /**
 * @see \App\Http\Controllers\SystemConfigurationController::destroy
- * @see app/Http/Controllers/SystemConfigurationController.php:99
+ * @see app/Http/Controllers/SystemConfigurationController.php:105
  * @route '/system-configuration/{configurationOption}'
  */
     const destroyForm = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -296,7 +370,7 @@ destroy.delete = (args: { configurationOption: number | { id: number } } | [conf
 
             /**
 * @see \App\Http\Controllers\SystemConfigurationController::destroy
- * @see app/Http/Controllers/SystemConfigurationController.php:99
+ * @see app/Http/Controllers/SystemConfigurationController.php:105
  * @route '/system-configuration/{configurationOption}'
  */
         destroyForm.delete = (args: { configurationOption: number | { id: number } } | [configurationOption: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -308,8 +382,8 @@ destroy.delete = (args: { configurationOption: number | { id: number } } | [conf
                     }),
             method: 'post',
         })
-    
+
     destroy.form = destroyForm
-const SystemConfigurationController = { index, store, update, destroy }
+const SystemConfigurationController = { index, store, restoreDefaults, update, destroy }
 
 export default SystemConfigurationController

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Claim;
 use App\Models\ClaimConfigurationOption;
 use App\Services\ClaimConfigurationService;
 use App\Support\CurrentAccount;
@@ -35,6 +36,7 @@ class SystemConfigurationController extends Controller
                 ->map(fn (string $label, string $type): array => [
                     'type' => $type,
                     'label' => $label,
+                    'can_restore_defaults' => $this->configurations->canRestoreDefaults($type),
                     'options' => $options->get($type, collect())->values()->all(),
                 ])
                 ->values()
@@ -55,6 +57,7 @@ class SystemConfigurationController extends Controller
         $type = $validated['option_type'];
         $this->ensureTypeCanBeCreated($type);
         $label = trim($validated['label']);
+        $this->ensureSystemLabelIsNotReserved($account->value, $type, $label);
         $this->ensureUniqueLabel($account->value, $type, $label);
 
         ClaimConfigurationOption::query()->create([
@@ -85,6 +88,9 @@ class SystemConfigurationController extends Controller
             ),
         ], $this->colorValidationMessages($configurationOption->option_type));
         $label = trim($validated['label']);
+        if (! $this->configurations->isSystemOption($configurationOption)) {
+            $this->ensureSystemLabelIsNotReserved($account->value, $configurationOption->option_type, $label);
+        }
         $this->ensureUniqueLabel($account->value, $configurationOption->option_type, $label, $configurationOption->id);
         $configurationOption->update([
             'label' => $label,
@@ -112,6 +118,19 @@ class SystemConfigurationController extends Controller
         return back()->with('success', "{$typeLabel} deleted.");
     }
 
+    public function restoreDefaults(Request $request, string $type): RedirectResponse
+    {
+        $account = CurrentAccount::resolve($request);
+        abort_unless($this->configurations->canRestoreDefaults($type), 404);
+        $request->validate([
+            'confirmation' => ['required', Rule::in(['restore'])],
+        ]);
+        $this->configurations->restoreSystemDefaults($account->value, $type);
+        $typeLabel = $this->configurations->typeLabels()[$type];
+
+        return back()->with('success', "System {$typeLabel} defaults restored. Administrator-created options were not changed.");
+    }
+
     private function ensureUniqueLabel(string $account, string $type, string $label, ?int $ignoreId = null): void
     {
         $exists = $this->configurations->query($account, $type)
@@ -135,6 +154,17 @@ class SystemConfigurationController extends Controller
         }
     }
 
+    private function ensureSystemLabelIsNotReserved(string $account, string $type, string $label): void
+    {
+        $reserved = collect($this->configurations->systemDefaultLabels($account, $type))
+            ->contains(fn (string $defaultLabel): bool => mb_strtolower($defaultLabel) === mb_strtolower($label));
+        if ($reserved) {
+            throw ValidationException::withMessages([
+                'label' => 'That name is reserved for a system default. Restore this configuration instead.',
+            ]);
+        }
+    }
+
     private function ensureOptionIsEditable(ClaimConfigurationOption $option): void
     {
         if ($option->option_type === ClaimConfigurationService::WORK_STATUS && $option->value === 'draft') {
@@ -153,6 +183,13 @@ class SystemConfigurationController extends Controller
                 'option' => 'Yes and No are required Credit Status options and cannot be deleted.',
             ]);
         }
+
+        $referenceColumn = $this->configurations->claimReferenceColumn($option->option_type);
+        if ($referenceColumn !== null && Claim::query()->where($referenceColumn, $option->id)->exists()) {
+            throw ValidationException::withMessages([
+                'option' => 'This option is assigned to one or more claim lines. Reassign those claim lines before deleting it.',
+            ]);
+        }
     }
 
     /** @return array<int, mixed> */
@@ -162,7 +199,7 @@ class SystemConfigurationController extends Controller
             return ['nullable'];
         }
 
-        return [
+        $rules = [
             'required',
             'string',
             'regex:/^#[0-9A-F]{6}$/',
@@ -172,6 +209,16 @@ class SystemConfigurationController extends Controller
                     ->where('option_type', $type))
                 ->ignore($ignoreId),
         ];
+
+        $editingSystemDefault = $ignoreId !== null
+            && ($option = ClaimConfigurationOption::query()->find($ignoreId))
+            && $option->account_type === $account
+            && $this->configurations->isSystemOption($option);
+        if (! $editingSystemDefault) {
+            $rules[] = Rule::notIn($this->configurations->systemDefaultColors($account, $type));
+        }
+
+        return $rules;
     }
 
     /** @return array<string, string> */
@@ -183,6 +230,7 @@ class SystemConfigurationController extends Controller
             'color.required' => "Choose a background color for the {$typeLabel}.",
             'color.regex' => 'Enter a valid six-digit hex color such as #DCEEFF.',
             'color.unique' => "That background color is already assigned to another {$typeLabel}.",
+            'color.not_in' => 'That color is reserved for a system configuration default.',
         ];
     }
 
@@ -202,8 +250,9 @@ class SystemConfigurationController extends Controller
         }
 
         $base = Str::slug($label, '_') ?: 'option';
-        $value = $base;
-        $suffix = 2;
+        $usesReservedSystemValue = in_array($base, $this->configurations->systemDefaultValues($account, $type), true);
+        $value = $usesReservedSystemValue ? "{$base}_2" : $base;
+        $suffix = $usesReservedSystemValue ? 3 : 2;
 
         while ($this->configurations->query($account, $type)->where('value', $value)->exists()) {
             $value = "{$base}_{$suffix}";

@@ -18,8 +18,6 @@ class ActivityLogController extends Controller
 {
     private const BALANCE_EXPRESSION = 'COALESCE(true_balance, balance, 0)';
 
-    private const STATUS_EXPRESSION = "COALESCE(NULLIF(TRIM(work_status), ''), 'draft')";
-
     public function __construct(
         private readonly ClaimConfigurationService $configurations,
         private readonly TeamService $teams,
@@ -31,14 +29,16 @@ class ActivityLogController extends Controller
         $users = $this->filteredVisibleUsers($request, $account->value);
         $userIds = (clone $users)->pluck('id')->all();
         $claims = $this->metricClaims($request, $account->value);
+        $draftStatusId = $this->configurations->idForValue($account->value, ClaimConfigurationService::WORK_STATUS, 'draft');
+        $paidStatusId = $this->configurations->idForValue($account->value, ClaimConfigurationService::WORK_STATUS, 'paid');
 
         $metrics = (clone $users)
             ->select(['users.id', 'users.name', 'users.email', 'users.is_admin'])
             ->selectSub($this->metricSubquery($claims, 'COUNT(*)'), 'total_lines')
-            ->selectSub($this->metricSubquery((clone $claims)->whereRaw(self::STATUS_EXPRESSION.' != ?', ['draft']), 'COUNT(*)'), 'worked_lines')
-            ->selectSub($this->metricSubquery((clone $claims)->whereRaw(self::STATUS_EXPRESSION.' = ?', ['paid']), 'COUNT(*)'), 'closed_lines')
+            ->selectSub($this->metricSubquery((clone $claims)->whereNotNull('work_status_id')->when($draftStatusId, fn (Builder $query) => $query->where('work_status_id', '!=', $draftStatusId)), 'COUNT(*)'), 'worked_lines')
+            ->selectSub($this->metricSubquery((clone $claims)->when($paidStatusId, fn (Builder $query) => $query->where('work_status_id', $paidStatusId), fn (Builder $query) => $query->whereRaw('1 = 0')), 'COUNT(*)'), 'closed_lines')
             ->selectSub($this->metricSubquery($claims, 'COALESCE(SUM('.self::BALANCE_EXPRESSION.'), 0)'), 'total_balance')
-            ->selectSub($this->metricSubquery((clone $claims)->whereRaw(self::STATUS_EXPRESSION.' = ?', ['paid']), 'COALESCE(SUM('.self::BALANCE_EXPRESSION.'), 0)'), 'closed_balance')
+            ->selectSub($this->metricSubquery((clone $claims)->when($paidStatusId, fn (Builder $query) => $query->where('work_status_id', $paidStatusId), fn (Builder $query) => $query->whereRaw('1 = 0')), 'COALESCE(SUM('.self::BALANCE_EXPRESSION.'), 0)'), 'closed_balance')
             ->orderByDesc('total_balance')
             ->orderBy('users.name')
             ->paginate(20)
@@ -76,20 +76,17 @@ class ActivityLogController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         $status = (string) $request->input('status');
-        abort_unless(
-            in_array($status, $this->configurations->values($account->value, ClaimConfigurationService::WORK_STATUS), true),
-            422,
-            'Choose a valid status.',
-        );
-        $statusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
-        $statusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::WORK_STATUS);
-        $denialReasonLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::DENIAL_REASON);
+        $statusOption = $this->configurations->optionForValue($account->value, ClaimConfigurationService::WORK_STATUS, $status);
+        abort_unless($statusOption, 422, 'Choose a valid status.');
+        $statusLabels = $this->configurations->labelMapById($account->value, ClaimConfigurationService::WORK_STATUS);
+        $statusColors = $this->configurations->colorMapById($account->value, ClaimConfigurationService::WORK_STATUS);
+        $denialReasonLabels = $this->configurations->labelMapById($account->value, ClaimConfigurationService::DENIAL_REASON);
 
         $userIds = $this->filteredVisibleUsers($request, $account->value)->pluck('id')->all();
         $lines = $this->metricClaims($request, $account->value)
-            ->with('assignee:id,name,email')
+            ->with(['assignee:id,name,email', 'workStatusOption:id,value,label,color', 'denialReasonOption:id,value,label'])
             ->whereIn('assigned_to', $userIds)
-            ->whereRaw(self::STATUS_EXPRESSION.' = ?', [$status])
+            ->where('work_status_id', $statusOption->id)
             ->latest('updated_at')
             ->paginate(20);
 
@@ -105,7 +102,8 @@ class ActivityLogController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $account = CurrentAccount::resolve($request);
-        $statusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
+        $statusLabels = $this->configurations->labelMapById($account->value, ClaimConfigurationService::WORK_STATUS);
+        $draftStatusId = $this->configurations->idForValue($account->value, ClaimConfigurationService::WORK_STATUS, 'draft');
         $userIds = $this->filteredVisibleUsers($request, $account->value)->pluck('id')->all();
 
         if ($request->filled('user_id')) {
@@ -115,13 +113,14 @@ class ActivityLogController extends Controller
         }
 
         $claims = $this->metricClaims($request, $account->value)
-            ->with('assignee:id,name,email')
+            ->with(['assignee:id,name,email', 'workStatusOption:id,value,label,color'])
             ->whereIn('assigned_to', $userIds)
-            ->whereRaw(self::STATUS_EXPRESSION.' != ?', ['draft']);
+            ->whereNotNull('work_status_id')
+            ->when($draftStatusId, fn (Builder $query) => $query->where('work_status_id', '!=', $draftStatusId));
         if ($request->filled('user_id')) {
             $this->applyWorkedDateFilters($claims, $request);
         }
-        $this->applyWorkedLineFilters($claims, $request);
+        $this->applyWorkedLineFilters($claims, $request, $account->value);
 
         return response()->streamDownload(function () use ($claims, $statusLabels): void {
             $stream = fopen('php://output', 'w');
@@ -137,7 +136,7 @@ class ActivityLogController extends Controller
                     $line->bill_id,
                     $line->patient_name,
                     $line->procedure_code ?: $line->cpt_code,
-                    $statusLabels[$line->work_status ?: 'draft'] ?? ($line->work_status ?: 'draft'),
+                    $line->workStatusOption?->label ?? $statusLabels[$line->work_status_id] ?? ($line->work_status ?: 'draft'),
                     (float) ($line->true_charge ?? $line->billed_amount ?? 0),
                     (float) ($line->payments ?? 0),
                     (float) ($line->true_balance ?? $line->balance ?? 0),
@@ -152,17 +151,19 @@ class ActivityLogController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         $this->authorizeVisibleUser($request, $user, $account->value);
+        $draftStatusId = $this->configurations->idForValue($account->value, ClaimConfigurationService::WORK_STATUS, 'draft');
         $claims = Claim::query()
-            ->with('assignee:id,name,email')
+            ->with(['assignee:id,name,email', 'workStatusOption:id,value,label,color', 'denialReasonOption:id,value,label'])
             ->where('account_type', $account->value)
             ->where('assigned_to', $user->id)
-            ->whereRaw(self::STATUS_EXPRESSION.' != ?', ['draft']);
+            ->whereNotNull('work_status_id')
+            ->when($draftStatusId, fn (Builder $query) => $query->where('work_status_id', '!=', $draftStatusId));
 
         $this->applyWorkedDateFilters($claims, $request);
-        $this->applyWorkedLineFilters($claims, $request);
-        $statusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
-        $statusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::WORK_STATUS);
-        $denialReasonLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::DENIAL_REASON);
+        $this->applyWorkedLineFilters($claims, $request, $account->value);
+        $statusLabels = $this->configurations->labelMapById($account->value, ClaimConfigurationService::WORK_STATUS);
+        $statusColors = $this->configurations->colorMapById($account->value, ClaimConfigurationService::WORK_STATUS);
+        $denialReasonLabels = $this->configurations->labelMapById($account->value, ClaimConfigurationService::DENIAL_REASON);
 
         return Inertia::render('activity-logs/worked-claim-lines', [
             'user' => $user->only(['id', 'name', 'email', 'is_admin']),
@@ -234,18 +235,18 @@ class ActivityLogController extends Controller
     {
         $rows = (clone $claims)
             ->when($applyAssignedScope, fn (Builder $query) => $query->whereIn('assigned_to', $userIds))
-            ->whereRaw(self::STATUS_EXPRESSION.' != ?', ['draft'])
-            ->selectRaw(self::STATUS_EXPRESSION.' as status_key')
+            ->whereNotNull('work_status_id')
+            ->selectRaw('work_status_id as status_key')
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount')
-            ->groupByRaw(self::STATUS_EXPRESSION)
+            ->groupBy('work_status_id')
             ->get()
             ->keyBy('status_key');
 
         return collect($this->statusOptions($account))
             ->reject(fn (array $status): bool => $status['value'] === 'draft')
             ->map(function (array $status) use ($rows): array {
-                $row = $rows->get($status['value']);
+                $row = $rows->get($status['id']);
 
                 return [
                     'status' => $status['value'],
@@ -259,7 +260,7 @@ class ActivityLogController extends Controller
             ->all();
     }
 
-    /** @return array<int, array{value: string, label: string, color: string|null}> */
+    /** @return array<int, array{id: int, value: string, label: string, color: string|null}> */
     private function statusOptions(string $account): array
     {
         return $this->configurations->selectOptions($account, ClaimConfigurationService::WORK_STATUS);
@@ -279,7 +280,7 @@ class ActivityLogController extends Controller
         }
     }
 
-    private function applyWorkedLineFilters(Builder $query, Request $request): void
+    private function applyWorkedLineFilters(Builder $query, Request $request, string $account): void
     {
         if ($request->filled('claim_number')) {
             $query->where('bill_id', 'like', '%'.trim((string) $request->input('claim_number')).'%');
@@ -292,7 +293,16 @@ class ActivityLogController extends Controller
             });
         }
         if ($request->filled('status') && $request->input('status') !== 'all') {
-            $query->whereRaw(self::STATUS_EXPRESSION.' = ?', [(string) $request->input('status')]);
+            $statusId = $this->configurations->idForValue(
+                $account,
+                ClaimConfigurationService::WORK_STATUS,
+                $request->input('status'),
+            );
+            $query->when(
+                $statusId,
+                fn (Builder $nested) => $nested->where('work_status_id', $statusId),
+                fn (Builder $nested) => $nested->whereRaw('1 = 0'),
+            );
         }
     }
 
@@ -309,16 +319,19 @@ class ActivityLogController extends Controller
             'claim_number' => $line->bill_id,
             'patient_name' => $line->patient_name,
             'cpt_code' => $line->procedure_code ?: $line->cpt_code,
-            'status' => $line->work_status ?: 'draft',
-            'status_label' => $statusLabels[$line->work_status ?: 'draft']
+            'status' => $line->workStatusOption?->value ?? ($line->work_status ?: 'draft'),
+            'status_label' => $line->workStatusOption?->label
+                ?? $statusLabels[$line->work_status_id]
                 ?? str($line->work_status ?: 'draft')->replace('_', ' ')->title()->toString(),
-            'status_color' => $statusColors[$line->work_status ?: 'draft'] ?? null,
+            'status_color' => $line->workStatusOption?->color ?? $statusColors[$line->work_status_id] ?? null,
             'date_of_service' => ($line->service_date_start ?? $line->date_of_service)?->toDateString(),
             'worked_at' => $line->updated_at?->toIso8601String(),
             'charges' => (float) ($line->true_charge ?? $line->billed_amount ?? 0),
             'paid' => (float) ($line->payments ?? 0),
             'balance' => (float) ($line->true_balance ?? $line->balance ?? 0),
-            'denial_reason' => $denialReasonLabels[$line->denial_reason] ?? $line->denial_reason,
+            'denial_reason' => $line->denialReasonOption?->label
+                ?? $denialReasonLabels[$line->denial_reason_id]
+                ?? $line->denial_reason,
             'assigned_to' => $line->assignee?->only(['id', 'name', 'email']),
         ];
     }

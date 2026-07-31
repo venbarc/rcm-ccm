@@ -18,5 +18,6 @@ export interface ConfigurationOption {
 export interface ConfigurationSectionData {
     type: string;
     label: string;
+    can_restore_defaults: boolean;
     options: ConfigurationOption[];
 }

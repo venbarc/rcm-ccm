@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ClaimConfigurationOption extends Model
+class ClaimConfigurationSystemDefault extends Model
 {
     protected $fillable = [
         'account_type',
@@ -15,7 +14,6 @@ class ClaimConfigurationOption extends Model
         'label',
         'color',
         'sort_order',
-        'added_by',
     ];
 
     protected function casts(): array
@@ -23,10 +21,5 @@ class ClaimConfigurationOption extends Model
         return [
             'sort_order' => 'integer',
         ];
-    }
-
-    public function addedBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'added_by');
     }
 }

@@ -139,7 +139,15 @@ class ClaimExportService
 
         $chunkSize = max((int) config('claims.export.chunk_size', 1000), 1);
         $claims = $this->buildQuery($export->account_type, $export->filters ?? [])
-            ->with(['assignee:id,name,email', 'rawRow:id,claim_id,raw_payload'])
+            ->with([
+                'assignee:id,name,email',
+                'rawRow:id,claim_id,raw_payload',
+                'workStatusOption:id,value,label,color',
+                'modMedClaimStatusOption:id,value,label,color',
+                'creditStatusOption:id,value,label',
+                'creditReasonOption:id,value,label',
+                'denialReasonOption:id,value,label',
+            ])
             ->orderBy('id')
             ->forPage($chunkNumber, $chunkSize)
             ->get();
@@ -219,6 +227,9 @@ class ClaimExportService
     {
         $query = Claim::query()->where('account_type', $account);
         $pageFilters = is_array($filters['page_filters'] ?? null) ? $filters['page_filters'] : [];
+        $statusId = ($filters['type'] ?? 'all') === 'status'
+            ? $this->configurations->idForValue($account, ClaimConfigurationService::WORK_STATUS, $filters['status'] ?? null)
+            : null;
 
         if ($pageFilters !== []) {
             $matchingBillIds = $this->claimFilters
@@ -232,7 +243,11 @@ class ClaimExportService
         return $query
             ->when(
                 ($filters['type'] ?? 'all') === 'status',
-                fn (Builder $query) => $query->where('work_status', $filters['status']),
+                fn (Builder $query) => $query->when(
+                    $statusId,
+                    fn (Builder $query) => $query->where('work_status_id', $statusId),
+                    fn (Builder $query) => $query->whereRaw('1 = 0'),
+                ),
             )
             ->when(
                 ($filters['type'] ?? 'all') === 'assignee' && ($filters['assigned_to'] ?? null) === 'unassigned',
@@ -325,7 +340,7 @@ class ClaimExportService
             $claim->units,
             $this->sourceValue($claim, 'billingid_cpt', filled($claim->bill_id) && filled($procedureCode) ? "{$claim->bill_id}-{$procedureCode}" : null),
             $this->sourceValue($claim, 'charges'),
-            $this->configurationLabel(
+            $claim->modMedClaimStatusOption?->label ?? $this->configurationLabel(
                 $claim->account_type,
                 ClaimConfigurationService::MODMED_CLAIM_STATUS,
                 $claim->modmed_claim_status,
@@ -343,19 +358,24 @@ class ClaimExportService
             $claim->primary_provider ?: $claim->provider,
             ($claim->service_date_start ?? $claim->date_of_service)?->format('Y-m-d'),
             $this->sourceValue($claim, 'true_charge_per_unit'),
-            $this->configurationLabel($claim->account_type, ClaimConfigurationService::WORK_STATUS, $claim->work_status ?: 'draft'),
+            $claim->workStatusOption?->label
+                ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::WORK_STATUS, $claim->work_status ?: 'draft'),
             $claim->assignee?->name,
-            $this->configurationLabel($claim->account_type, ClaimConfigurationService::DENIAL_REASON, $claim->denial_reason),
+            $claim->denialReasonOption?->label
+                ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::DENIAL_REASON, $claim->denial_reason),
             $claim->notes,
             self::INVOICED_STATUS_LABELS['invoiced'],
             $claim->cf_invoice_date?->format('Y-m-d'),
             match ($claim->credit_status) {
-                true => $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'yes'),
-                false => $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'no'),
+                true => $claim->creditStatusOption?->label
+                    ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'yes'),
+                false => $claim->creditStatusOption?->label
+                    ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'no'),
                 null => '--',
             },
             $claim->credit_status_date?->format('Y-m-d'),
-            $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_REASON, $claim->credit_reason),
+            $claim->creditReasonOption?->label
+                ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_REASON, $claim->credit_reason),
             $claim->updated_at?->format('Y-m-d H:i:s'),
         ];
 

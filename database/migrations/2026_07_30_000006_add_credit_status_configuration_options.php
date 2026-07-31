@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\SystemClaimConfiguration;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -14,17 +15,14 @@ return new class extends Migration
             ->pluck('account_type');
 
         foreach ($accounts as $account) {
-            foreach ([
-                ['value' => 'yes', 'label' => 'Yes'],
-                ['value' => 'no', 'label' => 'No'],
-            ] as $sortOrder => $option) {
+            foreach (SystemClaimConfiguration::forType('credit_status') as $option) {
                 DB::table('claim_configuration_options')->insertOrIgnore([
                     'account_type' => $account,
                     'option_type' => 'credit_status',
-                    'value' => $option['value'],
-                    'label' => $option['label'],
+                    'value' => $option->internalValue(),
+                    'label' => $option->label(),
                     'color' => null,
-                    'sort_order' => $sortOrder,
+                    'sort_order' => $option->sortOrder(),
                     'added_by' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
