@@ -242,6 +242,30 @@ class ClaimExportTest extends TestCase
     {
         config(['claims.export.chunk_size' => 100]);
         $admin = User::factory()->create(['is_admin' => true]);
+        $yesStatus = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_STATUS,
+            'value' => 'yes',
+        ], [
+            'label' => 'Yes',
+            'sort_order' => 0,
+        ]);
+        $inactiveInsurance = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_REASON,
+            'value' => 'inactive_insurance',
+        ], [
+            'label' => 'Inactive Insurance',
+            'sort_order' => 0,
+        ]);
+        $notCovered = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_REASON,
+            'value' => 'not_covered_by_insurance',
+        ], [
+            'label' => 'Not Covered by the Insurance',
+            'sort_order' => 1,
+        ]);
 
         foreach (range(1, 55) as $index) {
             $this->claim([
@@ -251,6 +275,11 @@ class ClaimExportTest extends TestCase
                 'procedure_code' => '99490',
                 'work_status' => 'paid',
                 'cf_invoice_date' => '2026-06-30',
+                'credit_status' => true,
+                'credit_status_id' => $yesStatus->id,
+                'credit_status_date' => '2026-07-15',
+                'credit_reason' => 'inactive_insurance',
+                'credit_reason_id' => $inactiveInsurance->id,
             ]);
         }
 
@@ -268,6 +297,32 @@ class ClaimExportTest extends TestCase
             'work_status' => 'paid',
             'cf_invoice_date' => '2026-07-30',
         ]);
+        $this->claim([
+            'external_id' => 'TC-WRONG-CREDIT-DATE',
+            'patient_name' => 'Filtered Export Patient Wrong Credit Date',
+            'payer_name' => 'Superior Medicaid',
+            'procedure_code' => '99490',
+            'work_status' => 'paid',
+            'cf_invoice_date' => '2026-06-30',
+            'credit_status' => true,
+            'credit_status_id' => $yesStatus->id,
+            'credit_status_date' => '2026-08-15',
+            'credit_reason' => 'inactive_insurance',
+            'credit_reason_id' => $inactiveInsurance->id,
+        ]);
+        $this->claim([
+            'external_id' => 'TC-WRONG-CREDIT-REASON',
+            'patient_name' => 'Filtered Export Patient Wrong Credit Reason',
+            'payer_name' => 'Superior Medicaid',
+            'procedure_code' => '99490',
+            'work_status' => 'paid',
+            'cf_invoice_date' => '2026-06-30',
+            'credit_status' => true,
+            'credit_status_id' => $yesStatus->id,
+            'credit_status_date' => '2026-07-15',
+            'credit_reason' => 'not_covered_by_insurance',
+            'credit_reason_id' => $notCovered->id,
+        ]);
 
         $selectedPayers = json_encode(['Aetna Texas Medicaid & CHIP', 'Superior Medicaid'], JSON_THROW_ON_ERROR);
 
@@ -282,6 +337,10 @@ class ClaimExportTest extends TestCase
                     'procedure_code' => '99490',
                     'cf_invoice_from' => '2026-06-01',
                     'cf_invoice_to' => '2026-06-30',
+                    'credit_status' => 'yes',
+                    'credit_status_from' => '2026-07-01',
+                    'credit_status_to' => '2026-07-31',
+                    'credit_reason' => 'inactive_insurance',
                 ],
             ])
             ->assertAccepted()
@@ -291,6 +350,10 @@ class ClaimExportTest extends TestCase
 
         $export = ClaimExport::query()->firstOrFail();
         $this->assertSame($selectedPayers, $export->filters['page_filters']['payer_name']);
+        $this->assertSame('yes', $export->filters['page_filters']['credit_status']);
+        $this->assertSame('2026-07-01', $export->filters['page_filters']['credit_status_from']);
+        $this->assertSame('2026-07-31', $export->filters['page_filters']['credit_status_to']);
+        $this->assertSame('inactive_insurance', $export->filters['page_filters']['credit_reason']);
         $this->assertCount(56, preg_split('/\r\n|\r|\n/', trim(Storage::get($export->file_path))));
     }
 

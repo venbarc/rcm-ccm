@@ -383,6 +383,8 @@ function ClaimsIndexContent({
 
                 <ClaimsFilters
                     assignees={assignees}
+                    creditReasons={creditReasons}
+                    creditStatuses={creditStatuses}
                     denialReasons={denialReasons}
                     invoicedStatuses={invoicedStatuses}
                     local={local}

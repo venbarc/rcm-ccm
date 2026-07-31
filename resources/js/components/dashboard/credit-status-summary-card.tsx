@@ -2,7 +2,6 @@ import type { DashboardCreditStatusSummary } from '@/components/dashboard/types'
 import { formatCount } from '@/components/dashboard/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
 import { ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -19,7 +18,7 @@ export function CreditStatusSummaryCard({ filters, summary }: CreditStatusSummar
                     <div>
                         <CardTitle className="text-xl">Credit Status Summary</CardTitle>
                         <CardDescription className="mt-1">
-                            CPT-line counts by credit status. A selected date range includes only dated Yes records.
+                            Credit Status Yes lines grouped by CPT code for the selected Credit Status Date range.
                         </CardDescription>
                     </div>
                     <Badge className="w-fit gap-1.5 border-blue-200 bg-blue-50 text-blue-800" variant="outline">
@@ -37,29 +36,24 @@ export function CreditStatusSummaryCard({ filters, summary }: CreditStatusSummar
                     </colgroup>
                     <thead className="bg-muted/60 text-muted-foreground border-y">
                         <tr>
-                            <th className="px-4 py-3 text-left font-semibold">Credit Status</th>
-                            <th className="px-4 py-3 text-right font-semibold">Total Count</th>
+                            <th className="px-4 py-3 text-left font-semibold">CPT Code</th>
+                            <th className="px-4 py-3 text-right font-semibold">Count</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
-                        {summary.rows.map((row) => (
-                            <tr className="even:bg-muted/20 hover:bg-muted/40 transition-colors" key={row.status}>
-                                <td className="px-4 py-3">
-                                    <Badge
-                                        className={cn(
-                                            'font-medium',
-                                            row.status === 'yes'
-                                                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                                                : 'border-slate-300 bg-slate-50 text-slate-700',
-                                        )}
-                                        variant="outline"
-                                    >
-                                        {row.label}
-                                    </Badge>
-                                </td>
+                        {summary.rows.map((row, index) => (
+                            <tr className="even:bg-muted/20 hover:bg-muted/40 transition-colors" key={row.cpt ?? `empty-${index}`}>
+                                <td className="px-4 py-3 font-mono font-semibold">{row.cpt ?? 'No CPT'}</td>
                                 <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCount(row.count)}</td>
                             </tr>
                         ))}
+                        {summary.rows.length === 0 && (
+                            <tr>
+                                <td className="text-muted-foreground px-4 py-10 text-center" colSpan={2}>
+                                    No Credit Status Yes lines found for the selected date range.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                     <tfoot className="bg-primary/10 border-t-2 font-semibold">
                         <tr>

@@ -14,6 +14,8 @@ class ClaimFilterService
         'search',
         'modmed_claim_status',
         'invoiced_status',
+        'credit_status',
+        'credit_reason',
         'payer_name',
         'primary_provider',
         'denial_reason',
@@ -24,6 +26,8 @@ class ClaimFilterService
         'service_month',
         'cf_invoice_from',
         'cf_invoice_to',
+        'credit_status_from',
+        'credit_status_to',
         'procedure_code',
     ];
 
@@ -54,6 +58,14 @@ class ClaimFilterService
             $filters['modmed_claim_status'] ?? null,
         );
         $this->applyExactFilter($query, 'invoiced_status', $filters['invoiced_status'] ?? null);
+        $this->applyCreditStatusFilter($query, $account, $filters['credit_status'] ?? null);
+        $this->applyConfigurationFilter(
+            $query,
+            $account,
+            ClaimConfigurationService::CREDIT_REASON,
+            'credit_reason',
+            $filters['credit_reason'] ?? null,
+        );
         $this->applyExpressionValuesFilter($query, $this->expression('payer_name'), $filters['payer_name'] ?? null);
         $this->applyExpressionExactFilter($query, $this->expression('primary_provider'), $filters['primary_provider'] ?? null);
         $this->applyConfigurationFilter(
@@ -85,6 +97,8 @@ class ClaimFilterService
         $this->applyDateFilter($query, 'updated_at', '<=', $filters['worked_to'] ?? null);
         $this->applyDateFilter($query, 'cf_invoice_date', '>=', $filters['cf_invoice_from'] ?? null);
         $this->applyDateFilter($query, 'cf_invoice_date', '<=', $filters['cf_invoice_to'] ?? null);
+        $this->applyDateFilter($query, 'credit_status_date', '>=', $filters['credit_status_from'] ?? null);
+        $this->applyDateFilter($query, 'credit_status_date', '<=', $filters['credit_status_to'] ?? null);
 
         $serviceMonth = trim((string) ($filters['service_month'] ?? ''));
         if (preg_match('/^\d{4}-\d{2}$/', $serviceMonth) === 1) {
@@ -96,6 +110,29 @@ class ClaimFilterService
         }
 
         return $query;
+    }
+
+    private function applyCreditStatusFilter(Builder $query, string $account, mixed $value): void
+    {
+        $value = trim((string) ($value ?? ''));
+        if ($value === '' || $value === 'all') {
+            return;
+        }
+
+        $option = $this->configurations->optionForValue($account, ClaimConfigurationService::CREDIT_STATUS, $value);
+        if (! $option || ! in_array($option->value, ['yes', 'no'], true)) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function (Builder $nested) use ($option): void {
+            $nested->where('credit_status_id', $option->id)
+                ->orWhere(function (Builder $fallback) use ($option): void {
+                    $fallback->whereNull('credit_status_id')
+                        ->where('credit_status', $option->value === 'yes');
+                });
+        });
     }
 
     private function applyExactFilter(Builder $query, string $column, mixed $value): void

@@ -71,8 +71,7 @@ export interface DashboardInvoicedSummary {
 }
 
 export interface DashboardCreditStatusSummaryRow {
-    status: 'yes' | 'no';
-    label: string;
+    cpt: string | null;
     count: number;
 }
 

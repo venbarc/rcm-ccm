@@ -85,7 +85,6 @@ class DashboardController extends Controller
         $adminSummaryProps = [];
 
         if ($isAdmin) {
-            $creditStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::CREDIT_STATUS);
             $cptSummaryClaims = clone $baseClaims;
             $this->applyPanelDateFilters($cptSummaryClaims, $panelFilters['cptSummary']);
 
@@ -107,7 +106,6 @@ class DashboardController extends Controller
                 'creditStatusSummary' => $this->creditStatusSummary(
                     $baseClaims,
                     $panelFilters['creditStatusSummary'],
-                    $creditStatusLabels,
                 ),
             ];
         }
@@ -228,12 +226,12 @@ class DashboardController extends Controller
 
     /**
      * @param  array{invoiceStart: Carbon|null, invoiceEnd: Carbon|null, serviceStart: Carbon|null, serviceEnd: Carbon|null}  $filters
-     * @param  array<string, string>  $labels
-     * @return array{rows: array<int, array{status: string, label: string, count: int}>, totalCount: int}
+     * @return array{rows: array<int, array{cpt: string|null, count: int}>, totalCount: int}
      */
-    private function creditStatusSummary(Builder $query, array $filters, array $labels): array
+    private function creditStatusSummary(Builder $query, array $filters): array
     {
-        $counts = (clone $query)
+        $rows = (clone $query)
+            ->where('credit_status', true)
             ->when(
                 $filters['invoiceStart'],
                 fn (Builder $inner) => $inner->where('credit_status_date', '>=', $filters['invoiceStart']->toDateString()),
@@ -242,22 +240,17 @@ class DashboardController extends Controller
                 $filters['invoiceEnd'],
                 fn (Builder $inner) => $inner->where('credit_status_date', '<=', $filters['invoiceEnd']->toDateString()),
             )
-            ->selectRaw('SUM(CASE WHEN credit_status = ? THEN 1 ELSE 0 END) as yes_count', [true])
-            ->selectRaw('SUM(CASE WHEN credit_status = ? THEN 1 ELSE 0 END) as no_count', [false])
-            ->first();
-
-        $rows = [
-            [
-                'status' => 'yes',
-                'label' => $labels['yes'] ?? 'Yes',
-                'count' => (int) ($counts->yes_count ?? 0),
-            ],
-            [
-                'status' => 'no',
-                'label' => $labels['no'] ?? 'No',
-                'count' => (int) ($counts->no_count ?? 0),
-            ],
-        ];
+            ->selectRaw(self::CPT_EXPRESSION.' as cpt')
+            ->selectRaw('COUNT(*) as line_count')
+            ->groupByRaw(self::CPT_EXPRESSION)
+            ->orderByDesc('line_count')
+            ->orderBy('cpt')
+            ->get()
+            ->map(fn ($row): array => [
+                'cpt' => filled($row->cpt) ? (string) $row->cpt : null,
+                'count' => (int) ($row->line_count ?? 0),
+            ])
+            ->all();
 
         return [
             'rows' => $rows,

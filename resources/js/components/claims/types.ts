@@ -131,6 +131,8 @@ export interface Filters {
     search: string;
     modmed_claim_status: string;
     invoiced_status: string;
+    credit_status: string;
+    credit_reason: string;
     payer_name: string;
     primary_provider: string;
     denial_reason: string;
@@ -141,6 +143,8 @@ export interface Filters {
     service_month: string;
     cf_invoice_from: string;
     cf_invoice_to: string;
+    credit_status_from: string;
+    credit_status_to: string;
     procedure_code: string;
     expanded: string;
     sort_by: string;
