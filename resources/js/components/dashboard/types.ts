@@ -18,6 +18,7 @@ export interface DashboardPanelFilters {
     cptSummary: DashboardPanelDateFilters;
     modmedStatusSummary: DashboardPanelDateFilters;
     invoicedSummary: DashboardPanelDateFilters;
+    creditStatusSummary: DashboardPanelDateFilters;
 }
 
 export interface WorkSummary {
@@ -67,6 +68,17 @@ export interface DashboardInvoicedSummaryRow {
 export interface DashboardInvoicedSummary {
     rows: DashboardInvoicedSummaryRow[];
     totalUnits: number;
+}
+
+export interface DashboardCreditStatusSummaryRow {
+    status: 'yes' | 'no';
+    label: string;
+    count: number;
+}
+
+export interface DashboardCreditStatusSummary {
+    rows: DashboardCreditStatusSummaryRow[];
+    totalCount: number;
 }
 
 export interface RecentClaim {

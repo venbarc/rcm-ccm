@@ -4,12 +4,14 @@ import { router } from '@inertiajs/react';
 import { X } from 'lucide-react';
 import type { DashboardPanelDateFilters } from './types';
 
-type FilterPrefix = 'claims_status' | 'cpt' | 'modmed' | 'invoiced';
+type FilterPrefix = 'claims_status' | 'cpt' | 'modmed' | 'invoiced' | 'credit_status';
 
 interface SummaryDateFiltersProps {
     filters: DashboardPanelDateFilters;
     prefix: FilterPrefix;
     showServiceDate?: boolean;
+    invoiceDateLabel?: string;
+    invoiceDatePlaceholder?: string;
 }
 
 function currentDashboardParams(): Record<string, string> {
@@ -20,7 +22,13 @@ function currentDashboardParams(): Record<string, string> {
     return Object.fromEntries(new URLSearchParams(window.location.search).entries());
 }
 
-export function SummaryDateFilters({ filters, prefix, showServiceDate = true }: SummaryDateFiltersProps) {
+export function SummaryDateFilters({
+    filters,
+    prefix,
+    showServiceDate = true,
+    invoiceDateLabel = 'CF Invoice Date Range',
+    invoiceDatePlaceholder = 'Select CF invoice date range',
+}: SummaryDateFiltersProps) {
     const visitDashboard = (params: Record<string, string>) => {
         router.get('/dashboard', params, {
             preserveScroll: true,
@@ -69,9 +77,9 @@ export function SummaryDateFilters({ filters, prefix, showServiceDate = true }: 
             <DateRangeFilterField
                 className="w-full sm:w-72"
                 from={filters.invoiceStart ?? ''}
-                label="CF Invoice Date Range"
+                label={invoiceDateLabel}
                 onApply={({ from, to }) => updateRange('invoice', from, to)}
-                placeholder="Select CF invoice date range"
+                placeholder={invoiceDatePlaceholder}
                 to={filters.invoiceEnd ?? ''}
             />
             {showServiceDate && (
