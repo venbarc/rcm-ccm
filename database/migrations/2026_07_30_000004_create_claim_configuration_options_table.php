@@ -19,6 +19,7 @@ return new class extends Migration
             $table->unsignedInteger('sort_order')->default(0);
             $table->foreignId('added_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
+            $table->softDeletes();
 
             $table->unique(['account_type', 'option_type', 'value'], 'claim_config_account_type_value_unique');
             $table->index(['account_type', 'option_type', 'sort_order'], 'claim_config_account_type_sort_index');

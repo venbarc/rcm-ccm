@@ -423,7 +423,18 @@ class SystemConfigurationTest extends TestCase
             ->from('/system-configuration')
             ->delete("/system-configuration/{$workStatus->id}", ['confirmation' => 'confirm'])
             ->assertRedirect('/system-configuration')
-            ->assertSessionHasErrors('option');
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSoftDeleted('claim_configuration_options', ['id' => $workStatus->id]);
+        $claim->refresh();
+        $this->assertSame($workStatus->id, $claim->work_status_id);
+        $this->assertSame('Paid V2', $claim->workStatusOption?->label);
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/system-configuration')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('sections.0.options', fn ($options) => ! collect($options)->contains('id', $workStatus->id)));
     }
 
     public function test_admin_can_restore_system_work_status_defaults_without_changing_custom_options_or_claim_references(): void
@@ -459,9 +470,20 @@ class SystemConfigurationTest extends TestCase
         $paid->update(['value' => 'paid_v2_internal']);
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
+            ->delete("/system-configuration/{$paid->id}", ['confirmation' => 'confirm'])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
             ->delete("/system-configuration/{$rebilled->id}", ['confirmation' => 'confirm'])
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
+
+        $this->assertSoftDeleted('claim_configuration_options', ['id' => $paid->id]);
+        $this->assertSoftDeleted('claim_configuration_options', ['id' => $rebilled->id]);
+        $claim->refresh();
+        $this->assertSame($paid->id, $claim->work_status_id);
+        $this->assertSame('Paid V2', $claim->workStatusOption?->label);
 
         $custom = $this->createOption($admin, ClaimConfigurationService::WORK_STATUS, 'quality_review', 'Quality Review');
 
@@ -471,7 +493,8 @@ class SystemConfigurationTest extends TestCase
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
 
-        $paid->refresh();
+        $paid = ClaimConfigurationOption::query()->findOrFail($paid->id);
+        $rebilled = ClaimConfigurationOption::query()->findOrFail($rebilled->id);
         $claim->refresh();
         $custom->refresh();
         $this->assertSame(SystemClaimConfiguration::WorkPaid->value, $paid->system_key);
@@ -480,6 +503,8 @@ class SystemConfigurationTest extends TestCase
         $this->assertSame(SystemClaimConfiguration::WorkPaid->color(), $paid->color);
         $this->assertSame(SystemClaimConfiguration::WorkPaid->sortOrder(), $paid->sort_order);
         $this->assertNull($paid->added_by);
+        $this->assertNull($paid->deleted_at);
+        $this->assertNull($rebilled->deleted_at);
         $this->assertSame($paid->id, $claim->work_status_id);
         $this->assertSame('Quality Review', $custom->label);
         $this->assertSame('#FFEDD5', $custom->color);
@@ -600,6 +625,7 @@ class SystemConfigurationTest extends TestCase
                 'color' => $default->color,
                 'sort_order' => $default->sort_order,
                 'added_by' => null,
+                'deleted_at' => null,
             ]);
         }
 

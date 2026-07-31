@@ -86,6 +86,15 @@ class ClaimConfigurationService
             ->where('option_type', $type);
     }
 
+    /** @return Builder<ClaimConfigurationOption> */
+    public function queryIncludingDeleted(string $account, string $type): Builder
+    {
+        return ClaimConfigurationOption::query()
+            ->withTrashed()
+            ->where('account_type', $account)
+            ->where('option_type', $type);
+    }
+
     /** @return Collection<int, ClaimConfigurationOption> */
     public function options(string $account, string $type): Collection
     {
@@ -120,7 +129,7 @@ class ClaimConfigurationService
     /** @return array<string, string> */
     public function labelMap(string $account, string $type): array
     {
-        return $this->query($account, $type)
+        return $this->queryIncludingDeleted($account, $type)
             ->pluck('label', 'value')
             ->all();
     }
@@ -128,7 +137,7 @@ class ClaimConfigurationService
     /** @return array<string, string> */
     public function colorMap(string $account, string $type): array
     {
-        return $this->query($account, $type)
+        return $this->queryIncludingDeleted($account, $type)
             ->whereNotNull('color')
             ->pluck('color', 'value')
             ->all();
@@ -137,7 +146,7 @@ class ClaimConfigurationService
     /** @return array<int, string> */
     public function labelMapById(string $account, string $type): array
     {
-        return $this->query($account, $type)
+        return $this->queryIncludingDeleted($account, $type)
             ->pluck('label', 'id')
             ->all();
     }
@@ -145,7 +154,7 @@ class ClaimConfigurationService
     /** @return array<int, string> */
     public function colorMapById(string $account, string $type): array
     {
-        return $this->query($account, $type)
+        return $this->queryIncludingDeleted($account, $type)
             ->whereNotNull('color')
             ->pluck('color', 'id')
             ->all();
@@ -158,7 +167,7 @@ class ClaimConfigurationService
             return null;
         }
 
-        return $this->query($account, $type)
+        return $this->queryIncludingDeleted($account, $type)
             ->where(function (Builder $query) use ($value): void {
                 if (is_numeric($value)) {
                     $query->whereKey((int) $value)->orWhere('value', $value);
@@ -199,18 +208,18 @@ class ClaimConfigurationService
                 return 0;
             }
 
-            $existingDefaults = $this->query($account, $type)
+            $existingDefaults = $this->queryIncludingDeleted($account, $type)
                 ->whereNull('added_by')
                 ->whereIn('system_key', $defaults->pluck('system_key')->all())
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('system_key');
-            $valueConflict = $this->query($account, $type)
+            $valueConflict = $this->queryIncludingDeleted($account, $type)
                 ->whereIn('value', $defaults->pluck('value')->all())
                 ->whereNotIn('id', $existingDefaults->pluck('id')->all())
                 ->first();
             $defaultColors = $defaults->pluck('color')->filter()->all();
-            $colorConflict = $defaultColors === [] ? null : $this->query($account, $type)
+            $colorConflict = $defaultColors === [] ? null : $this->queryIncludingDeleted($account, $type)
                 ->whereIn('color', $defaultColors)
                 ->whereNotIn('id', $existingDefaults->pluck('id')->all())
                 ->first();
@@ -225,6 +234,7 @@ class ClaimConfigurationService
 
             if ($this->usesColor($type) && $existingDefaults->isNotEmpty()) {
                 ClaimConfigurationOption::query()
+                    ->withTrashed()
                     ->whereIn('id', $existingDefaults->pluck('id')->all())
                     ->update(['color' => null, 'updated_at' => now()]);
             }
@@ -243,6 +253,9 @@ class ClaimConfigurationService
                 if ($option) {
                     $option->refresh();
                     $option->update($attributes);
+                    if ($option->trashed()) {
+                        $option->restore();
+                    }
                 } else {
                     ClaimConfigurationOption::query()->create([
                         'account_type' => $account,
@@ -332,7 +345,7 @@ class ClaimConfigurationService
             return null;
         }
 
-        $existing = $this->query($account, self::DENIAL_REASON)
+        $existing = $this->queryIncludingDeleted($account, self::DENIAL_REASON)
             ->where(function (Builder $query) use ($reason): void {
                 $query->where('value', $reason)
                     ->orWhereRaw('LOWER(label) = ?', [mb_strtolower($reason)]);
@@ -375,7 +388,7 @@ class ClaimConfigurationService
             return $this->resolvedModMedStatuses[$cacheKey];
         }
 
-        $existing = $this->query($account, self::MODMED_CLAIM_STATUS)
+        $existing = $this->queryIncludingDeleted($account, self::MODMED_CLAIM_STATUS)
             ->where(function (Builder $query) use ($status): void {
                 $query->where('value', $status)
                     ->orWhereRaw('LOWER(label) = ?', [mb_strtolower($status)]);
@@ -413,8 +426,12 @@ class ClaimConfigurationService
 
     private function nextAutomaticColor(string $account, string $type, string $seed): string
     {
-        $usedColors = $this->colorMap($account, $type);
-        $usedColors = array_map('strtoupper', array_values($usedColors));
+        $usedColors = $this->queryIncludingDeleted($account, $type)
+            ->whereNotNull('color')
+            ->pluck('color')
+            ->map(fn (string $color): string => strtoupper($color))
+            ->values()
+            ->all();
 
         foreach (self::AUTOMATIC_COLORS as $color) {
             if (! in_array($color, $usedColors, true)) {

@@ -108,27 +108,27 @@ class Claim extends Model
 
     public function workStatusOption(): BelongsTo
     {
-        return $this->belongsTo(ClaimConfigurationOption::class, 'work_status_id');
+        return $this->belongsTo(ClaimConfigurationOption::class, 'work_status_id')->withTrashed();
     }
 
     public function modMedClaimStatusOption(): BelongsTo
     {
-        return $this->belongsTo(ClaimConfigurationOption::class, 'modmed_claim_status_id');
+        return $this->belongsTo(ClaimConfigurationOption::class, 'modmed_claim_status_id')->withTrashed();
     }
 
     public function creditStatusOption(): BelongsTo
     {
-        return $this->belongsTo(ClaimConfigurationOption::class, 'credit_status_id');
+        return $this->belongsTo(ClaimConfigurationOption::class, 'credit_status_id')->withTrashed();
     }
 
     public function creditReasonOption(): BelongsTo
     {
-        return $this->belongsTo(ClaimConfigurationOption::class, 'credit_reason_id');
+        return $this->belongsTo(ClaimConfigurationOption::class, 'credit_reason_id')->withTrashed();
     }
 
     public function denialReasonOption(): BelongsTo
     {
-        return $this->belongsTo(ClaimConfigurationOption::class, 'denial_reason_id');
+        return $this->belongsTo(ClaimConfigurationOption::class, 'denial_reason_id')->withTrashed();
     }
 
     private function syncConfigurationReferences(): void
@@ -229,6 +229,7 @@ class Claim extends Model
         }
 
         return ClaimConfigurationOption::query()
+            ->withTrashed()
             ->whereKey((int) $id)
             ->where('account_type', $this->account_type)
             ->where('option_type', $type)
@@ -238,6 +239,7 @@ class Claim extends Model
     private function configurationOptionByValue(string $value, string $type): ?ClaimConfigurationOption
     {
         return ClaimConfigurationOption::query()
+            ->withTrashed()
             ->where('account_type', $this->account_type)
             ->where('option_type', $type)
             ->where(function ($query) use ($value): void {

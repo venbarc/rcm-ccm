@@ -8,6 +8,7 @@ use App\Services\ClaimConfigurationService;
 use App\Support\CurrentAccount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -113,9 +114,29 @@ class SystemConfigurationController extends Controller
             'confirmation.in' => 'Type confirm exactly to delete this option.',
         ]);
         $typeLabel = $this->configurations->typeLabels()[$configurationOption->option_type];
-        $configurationOption->delete();
+        $isRecoverable = DB::transaction(function () use ($configurationOption): bool {
+            $lockedOption = ClaimConfigurationOption::query()
+                ->whereKey($configurationOption->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $referenceColumn = $this->configurations->claimReferenceColumn($lockedOption->option_type);
+            $isReferenced = $referenceColumn !== null
+                && Claim::query()->where($referenceColumn, $lockedOption->id)->exists();
+            $isRecoverable = $this->configurations->isSystemOption($lockedOption) || $isReferenced;
 
-        return back()->with('success', "{$typeLabel} deleted.");
+            $isRecoverable
+                ? $lockedOption->delete()
+                : $lockedOption->forceDelete();
+
+            return $isRecoverable;
+        });
+
+        return back()->with(
+            'success',
+            $isRecoverable
+                ? "{$typeLabel} removed from active options. Historical claim references were retained."
+                : "{$typeLabel} permanently deleted.",
+        );
     }
 
     public function restoreDefaults(Request $request, string $type): RedirectResponse
@@ -133,7 +154,7 @@ class SystemConfigurationController extends Controller
 
     private function ensureUniqueLabel(string $account, string $type, string $label, ?int $ignoreId = null): void
     {
-        $exists = $this->configurations->query($account, $type)
+        $exists = $this->configurations->queryIncludingDeleted($account, $type)
             ->when($ignoreId, fn ($query) => $query->where('id', '!=', $ignoreId))
             ->whereRaw('LOWER(label) = ?', [mb_strtolower($label)])
             ->exists();
@@ -184,12 +205,6 @@ class SystemConfigurationController extends Controller
             ]);
         }
 
-        $referenceColumn = $this->configurations->claimReferenceColumn($option->option_type);
-        if ($referenceColumn !== null && Claim::query()->where($referenceColumn, $option->id)->exists()) {
-            throw ValidationException::withMessages([
-                'option' => 'This option is assigned to one or more claim lines. Reassign those claim lines before deleting it.',
-            ]);
-        }
     }
 
     /** @return array<int, mixed> */
@@ -254,7 +269,7 @@ class SystemConfigurationController extends Controller
         $value = $usesReservedSystemValue ? "{$base}_2" : $base;
         $suffix = $usesReservedSystemValue ? 3 : 2;
 
-        while ($this->configurations->query($account, $type)->where('value', $value)->exists()) {
+        while ($this->configurations->queryIncludingDeleted($account, $type)->where('value', $value)->exists()) {
             $value = "{$base}_{$suffix}";
             $suffix++;
         }
