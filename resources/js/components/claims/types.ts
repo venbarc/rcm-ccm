@@ -7,6 +7,7 @@ export interface UserOption {
 }
 
 export interface StatusOption {
+    id?: number;
     value: string;
     label: string;
     color?: string | null;
@@ -24,20 +25,25 @@ export interface ClaimLine {
     primary_provider: string | null;
     payer_name: string | null;
     patient_id: string | null;
+    modmed_claim_status_id: number | null;
     modmed_claim_status: string | null;
     modmed_claim_status_label: string | null;
     modmed_claim_status_color: string | null;
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
+    credit_status_id: number | null;
     credit_status: boolean | null;
     credit_status_label: string;
     credit_status_date: string | null;
+    credit_reason_id: number | null;
     credit_reason: string | null;
     credit_reason_label: string | null;
+    work_status_id: number | null;
     work_status: string;
     work_status_label: string;
     work_status_color: string | null;
+    denial_reason_id: number | null;
     denial_reason: string | null;
     denial_reason_label: string | null;
     notes: string | null;
@@ -69,20 +75,25 @@ export interface ClaimGroup {
     payments: number | string | null;
     true_charge: number | string | null;
     true_balance: number | string | null;
+    modmed_claim_status_id: number | null;
     modmed_claim_status: string | null;
     modmed_claim_status_label: string | null;
     modmed_claim_status_color: string | null;
     cf_invoice_date: string | null;
     invoiced_status: string | null;
     invoiced_status_date: string | null;
+    credit_status_id: number | null;
     credit_status: boolean | null;
     credit_status_label: string;
     credit_status_date: string | null;
+    credit_reason_id: number | null;
     credit_reason: string | null;
     credit_reason_label: string | null;
+    work_status_id: number | null;
     work_status: string;
     work_status_label: string;
     work_status_color: string | null;
+    denial_reason_id: number | null;
     denial_reason: string | null;
     denial_reason_label: string | null;
     notes: string | null;

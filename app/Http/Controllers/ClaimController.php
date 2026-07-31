@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Claim;
 use App\Models\ClaimActivity;
+use App\Models\ClaimConfigurationOption;
 use App\Models\ClaimImport;
 use App\Models\User;
 use App\Services\ClaimActivityService;
@@ -25,6 +26,14 @@ use Inertia\Response;
 
 class ClaimController extends Controller
 {
+    private const CONFIGURATION_RELATIONS = [
+        'workStatusOption:id,account_type,option_type,value,label,color',
+        'modMedClaimStatusOption:id,account_type,option_type,value,label,color',
+        'creditStatusOption:id,account_type,option_type,value,label,color',
+        'creditReasonOption:id,account_type,option_type,value,label,color',
+        'denialReasonOption:id,account_type,option_type,value,label,color',
+    ];
+
     private const FILTERABLE_OPTION_COLUMNS = [
         'modmed_claim_status',
         'payer_name',
@@ -86,14 +95,15 @@ class ClaimController extends Controller
             ->selectRaw('SUM(COALESCE(true_balance, 0)) as true_balance')
             ->selectRaw('MAX(updated_at) as updated_at')
             ->selectRaw('COUNT(*) as line_count')
-            ->selectRaw('MAX(CASE WHEN work_status IS NULL OR work_status = \'\' THEN \'draft\' ELSE work_status END) as work_status')
-            ->selectRaw('MAX(NULLIF(modmed_claim_status, \'\')) as modmed_claim_status')
+            ->selectRaw('MAX(work_status_id) as work_status_id')
+            ->selectRaw('MAX(modmed_claim_status_id) as modmed_claim_status_id')
             ->selectRaw('MAX(NULLIF(invoiced_status, \'\')) as invoiced_status')
             ->selectRaw('MAX(invoiced_status_date) as invoiced_status_date')
             ->selectRaw('MAX(credit_status) as credit_status')
+            ->selectRaw('MAX(credit_status_id) as credit_status_id')
             ->selectRaw('MAX(credit_status_date) as credit_status_date')
-            ->selectRaw('MAX(NULLIF(credit_reason, \'\')) as credit_reason')
-            ->selectRaw('MAX(NULLIF(denial_reason, \'\')) as denial_reason')
+            ->selectRaw('MAX(credit_reason_id) as credit_reason_id')
+            ->selectRaw('MAX(denial_reason_id) as denial_reason_id')
             ->selectRaw('MAX(NULLIF(notes, \'\')) as notes')
             ->selectRaw('MAX(NULLIF(activity_type, \'\')) as activity_type')
             ->selectRaw('MAX(NULLIF(batch_name, \'\')) as batch_name')
@@ -101,7 +111,7 @@ class ClaimController extends Controller
             ->selectRaw('MAX(NULLIF(primary_provider, \'\')) as primary_provider')
             ->selectRaw('MAX(NULLIF(payer_name, \'\')) as payer_name')
             ->selectRaw('MAX(NULLIF(place_of_service_code, \'\')) as place_of_service_code')
-            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR modmed_claim_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR (denial_reason IS NOT NULL AND TRIM(denial_reason) != \'\') OR credit_status IS NOT NULL OR (credit_reason IS NOT NULL AND TRIM(credit_reason) != \'\') THEN 1 ELSE 0 END) as is_modified')
+            ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR modmed_claim_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR denial_reason_id IS NOT NULL OR credit_status_id IS NOT NULL OR credit_reason_id IS NOT NULL THEN 1 ELSE 0 END) as is_modified')
             ->groupBy('bill_id')
             ->orderBy($sortBy, $sortDirection)
             ->orderBy('bill_id')
@@ -109,7 +119,7 @@ class ClaimController extends Controller
             ->withQueryString();
 
         $claimLines = Claim::query()
-            ->with('assignee:id,name,email')
+            ->with(['assignee:id,name,email', ...self::CONFIGURATION_RELATIONS])
             ->where('account_type', $accountValue)
             ->whereIn('bill_id', $claimGroups->getCollection()->pluck('bill_id')->all())
             ->orderBy('service_date_start')
@@ -155,6 +165,15 @@ class ClaimController extends Controller
                 ->filter()
                 ->sortByDesc('id')
                 ->first();
+            /** @var Claim|null $creditedLine */
+            $creditedLine = $lines->first(fn (Claim $line): bool => $line->credit_status === true);
+            /** @var Claim|null $reviewedCreditLine */
+            $reviewedCreditLine = $creditedLine ?? $lines->first(fn (Claim $line): bool => $line->credit_status === false);
+
+            $workStatus = $this->configurationValue($representative?->workStatusOption, $representative?->work_status, 'draft');
+            $modMedStatus = $this->configurationValue($representative?->modMedClaimStatusOption, $representative?->modmed_claim_status);
+            $creditReason = $this->configurationValue($creditedLine?->creditReasonOption, $creditedLine?->credit_reason);
+            $denialReason = $this->configurationValue($representative?->denialReasonOption, $representative?->denial_reason);
 
             return [
                 'id' => (int) ($lines->min('id') ?? 0),
@@ -173,30 +192,30 @@ class ClaimController extends Controller
                 'payments' => (float) ($group->payments ?? 0),
                 'true_charge' => (float) ($group->true_charge ?? 0),
                 'true_balance' => (float) ($group->true_balance ?? 0),
-                'modmed_claim_status' => $representative?->modmed_claim_status ?: $group->modmed_claim_status,
-                'modmed_claim_status_label' => $modMedStatusLabels[$representative?->modmed_claim_status ?: $group->modmed_claim_status]
-                    ?? ($representative?->modmed_claim_status ?: $group->modmed_claim_status),
-                'modmed_claim_status_color' => $modMedStatusColors[$representative?->modmed_claim_status ?: $group->modmed_claim_status] ?? null,
+                'modmed_claim_status_id' => $representative?->modmed_claim_status_id,
+                'modmed_claim_status' => $modMedStatus,
+                'modmed_claim_status_label' => $this->configurationLabel($representative?->modMedClaimStatusOption, $modMedStatus, $modMedStatusLabels),
+                'modmed_claim_status_color' => $this->configurationColor($representative?->modMedClaimStatusOption, $modMedStatus, $modMedStatusColors),
                 'cf_invoice_date' => $representative?->cf_invoice_date?->toDateString()
                     ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
                 'invoiced_status' => 'invoiced',
                 'invoiced_status_date' => $representative?->cf_invoice_date?->toDateString()
                     ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
-                'credit_status' => $group->credit_status === null ? null : (bool) $group->credit_status,
-                'credit_status_label' => $this->creditStatusLabel(
-                    $creditStatusLabels,
-                    $group->credit_status === null ? null : (bool) $group->credit_status,
-                ),
-                'credit_status_date' => $group->credit_status_date ? Carbon::parse($group->credit_status_date)->toDateString() : null,
-                'credit_reason' => $representative?->credit_reason ?: $group->credit_reason,
-                'credit_reason_label' => $creditReasonLabels[$representative?->credit_reason ?: $group->credit_reason] ?? ($representative?->credit_reason ?: $group->credit_reason),
-                'work_status' => $representative?->work_status ?: ($group->work_status ?: 'draft'),
-                'work_status_label' => $workStatusLabels[$representative?->work_status ?: ($group->work_status ?: 'draft')]
-                    ?? str($representative?->work_status ?: ($group->work_status ?: 'draft'))->replace('_', ' ')->title()->toString(),
-                'work_status_color' => $workStatusColors[$representative?->work_status ?: ($group->work_status ?: 'draft')] ?? null,
-                'denial_reason' => $representative?->denial_reason ?: $group->denial_reason,
-                'denial_reason_label' => $denialReasonLabels[$representative?->denial_reason ?: $group->denial_reason]
-                    ?? ($representative?->denial_reason ?: $group->denial_reason),
+                'credit_status_id' => $reviewedCreditLine?->credit_status_id,
+                'credit_status' => $reviewedCreditLine?->credit_status,
+                'credit_status_label' => $reviewedCreditLine?->creditStatusOption?->label
+                    ?? $this->creditStatusLabel($creditStatusLabels, $reviewedCreditLine?->credit_status),
+                'credit_status_date' => $creditedLine?->credit_status_date?->toDateString(),
+                'credit_reason_id' => $creditedLine?->credit_reason_id,
+                'credit_reason' => $creditReason,
+                'credit_reason_label' => $this->configurationLabel($creditedLine?->creditReasonOption, $creditReason, $creditReasonLabels),
+                'work_status_id' => $representative?->work_status_id,
+                'work_status' => $workStatus,
+                'work_status_label' => $this->configurationLabel($representative?->workStatusOption, $workStatus, $workStatusLabels, true),
+                'work_status_color' => $this->configurationColor($representative?->workStatusOption, $workStatus, $workStatusColors),
+                'denial_reason_id' => $representative?->denial_reason_id,
+                'denial_reason' => $denialReason,
+                'denial_reason_label' => $this->configurationLabel($representative?->denialReasonOption, $denialReason, $denialReasonLabels),
                 'notes' => $representative?->notes ?: $group->notes,
                 'activity_type' => $representative?->activity_type ?: $group->activity_type,
                 'batch_name' => $representative?->batch_name ?: $group->batch_name,
@@ -220,23 +239,27 @@ class ClaimController extends Controller
                     'primary_provider' => $claim->primary_provider ?: $claim->provider,
                     'payer_name' => $claim->payer_name ?: $claim->payer,
                     'patient_id' => $claim->patient_id,
-                    'modmed_claim_status' => $claim->modmed_claim_status,
-                    'modmed_claim_status_label' => $modMedStatusLabels[$claim->modmed_claim_status] ?? $claim->modmed_claim_status,
-                    'modmed_claim_status_color' => $modMedStatusColors[$claim->modmed_claim_status] ?? null,
+                    'modmed_claim_status_id' => $claim->modmed_claim_status_id,
+                    'modmed_claim_status' => $this->configurationValue($claim->modMedClaimStatusOption, $claim->modmed_claim_status),
+                    'modmed_claim_status_label' => $this->configurationLabel($claim->modMedClaimStatusOption, $claim->modmed_claim_status, $modMedStatusLabels),
+                    'modmed_claim_status_color' => $this->configurationColor($claim->modMedClaimStatusOption, $claim->modmed_claim_status, $modMedStatusColors),
                     'cf_invoice_date' => $claim->cf_invoice_date?->toDateString(),
                     'invoiced_status' => 'invoiced',
                     'invoiced_status_date' => $claim->cf_invoice_date?->toDateString(),
+                    'credit_status_id' => $claim->credit_status_id,
                     'credit_status' => $claim->credit_status,
-                    'credit_status_label' => $this->creditStatusLabel($creditStatusLabels, $claim->credit_status),
+                    'credit_status_label' => $claim->creditStatusOption?->label ?? $this->creditStatusLabel($creditStatusLabels, $claim->credit_status),
                     'credit_status_date' => $claim->credit_status_date?->toDateString(),
-                    'credit_reason' => $claim->credit_reason,
-                    'credit_reason_label' => $creditReasonLabels[$claim->credit_reason] ?? $claim->credit_reason,
-                    'work_status' => $claim->work_status ?: 'draft',
-                    'work_status_label' => $workStatusLabels[$claim->work_status ?: 'draft']
-                        ?? str($claim->work_status ?: 'draft')->replace('_', ' ')->title()->toString(),
-                    'work_status_color' => $workStatusColors[$claim->work_status ?: 'draft'] ?? null,
-                    'denial_reason' => $claim->denial_reason,
-                    'denial_reason_label' => $denialReasonLabels[$claim->denial_reason] ?? $claim->denial_reason,
+                    'credit_reason_id' => $claim->credit_reason_id,
+                    'credit_reason' => $this->configurationValue($claim->creditReasonOption, $claim->credit_reason),
+                    'credit_reason_label' => $this->configurationLabel($claim->creditReasonOption, $claim->credit_reason, $creditReasonLabels),
+                    'work_status_id' => $claim->work_status_id,
+                    'work_status' => $this->configurationValue($claim->workStatusOption, $claim->work_status, 'draft'),
+                    'work_status_label' => $this->configurationLabel($claim->workStatusOption, $claim->work_status ?: 'draft', $workStatusLabels, true),
+                    'work_status_color' => $this->configurationColor($claim->workStatusOption, $claim->work_status ?: 'draft', $workStatusColors),
+                    'denial_reason_id' => $claim->denial_reason_id,
+                    'denial_reason' => $this->configurationValue($claim->denialReasonOption, $claim->denial_reason),
+                    'denial_reason_label' => $this->configurationLabel($claim->denialReasonOption, $claim->denial_reason, $denialReasonLabels),
                     'notes' => $claim->notes,
                     'source_notes' => $claim->source_notes,
                     'activity_type' => $claim->activity_type,
@@ -248,9 +271,9 @@ class ClaimController extends Controller
                     'is_modified' => (bool) ($claim->work_status_manually_set
                         || $claim->modmed_claim_status_manually_set
                         || filled($claim->notes)
-                        || filled($claim->denial_reason)
-                        || $claim->credit_status !== null
-                        || filled($claim->credit_reason)),
+                        || $claim->denial_reason_id !== null
+                        || $claim->credit_status_id !== null
+                        || $claim->credit_reason_id !== null),
                     'updated_at' => $claim->updated_at->toIso8601String(),
                 ])->all(),
             ];
@@ -420,7 +443,7 @@ class ClaimController extends Controller
         $denialReasonLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::DENIAL_REASON);
 
         $lines = Claim::query()
-            ->with('assignee:id,name,email')
+            ->with(['assignee:id,name,email', ...self::CONFIGURATION_RELATIONS])
             ->where('account_type', $account->value)
             ->where('bill_id', $claim->bill_id)
             ->orderBy('service_date_start')
@@ -471,25 +494,29 @@ class ClaimController extends Controller
                     'units' => $line->units !== null ? (float) $line->units : null,
                     'true_charge' => (float) ($line->true_charge ?? $line->billed_amount ?? 0),
                     'true_balance' => (float) ($line->true_balance ?? $line->balance ?? 0),
-                    'work_status' => $line->work_status ?: 'draft',
-                    'work_status_label' => $workStatusLabels[$line->work_status ?: 'draft']
-                        ?? str($line->work_status ?: 'draft')->replace('_', ' ')->title()->toString(),
-                    'work_status_color' => $workStatusColors[$line->work_status ?: 'draft'] ?? null,
-                    'denial_reason' => $line->denial_reason,
-                    'denial_reason_label' => $denialReasonLabels[$line->denial_reason] ?? $line->denial_reason,
+                    'work_status_id' => $line->work_status_id,
+                    'work_status' => $this->configurationValue($line->workStatusOption, $line->work_status, 'draft'),
+                    'work_status_label' => $this->configurationLabel($line->workStatusOption, $line->work_status ?: 'draft', $workStatusLabels, true),
+                    'work_status_color' => $this->configurationColor($line->workStatusOption, $line->work_status ?: 'draft', $workStatusColors),
+                    'denial_reason_id' => $line->denial_reason_id,
+                    'denial_reason' => $this->configurationValue($line->denialReasonOption, $line->denial_reason),
+                    'denial_reason_label' => $this->configurationLabel($line->denialReasonOption, $line->denial_reason, $denialReasonLabels),
                     'payer_name' => $line->payer_name ?: $line->payer,
                     'primary_provider' => $line->primary_provider ?: $line->provider,
-                    'modmed_claim_status' => $line->modmed_claim_status,
-                    'modmed_claim_status_label' => $modMedStatusLabels[$line->modmed_claim_status] ?? $line->modmed_claim_status,
-                    'modmed_claim_status_color' => $modMedStatusColors[$line->modmed_claim_status] ?? null,
+                    'modmed_claim_status_id' => $line->modmed_claim_status_id,
+                    'modmed_claim_status' => $this->configurationValue($line->modMedClaimStatusOption, $line->modmed_claim_status),
+                    'modmed_claim_status_label' => $this->configurationLabel($line->modMedClaimStatusOption, $line->modmed_claim_status, $modMedStatusLabels),
+                    'modmed_claim_status_color' => $this->configurationColor($line->modMedClaimStatusOption, $line->modmed_claim_status, $modMedStatusColors),
                     'cf_invoice_date' => $line->cf_invoice_date?->toDateString(),
                     'invoiced_status' => 'invoiced',
                     'invoiced_status_date' => $line->cf_invoice_date?->toDateString(),
+                    'credit_status_id' => $line->credit_status_id,
                     'credit_status' => $line->credit_status,
-                    'credit_status_label' => $this->creditStatusLabel($creditStatusLabels, $line->credit_status),
+                    'credit_status_label' => $line->creditStatusOption?->label ?? $this->creditStatusLabel($creditStatusLabels, $line->credit_status),
                     'credit_status_date' => $line->credit_status_date?->toDateString(),
-                    'credit_reason' => $line->credit_reason,
-                    'credit_reason_label' => $creditReasonLabels[$line->credit_reason] ?? $line->credit_reason,
+                    'credit_reason_id' => $line->credit_reason_id,
+                    'credit_reason' => $this->configurationValue($line->creditReasonOption, $line->credit_reason),
+                    'credit_reason_label' => $this->configurationLabel($line->creditReasonOption, $line->credit_reason, $creditReasonLabels),
                     'patient_id' => $line->patient_id,
                     'notes' => $line->notes,
                     'assigned_to' => $line->assignee?->only(['id', 'name', 'email']),
@@ -577,14 +604,36 @@ class ClaimController extends Controller
             }
         }
 
+        foreach ([
+            'work_status' => [ClaimConfigurationService::WORK_STATUS, 'work_status_id'],
+            'modmed_claim_status' => [ClaimConfigurationService::MODMED_CLAIM_STATUS, 'modmed_claim_status_id'],
+            'denial_reason' => [ClaimConfigurationService::DENIAL_REASON, 'denial_reason_id'],
+            'credit_reason' => [ClaimConfigurationService::CREDIT_REASON, 'credit_reason_id'],
+        ] as $field => [$type, $idField]) {
+            if (! array_key_exists($field, $validated)) {
+                continue;
+            }
+
+            $option = $this->configurations->optionForValue($account->value, $type, $validated[$field]);
+            $validated[$idField] = $option?->id;
+            $validated[$field] = $option?->value;
+        }
+
         if (array_key_exists('credit_status', $validated)) {
             $validated['credit_status'] = $validated['credit_status'] === null
                 ? null
                 : (bool) $validated['credit_status'];
+            $creditStatusOption = $this->configurations->optionForValue(
+                $account->value,
+                ClaimConfigurationService::CREDIT_STATUS,
+                $validated['credit_status'] === null ? null : ($validated['credit_status'] ? 'yes' : 'no'),
+            );
+            $validated['credit_status_id'] = $creditStatusOption?->id;
 
             if ($validated['credit_status'] !== true) {
                 $validated['credit_status_date'] = null;
                 $validated['credit_reason'] = null;
+                $validated['credit_reason_id'] = null;
             }
         }
 
@@ -601,9 +650,13 @@ class ClaimController extends Controller
         }
 
         DB::transaction(function () use ($claim, $validated, $account, $request): void {
-            $before = $claim->only(array_keys($validated));
+            $activityFields = array_values(array_filter(
+                array_keys($validated),
+                fn (string $field): bool => ! str_ends_with($field, '_id') || $field === 'assigned_to',
+            ));
+            $before = $claim->only($activityFields);
             $claim->update($validated);
-            $after = $claim->only(array_keys($validated));
+            $after = $claim->only($activityFields);
             if ($before !== $after) {
                 $this->activities->record(
                     $account->value,
@@ -649,9 +702,16 @@ class ClaimController extends Controller
         $assigneeNames = User::query()
             ->whereIn('id', $assigneeIds)
             ->pluck('name', 'id');
+        $configurationLabels = [
+            'work_status' => $this->configurations->labelMap($account, ClaimConfigurationService::WORK_STATUS),
+            'modmed_claim_status' => $this->configurations->labelMap($account, ClaimConfigurationService::MODMED_CLAIM_STATUS),
+            'credit_status' => $this->configurations->labelMap($account, ClaimConfigurationService::CREDIT_STATUS),
+            'credit_reason' => $this->configurations->labelMap($account, ClaimConfigurationService::CREDIT_REASON),
+            'denial_reason' => $this->configurations->labelMap($account, ClaimConfigurationService::DENIAL_REASON),
+        ];
 
         return [
-            'data' => $activities->getCollection()->map(function (ClaimActivity $activity) use ($assigneeNames, $linesById): array {
+            'data' => $activities->getCollection()->map(function (ClaimActivity $activity) use ($assigneeNames, $configurationLabels, $linesById): array {
                 $line = $linesById->get($activity->claim_id);
 
                 return [
@@ -660,8 +720,8 @@ class ClaimController extends Controller
                     'cpt_code' => $line?->procedure_code ?: $line?->cpt_code,
                     'action' => $activity->action,
                     'description' => $activity->description,
-                    'before' => $this->activityChangesWithAssigneeNames($activity->before, $assigneeNames),
-                    'after' => $this->activityChangesWithAssigneeNames($activity->after, $assigneeNames),
+                    'before' => $this->activityChangesForDisplay($activity->before, $assigneeNames, $configurationLabels),
+                    'after' => $this->activityChangesForDisplay($activity->after, $assigneeNames, $configurationLabels),
                     'created_at' => $activity->created_at?->toIso8601String(),
                     'user' => $activity->user?->only(['id', 'name', 'email']),
                 ];
@@ -671,18 +731,35 @@ class ClaimController extends Controller
         ];
     }
 
-    private function activityChangesWithAssigneeNames(?array $changes, \Illuminate\Support\Collection $assigneeNames): ?array
-    {
-        if ($changes === null || ! array_key_exists('assigned_to', $changes)) {
+    /** @param array<string, array<string, string>> $configurationLabels */
+    private function activityChangesForDisplay(
+        ?array $changes,
+        \Illuminate\Support\Collection $assigneeNames,
+        array $configurationLabels,
+    ): ?array {
+        if ($changes === null) {
             return $changes;
         }
 
-        $assigneeId = $changes['assigned_to'];
-        $changes['assigned_to'] = match (true) {
-            is_numeric($assigneeId) => $assigneeNames->get((int) $assigneeId) ?? 'Unknown user',
-            $assigneeId === null || $assigneeId === '' => 'Unassigned',
-            default => (string) $assigneeId,
-        };
+        if (array_key_exists('assigned_to', $changes)) {
+            $assigneeId = $changes['assigned_to'];
+            $changes['assigned_to'] = match (true) {
+                is_numeric($assigneeId) => $assigneeNames->get((int) $assigneeId) ?? 'Unknown user',
+                $assigneeId === null || $assigneeId === '' => 'Unassigned',
+                default => (string) $assigneeId,
+            };
+        }
+
+        foreach ($configurationLabels as $field => $labels) {
+            if (! array_key_exists($field, $changes) || $changes[$field] === null || $changes[$field] === '') {
+                continue;
+            }
+
+            $value = $field === 'credit_status'
+                ? ((bool) $changes[$field] ? 'yes' : 'no')
+                : (string) $changes[$field];
+            $changes[$field] = $labels[$value] ?? $changes[$field];
+        }
 
         return $changes;
     }
@@ -731,6 +808,44 @@ class ClaimController extends Controller
             || $user->groupMembershipsAsMember()
                 ->where('account_type', $account)
                 ->exists();
+    }
+
+    private function configurationValue(
+        ?ClaimConfigurationOption $option,
+        ?string $legacyValue,
+        ?string $default = null,
+    ): ?string {
+        return $option?->value ?? (filled($legacyValue) ? $legacyValue : $default);
+    }
+
+    /** @param array<string, string> $legacyLabels */
+    private function configurationLabel(
+        ?ClaimConfigurationOption $option,
+        ?string $legacyValue,
+        array $legacyLabels,
+        bool $titleFallback = false,
+    ): ?string {
+        if ($option) {
+            return $option->label;
+        }
+
+        if (! filled($legacyValue)) {
+            return null;
+        }
+
+        return $legacyLabels[$legacyValue]
+            ?? ($titleFallback
+                ? str($legacyValue)->replace('_', ' ')->title()->toString()
+                : $legacyValue);
+    }
+
+    /** @param array<string, string> $legacyColors */
+    private function configurationColor(
+        ?ClaimConfigurationOption $option,
+        ?string $legacyValue,
+        array $legacyColors,
+    ): ?string {
+        return $option?->color ?? ($legacyValue === null ? null : ($legacyColors[$legacyValue] ?? null));
     }
 
     /** @param array<string, string> $labels */

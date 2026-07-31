@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\ActivityLogController::__invoke
- * @see app/Http/Controllers/ActivityLogController.php:28
+ * @see app/Http/Controllers/ActivityLogController.php:26
  * @route '/activity-logs'
  */
 const ActivityLogController = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ ActivityLogController.definition = {
 
 /**
 * @see \App\Http\Controllers\ActivityLogController::__invoke
- * @see app/Http/Controllers/ActivityLogController.php:28
+ * @see app/Http/Controllers/ActivityLogController.php:26
  * @route '/activity-logs'
  */
 ActivityLogController.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ ActivityLogController.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ActivityLogController::__invoke
- * @see app/Http/Controllers/ActivityLogController.php:28
+ * @see app/Http/Controllers/ActivityLogController.php:26
  * @route '/activity-logs'
  */
 ActivityLogController.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ ActivityLogController.get = (options?: RouteQueryOptions): RouteDefinition<'get'
 })
 /**
 * @see \App\Http\Controllers\ActivityLogController::__invoke
- * @see app/Http/Controllers/ActivityLogController.php:28
+ * @see app/Http/Controllers/ActivityLogController.php:26
  * @route '/activity-logs'
  */
 ActivityLogController.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ ActivityLogController.head = (options?: RouteQueryOptions): RouteDefinition<'hea
 
     /**
 * @see \App\Http\Controllers\ActivityLogController::__invoke
- * @see app/Http/Controllers/ActivityLogController.php:28
+ * @see app/Http/Controllers/ActivityLogController.php:26
  * @route '/activity-logs'
  */
     const ActivityLogControllerForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ ActivityLogController.head = (options?: RouteQueryOptions): RouteDefinition<'hea
 
             /**
 * @see \App\Http\Controllers\ActivityLogController::__invoke
- * @see app/Http/Controllers/ActivityLogController.php:28
+ * @see app/Http/Controllers/ActivityLogController.php:26
  * @route '/activity-logs'
  */
         ActivityLogControllerForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ ActivityLogController.head = (options?: RouteQueryOptions): RouteDefinition<'hea
         })
             /**
 * @see \App\Http\Controllers\ActivityLogController::__invoke
- * @see app/Http/Controllers/ActivityLogController.php:28
+ * @see app/Http/Controllers/ActivityLogController.php:26
  * @route '/activity-logs'
  */
         ActivityLogControllerForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ ActivityLogController.head = (options?: RouteQueryOptions): RouteDefinition<'hea
     ActivityLogController.form = ActivityLogControllerForm
 /**
 * @see \App\Http\Controllers\ActivityLogController::exportMethod
- * @see app/Http/Controllers/ActivityLogController.php:105
+ * @see app/Http/Controllers/ActivityLogController.php:102
  * @route '/activity-logs/export'
  */
 export const exportMethod = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ exportMethod.definition = {
 
 /**
 * @see \App\Http\Controllers\ActivityLogController::exportMethod
- * @see app/Http/Controllers/ActivityLogController.php:105
+ * @see app/Http/Controllers/ActivityLogController.php:102
  * @route '/activity-logs/export'
  */
 exportMethod.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ exportMethod.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ActivityLogController::exportMethod
- * @see app/Http/Controllers/ActivityLogController.php:105
+ * @see app/Http/Controllers/ActivityLogController.php:102
  * @route '/activity-logs/export'
  */
 exportMethod.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -112,7 +112,7 @@ exportMethod.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\ActivityLogController::exportMethod
- * @see app/Http/Controllers/ActivityLogController.php:105
+ * @see app/Http/Controllers/ActivityLogController.php:102
  * @route '/activity-logs/export'
  */
 exportMethod.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -122,7 +122,7 @@ exportMethod.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\ActivityLogController::exportMethod
- * @see app/Http/Controllers/ActivityLogController.php:105
+ * @see app/Http/Controllers/ActivityLogController.php:102
  * @route '/activity-logs/export'
  */
     const exportMethodForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -132,7 +132,7 @@ exportMethod.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\ActivityLogController::exportMethod
- * @see app/Http/Controllers/ActivityLogController.php:105
+ * @see app/Http/Controllers/ActivityLogController.php:102
  * @route '/activity-logs/export'
  */
         exportMethodForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -141,7 +141,7 @@ exportMethod.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\ActivityLogController::exportMethod
- * @see app/Http/Controllers/ActivityLogController.php:105
+ * @see app/Http/Controllers/ActivityLogController.php:102
  * @route '/activity-logs/export'
  */
         exportMethodForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -235,7 +235,7 @@ statusDetails.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => (
     statusDetails.form = statusDetailsForm
 /**
 * @see \App\Http\Controllers\ActivityLogController::workedClaimLines
- * @see app/Http/Controllers/ActivityLogController.php:151
+ * @see app/Http/Controllers/ActivityLogController.php:150
  * @route '/activity-logs/users/{user}/worked-claim-lines'
  */
 export const workedClaimLines = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -250,7 +250,7 @@ workedClaimLines.definition = {
 
 /**
 * @see \App\Http\Controllers\ActivityLogController::workedClaimLines
- * @see app/Http/Controllers/ActivityLogController.php:151
+ * @see app/Http/Controllers/ActivityLogController.php:150
  * @route '/activity-logs/users/{user}/worked-claim-lines'
  */
 workedClaimLines.url = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -283,7 +283,7 @@ workedClaimLines.url = (args: { user: number | { id: number } } | [user: number 
 
 /**
 * @see \App\Http\Controllers\ActivityLogController::workedClaimLines
- * @see app/Http/Controllers/ActivityLogController.php:151
+ * @see app/Http/Controllers/ActivityLogController.php:150
  * @route '/activity-logs/users/{user}/worked-claim-lines'
  */
 workedClaimLines.get = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -292,7 +292,7 @@ workedClaimLines.get = (args: { user: number | { id: number } } | [user: number 
 })
 /**
 * @see \App\Http\Controllers\ActivityLogController::workedClaimLines
- * @see app/Http/Controllers/ActivityLogController.php:151
+ * @see app/Http/Controllers/ActivityLogController.php:150
  * @route '/activity-logs/users/{user}/worked-claim-lines'
  */
 workedClaimLines.head = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -302,7 +302,7 @@ workedClaimLines.head = (args: { user: number | { id: number } } | [user: number
 
     /**
 * @see \App\Http\Controllers\ActivityLogController::workedClaimLines
- * @see app/Http/Controllers/ActivityLogController.php:151
+ * @see app/Http/Controllers/ActivityLogController.php:150
  * @route '/activity-logs/users/{user}/worked-claim-lines'
  */
     const workedClaimLinesForm = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -312,7 +312,7 @@ workedClaimLines.head = (args: { user: number | { id: number } } | [user: number
 
             /**
 * @see \App\Http\Controllers\ActivityLogController::workedClaimLines
- * @see app/Http/Controllers/ActivityLogController.php:151
+ * @see app/Http/Controllers/ActivityLogController.php:150
  * @route '/activity-logs/users/{user}/worked-claim-lines'
  */
         workedClaimLinesForm.get = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -321,7 +321,7 @@ workedClaimLines.head = (args: { user: number | { id: number } } | [user: number
         })
             /**
 * @see \App\Http\Controllers\ActivityLogController::workedClaimLines
- * @see app/Http/Controllers/ActivityLogController.php:151
+ * @see app/Http/Controllers/ActivityLogController.php:150
  * @route '/activity-logs/users/{user}/worked-claim-lines'
  */
         workedClaimLinesForm.head = (args: { user: number | { id: number } } | [user: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({

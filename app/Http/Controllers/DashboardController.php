@@ -28,10 +28,6 @@ class DashboardController extends Controller
 
     private const CPT_EXPRESSION = "COALESCE(NULLIF(TRIM(procedure_code), ''), NULLIF(TRIM(cpt_code), ''))";
 
-    private const MODMED_STATUS_EXPRESSION = "NULLIF(TRIM(modmed_claim_status), '')";
-
-    private const WORK_STATUS_EXPRESSION = "COALESCE(NULLIF(TRIM(work_status), ''), 'draft')";
-
     public function __construct(private readonly ClaimConfigurationService $configurations) {}
 
     public function __invoke(Request $request): Response
@@ -53,8 +49,10 @@ class DashboardController extends Controller
         $this->applyPanelDateFilters($claimsByStatusQuery, $panelFilters['claimsByStatus']);
         $isAdmin = (bool) $request->user()?->is_admin;
         $workStatuses = $this->configurations->selectOptions($account->value, ClaimConfigurationService::WORK_STATUS);
-        $modMedStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
-        $modMedStatusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
+        $draftStatusId = $this->configurations->idForValue($account->value, ClaimConfigurationService::WORK_STATUS, 'draft');
+        $paidStatusId = $this->configurations->idForValue($account->value, ClaimConfigurationService::WORK_STATUS, 'paid');
+        $modMedStatusLabels = $this->configurations->labelMapById($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
+        $modMedStatusColors = $this->configurations->colorMapById($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
 
         $totalQuery = (clone $workSummaryClaims)
             ->selectRaw('COUNT(*) as line_count')
@@ -62,12 +60,17 @@ class DashboardController extends Controller
 
         $total = $totalQuery->first();
         $worked = (clone $workSummaryClaims)
-            ->whereRaw(self::WORK_STATUS_EXPRESSION.' != ?', ['draft'])
+            ->whereNotNull('work_status_id')
+            ->when($draftStatusId, fn (Builder $query) => $query->where('work_status_id', '!=', $draftStatusId))
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount')
             ->first();
         $paid = (clone $workSummaryClaims)
-            ->whereRaw(self::WORK_STATUS_EXPRESSION.' = ?', ['paid'])
+            ->when(
+                $paidStatusId,
+                fn (Builder $query) => $query->where('work_status_id', $paidStatusId),
+                fn (Builder $query) => $query->whereRaw('1 = 0'),
+            )
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount')
             ->first();
@@ -94,7 +97,7 @@ class DashboardController extends Controller
                 'cptSummary' => $this->financialSummary($cptSummaryClaims, self::CPT_EXPRESSION),
                 'modmedStatusSummary' => $this->financialSummary(
                     $modmedStatusSummaryClaims,
-                    self::MODMED_STATUS_EXPRESSION,
+                    'modmed_claim_status_id',
                     $modMedStatusLabels,
                     $modMedStatusColors,
                 ),
@@ -220,16 +223,16 @@ class DashboardController extends Controller
     private function claimsByStatus(Builder $query, array $workStatuses): array
     {
         $statuses = (clone $query)
-            ->selectRaw(self::WORK_STATUS_EXPRESSION.' as status_key')
+            ->selectRaw('work_status_id as status_key')
             ->selectRaw('COUNT(*) as line_count')
             ->selectRaw('SUM('.self::BALANCE_EXPRESSION.') as amount')
-            ->groupByRaw(self::WORK_STATUS_EXPRESSION)
+            ->groupBy('work_status_id')
             ->get()
             ->keyBy('status_key');
 
         return collect($workStatuses)
             ->map(function (array $status) use ($statuses): array {
-                $row = $statuses->get($status['value']);
+                $row = $statuses->get($status['id']);
 
                 return [
                     'status' => $status['value'],

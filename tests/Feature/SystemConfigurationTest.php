@@ -323,10 +323,22 @@ class SystemConfigurationTest extends TestCase
 
         $claim->refresh();
         $this->assertSame('quality_review', $claim->work_status);
+        $this->assertSame($workStatus->id, $claim->work_status_id);
         $this->assertSame('review_needed', $claim->modmed_claim_status);
+        $this->assertSame($modMedStatus->id, $claim->modmed_claim_status_id);
         $this->assertTrue($claim->modmed_claim_status_manually_set);
         $this->assertSame('missing_referral', $claim->denial_reason);
+        $this->assertSame($denialReason->id, $claim->denial_reason_id);
         $this->assertSame('contractual_credit', $claim->credit_reason);
+        $this->assertSame($creditReason->id, $claim->credit_reason_id);
+        $this->assertSame(
+            ClaimConfigurationOption::query()
+                ->where('account_type', AccountType::Tricity->value)
+                ->where('option_type', ClaimConfigurationService::CREDIT_STATUS)
+                ->where('value', 'yes')
+                ->value('id'),
+            $claim->credit_status_id,
+        );
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
@@ -336,6 +348,80 @@ class SystemConfigurationTest extends TestCase
                 ->where('claims.data.0.lines.0.modmed_claim_status_label', 'Review Needed')
                 ->where('claims.data.0.lines.0.modmed_claim_status_color', '#DBEAFE')
                 ->where('claims.data.0.lines.0.credit_status_label', 'Approved'));
+    }
+
+    public function test_configuration_renames_propagate_to_every_linked_claim_field(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $workStatus = $this->createOption($admin, ClaimConfigurationService::WORK_STATUS, 'ready_to_bill', 'Ready to Bill');
+        $modMedStatus = $this->createOption($admin, ClaimConfigurationService::MODMED_CLAIM_STATUS, 'queued_review', 'Queued Review');
+        $creditReason = $this->createOption($admin, ClaimConfigurationService::CREDIT_REASON, 'billing_credit', 'Billing Credit');
+        $denialReason = $this->createOption($admin, ClaimConfigurationService::DENIAL_REASON, 'coding_issue', 'Coding Issue');
+        $creditStatus = ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::CREDIT_STATUS)
+            ->where('value', 'yes')
+            ->firstOrFail();
+        $claim = Claim::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'CONFIG-RENAME-1',
+            'bill_id' => 'CONFIG-RENAME-1',
+            'patient_name' => 'Rename Test',
+            'procedure_code' => '99490',
+            'work_status' => $workStatus->value,
+            'modmed_claim_status' => $modMedStatus->value,
+            'credit_status' => true,
+            'credit_reason' => $creditReason->value,
+            'denial_reason' => $denialReason->value,
+        ]);
+
+        $this->assertSame($workStatus->id, $claim->work_status_id);
+        $this->assertSame($modMedStatus->id, $claim->modmed_claim_status_id);
+        $this->assertSame($creditStatus->id, $claim->credit_status_id);
+        $this->assertSame($creditReason->id, $claim->credit_reason_id);
+        $this->assertSame($denialReason->id, $claim->denial_reason_id);
+
+        foreach ([
+            [$workStatus, 'Paid V2', '#FFEDD5'],
+            [$modMedStatus, 'Review V2', '#DBEAFE'],
+            [$creditStatus, 'Credited V2', null],
+            [$creditReason, 'Credit Reason V2', null],
+            [$denialReason, 'Denial Reason V2', null],
+        ] as [$option, $label, $color]) {
+            $this->actingAs($admin)
+                ->withSession(['account_type' => AccountType::Tricity->value])
+                ->patch("/system-configuration/{$option->id}", array_filter([
+                    'label' => $label,
+                    'color' => $color,
+                ], fn ($value): bool => $value !== null))
+                ->assertRedirect()
+                ->assertSessionDoesntHaveErrors();
+        }
+
+        $claim->refresh();
+        $this->assertSame($workStatus->id, $claim->work_status_id);
+        $this->assertSame($modMedStatus->id, $claim->modmed_claim_status_id);
+        $this->assertSame($creditStatus->id, $claim->credit_status_id);
+        $this->assertSame($creditReason->id, $claim->credit_reason_id);
+        $this->assertSame($denialReason->id, $claim->denial_reason_id);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('claims.data.0.lines.0.work_status_label', 'Paid V2')
+                ->where('claims.data.0.lines.0.modmed_claim_status_label', 'Review V2')
+                ->where('claims.data.0.lines.0.credit_status_label', 'Credited V2')
+                ->where('claims.data.0.lines.0.credit_reason_label', 'Credit Reason V2')
+                ->where('claims.data.0.lines.0.denial_reason_label', 'Denial Reason V2'));
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/system-configuration')
+            ->delete("/system-configuration/{$workStatus->id}", ['confirmation' => 'confirm'])
+            ->assertRedirect('/system-configuration')
+            ->assertSessionHasErrors('option');
     }
 
     public function test_imported_denial_labels_reuse_an_existing_configured_option(): void

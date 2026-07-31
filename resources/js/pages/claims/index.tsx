@@ -199,11 +199,14 @@ function ClaimsIndexContent({
         const modMedClaimStatus = editForm.modmed_claim_status.trim() || null;
         const modMedClaimStatusChanged = modMedClaimStatus !== editingLine.modmed_claim_status;
         const modMedClaimStatusOption = modMedClaimStatuses.find((option) => option.value === modMedClaimStatus);
+        const modMedClaimStatusId = modMedClaimStatusOption?.id ?? null;
         const modMedClaimStatusLabel = modMedClaimStatusOption?.label ?? modMedClaimStatus;
         const modMedClaimStatusColor = modMedClaimStatusOption?.color ?? null;
         const denialReason = editForm.denial_reason.trim() || null;
         const notes = editForm.notes.trim() || null;
         const creditStatus = editForm.credit_status === '' ? null : editForm.credit_status === 'yes';
+        const creditStatusOption = creditStatuses.find((option) => option.value === editForm.credit_status);
+        const creditStatusId = creditStatusOption?.id ?? null;
         const creditStatusLabel =
             editForm.credit_status === ''
                 ? '--'
@@ -212,10 +215,14 @@ function ClaimsIndexContent({
         const creditStatusDate = creditStatus === true ? editForm.credit_status_date || null : null;
         const creditReason = creditStatus === true ? editForm.credit_reason || null : null;
         const workStatusOption = workStatuses.find((option) => option.value === workStatus);
+        const workStatusId = workStatusOption?.id ?? null;
         const workStatusLabel = workStatusOption?.label ?? workStatus;
         const workStatusColor = workStatusOption?.color ?? null;
         const denialReasonLabel = denialReasons.find((option) => option.value === denialReason)?.label ?? denialReason;
-        const creditReasonLabel = creditReasons.find((option) => option.value === creditReason)?.label ?? creditReason;
+        const denialReasonId = denialReasons.find((option) => option.value === denialReason)?.id ?? null;
+        const creditReasonOption = creditReasons.find((option) => option.value === creditReason);
+        const creditReasonId = creditReasonOption?.id ?? null;
+        const creditReasonLabel = creditReasonOption?.label ?? creditReason;
         const currentUser = {
             id: auth.user.id,
             name: auth.user.name,
@@ -251,18 +258,23 @@ function ClaimsIndexContent({
                                 line.id === editedLineId
                                     ? {
                                           ...line,
+                                          work_status_id: workStatusId,
                                           work_status: workStatus,
                                           work_status_label: workStatusLabel,
                                           work_status_color: workStatusColor,
+                                          modmed_claim_status_id: modMedClaimStatusId,
                                           modmed_claim_status: modMedClaimStatus,
                                           modmed_claim_status_label: modMedClaimStatusLabel,
                                           modmed_claim_status_color: modMedClaimStatusColor,
+                                          denial_reason_id: denialReasonId,
                                           denial_reason: denialReason,
                                           denial_reason_label: denialReasonLabel,
                                           notes,
+                                          credit_status_id: creditStatusId,
                                           credit_status: creditStatus,
                                           credit_status_label: creditStatusLabel,
                                           credit_status_date: creditStatusDate,
+                                          credit_reason_id: creditReasonId,
                                           credit_reason: creditReason,
                                           credit_reason_label: creditReasonLabel,
                                           assigned_to: currentUser.id,
@@ -283,18 +295,23 @@ function ClaimsIndexContent({
 
                             return {
                                 ...claim,
+                                work_status_id: workStatusId,
                                 work_status: workStatus,
                                 work_status_label: workStatusLabel,
                                 work_status_color: workStatusColor,
+                                modmed_claim_status_id: modMedClaimStatusId,
                                 modmed_claim_status: modMedClaimStatus,
                                 modmed_claim_status_label: modMedClaimStatusLabel,
                                 modmed_claim_status_color: modMedClaimStatusColor,
+                                denial_reason_id: denialReasonId,
                                 denial_reason: denialReason,
                                 denial_reason_label: denialReasonLabel,
                                 notes,
+                                credit_status_id: reviewedLine?.credit_status_id ?? null,
                                 credit_status: reviewedLine?.credit_status ?? null,
                                 credit_status_label: reviewedLine?.credit_status_label ?? '--',
                                 credit_status_date: creditedLine?.credit_status_date ?? null,
+                                credit_reason_id: creditedLine?.credit_reason_id ?? null,
                                 credit_reason: creditedLine?.credit_reason ?? null,
                                 credit_reason_label: creditedLine?.credit_reason_label ?? null,
                                 assigned_to: currentUser.id,

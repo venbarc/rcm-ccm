@@ -27,7 +27,7 @@ class ClaimConfigurationService
         '#D1FAE5',
     ];
 
-    /** @var array<string, string> */
+    /** @var array<string, ClaimConfigurationOption> */
     private array $resolvedModMedStatuses = [];
 
     public const WORK_STATUS = 'work_status';
@@ -57,6 +57,18 @@ class ClaimConfigurationService
         return in_array($type, [self::WORK_STATUS, self::MODMED_CLAIM_STATUS], true);
     }
 
+    public function claimReferenceColumn(string $type): ?string
+    {
+        return match ($type) {
+            self::WORK_STATUS => 'work_status_id',
+            self::MODMED_CLAIM_STATUS => 'modmed_claim_status_id',
+            self::CREDIT_STATUS => 'credit_status_id',
+            self::CREDIT_REASON => 'credit_reason_id',
+            self::DENIAL_REASON => 'denial_reason_id',
+            default => null,
+        };
+    }
+
     /** @return Builder<ClaimConfigurationOption> */
     public function query(string $account, string $type): Builder
     {
@@ -74,11 +86,12 @@ class ClaimConfigurationService
             ->get();
     }
 
-    /** @return array<int, array{value: string, label: string, color: string|null}> */
+    /** @return array<int, array{id: int, value: string, label: string, color: string|null}> */
     public function selectOptions(string $account, string $type): array
     {
         return $this->options($account, $type)
             ->map(fn (ClaimConfigurationOption $option): array => [
+                'id' => $option->id,
                 'value' => $option->value,
                 'label' => $option->label,
                 'color' => $option->color,
@@ -112,7 +125,54 @@ class ClaimConfigurationService
             ->all();
     }
 
+    /** @return array<int, string> */
+    public function labelMapById(string $account, string $type): array
+    {
+        return $this->query($account, $type)
+            ->pluck('label', 'id')
+            ->all();
+    }
+
+    /** @return array<int, string> */
+    public function colorMapById(string $account, string $type): array
+    {
+        return $this->query($account, $type)
+            ->whereNotNull('color')
+            ->pluck('color', 'id')
+            ->all();
+    }
+
+    public function optionForValue(string $account, string $type, mixed $value): ?ClaimConfigurationOption
+    {
+        $value = trim((string) ($value ?? ''));
+        if ($value === '') {
+            return null;
+        }
+
+        return $this->query($account, $type)
+            ->where(function (Builder $query) use ($value): void {
+                if (is_numeric($value)) {
+                    $query->whereKey((int) $value)->orWhere('value', $value);
+                } else {
+                    $query->where('value', $value);
+                }
+
+                $query->orWhereRaw('LOWER(label) = ?', [mb_strtolower($value)]);
+            })
+            ->first();
+    }
+
+    public function idForValue(string $account, string $type, mixed $value): ?int
+    {
+        return $this->optionForValue($account, $type, $value)?->id;
+    }
+
     public function resolveDenialReason(string $account, ?string $reason): ?string
+    {
+        return $this->resolveDenialReasonOption($account, $reason)?->value;
+    }
+
+    public function resolveDenialReasonOption(string $account, ?string $reason): ?ClaimConfigurationOption
     {
         $reason = trim((string) $reason);
         if ($reason === '') {
@@ -127,7 +187,7 @@ class ClaimConfigurationService
             ->first();
 
         if ($existing) {
-            return $existing->value;
+            return $existing;
         }
 
         $option = ClaimConfigurationOption::query()->firstOrCreate(
@@ -143,10 +203,15 @@ class ClaimConfigurationService
             ],
         );
 
-        return $option->value;
+        return $option;
     }
 
     public function resolveModMedClaimStatus(string $account, ?string $status): ?string
+    {
+        return $this->resolveModMedClaimStatusOption($account, $status)?->value;
+    }
+
+    public function resolveModMedClaimStatusOption(string $account, ?string $status): ?ClaimConfigurationOption
     {
         $status = trim((string) $status);
         if ($status === '') {
@@ -165,7 +230,7 @@ class ClaimConfigurationService
             ->first();
 
         if ($existing) {
-            return $this->resolvedModMedStatuses[$cacheKey] = $existing->value;
+            return $this->resolvedModMedStatuses[$cacheKey] = $existing;
         }
 
         $option = ClaimConfigurationOption::query()->firstOrCreate(
@@ -182,7 +247,7 @@ class ClaimConfigurationService
             ],
         );
 
-        return $this->resolvedModMedStatuses[$cacheKey] = $option->value;
+        return $this->resolvedModMedStatuses[$cacheKey] = $option;
     }
 
     private function nextAutomaticColor(string $account, string $type, string $seed): string

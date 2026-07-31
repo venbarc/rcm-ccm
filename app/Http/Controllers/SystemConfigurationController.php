@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Claim;
 use App\Models\ClaimConfigurationOption;
 use App\Services\ClaimConfigurationService;
 use App\Support\CurrentAccount;
@@ -151,6 +152,13 @@ class SystemConfigurationController extends Controller
         if ($option->option_type === ClaimConfigurationService::CREDIT_STATUS) {
             throw ValidationException::withMessages([
                 'option' => 'Yes and No are required Credit Status options and cannot be deleted.',
+            ]);
+        }
+
+        $referenceColumn = $this->configurations->claimReferenceColumn($option->option_type);
+        if ($referenceColumn !== null && Claim::query()->where($referenceColumn, $option->id)->exists()) {
+            throw ValidationException::withMessages([
+                'option' => 'This option is assigned to one or more claim lines. Reassign those claim lines before deleting it.',
             ]);
         }
     }

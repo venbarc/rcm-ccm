@@ -197,14 +197,18 @@ class ClaimImportService
                 }
 
                 $payload = $this->normalizePayload($data);
-                $payload['denial_reason'] = $this->configurations->resolveDenialReason(
+                $denialReasonOption = $this->configurations->resolveDenialReasonOption(
                     $import->account_type,
                     $payload['denial_reason'] ?? null,
                 );
-                $payload['modmed_claim_status'] = $this->configurations->resolveModMedClaimStatus(
+                $payload['denial_reason'] = $denialReasonOption?->value;
+                $payload['denial_reason_id'] = $denialReasonOption?->id;
+                $modMedStatusOption = $this->configurations->resolveModMedClaimStatusOption(
                     $import->account_type,
                     $payload['modmed_claim_status'] ?? null,
                 );
+                $payload['modmed_claim_status'] = $modMedStatusOption?->value;
+                $payload['modmed_claim_status_id'] = $modMedStatusOption?->id;
                 $sourceHash = $this->sourceHash($billId, $payload);
                 $claim = $this->findExistingClaim($import, $billId, $sourceHash, $payload)
                     ?? new Claim(['account_type' => $import->account_type]);
@@ -239,19 +243,29 @@ class ClaimImportService
                 $wasWorkedOrModified = ! $isNew && $this->wasWorkedOrModified($claim);
                 $managed = $isNew || ! $wasWorkedOrModified ? [
                     'work_status' => 'draft',
+                    'work_status_id' => $this->configurations->idForValue(
+                        $import->account_type,
+                        ClaimConfigurationService::WORK_STATUS,
+                        'draft',
+                    ),
                     'work_status_manually_set' => false,
                     'denial_reason' => $payload['denial_reason'] ?? null,
+                    'denial_reason_id' => $payload['denial_reason_id'] ?? null,
                     'notes' => null,
                     'assigned_to' => $isNew ? $existingGroupOwner?->assigned_to : $claim->assigned_to,
                     'status' => $isNew ? ($existingGroupOwner?->status ?? 'new') : $claim->status,
                     'priority' => $isNew ? ($existingGroupOwner?->priority ?? 'normal') : $claim->priority,
                 ] : $claim->only([
-                    'work_status', 'work_status_manually_set', 'denial_reason', 'notes',
+                    'work_status', 'work_status_id', 'work_status_manually_set',
+                    'denial_reason', 'denial_reason_id', 'notes',
                     'assigned_to', 'priority', 'status',
                 ]);
                 $managed['modmed_claim_status'] = ! $isNew && $claim->modmed_claim_status_manually_set
                     ? $claim->modmed_claim_status
                     : ($payload['modmed_claim_status'] ?? null);
+                $managed['modmed_claim_status_id'] = ! $isNew && $claim->modmed_claim_status_manually_set
+                    ? $claim->modmed_claim_status_id
+                    : ($payload['modmed_claim_status_id'] ?? null);
                 $managed['modmed_claim_status_manually_set'] = ! $isNew && $claim->modmed_claim_status_manually_set;
 
                 $claim->fill([
@@ -347,6 +361,7 @@ class ClaimImportService
                 unset($claimData['id'], $claimData['created_at'], $claimData['updated_at']);
 
                 if ($snapshot->claim_id && $claimData !== []) {
+                    $claimData = $this->withConfigurationReferences($import->account_type, $claimData);
                     Claim::query()->whereKey($snapshot->claim_id)->update($claimData);
                     $restoredIds[] = $snapshot->claim_id;
 
@@ -404,6 +419,32 @@ class ClaimImportService
             ->whereNotNull('user_id')
             ->where('action', '!=', 'assigned')
             ->exists();
+    }
+
+    /** @param array<string, mixed> $claimData @return array<string, mixed> */
+    private function withConfigurationReferences(string $account, array $claimData): array
+    {
+        foreach ([
+            'work_status' => [ClaimConfigurationService::WORK_STATUS, 'work_status_id'],
+            'modmed_claim_status' => [ClaimConfigurationService::MODMED_CLAIM_STATUS, 'modmed_claim_status_id'],
+            'credit_reason' => [ClaimConfigurationService::CREDIT_REASON, 'credit_reason_id'],
+            'denial_reason' => [ClaimConfigurationService::DENIAL_REASON, 'denial_reason_id'],
+        ] as $field => [$type, $idField]) {
+            if (array_key_exists($field, $claimData)) {
+                $claimData[$idField] = $this->configurations->idForValue($account, $type, $claimData[$field]);
+            }
+        }
+
+        if (array_key_exists('credit_status', $claimData)) {
+            $creditStatus = $claimData['credit_status'];
+            $claimData['credit_status_id'] = $this->configurations->idForValue(
+                $account,
+                ClaimConfigurationService::CREDIT_STATUS,
+                $creditStatus === null ? null : ((bool) $creditStatus ? 'yes' : 'no'),
+            );
+        }
+
+        return $claimData;
     }
 
     /** @return array{0: array<int, mixed>, 1: int} */
