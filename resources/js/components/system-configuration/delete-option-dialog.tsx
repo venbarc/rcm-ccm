@@ -14,7 +14,7 @@ interface DeleteConfigurationOptionDialogProps {
 }
 
 export function DeleteConfigurationOptionDialog({ option, typeLabel, onClose }: DeleteConfigurationOptionDialogProps) {
-    const form = useForm({ confirmation: '' });
+    const form = useForm<{ confirmation: string; option?: string }>({ confirmation: '' });
     const submit = (event: FormEvent) => {
         event.preventDefault();
         form.delete(`/system-configuration/${option.id}`, {
@@ -32,11 +32,12 @@ export function DeleteConfigurationOptionDialog({ option, typeLabel, onClose }: 
                     </div>
                     <DialogTitle>Delete {typeLabel}</DialogTitle>
                     <DialogDescription>
-                        You are permanently deleting <strong className="text-foreground">{option.label}</strong> from the available options.
-                        Historical claim values will not be erased.
+                        You are removing <strong className="text-foreground">{option.label}</strong> from the available options. Historical claim
+                        values and configuration references will be retained.
                     </DialogDescription>
                 </DialogHeader>
                 <form className="space-y-4" onSubmit={submit}>
+                    <InputError message={form.errors.option} />
                     <label className="grid gap-1.5 text-sm font-medium">
                         Type <span className="font-mono text-red-700">confirm</span> to continue
                         <Input
@@ -58,7 +59,7 @@ export function DeleteConfigurationOptionDialog({ option, typeLabel, onClose }: 
                             type="submit"
                         >
                             <Trash2 />
-                            {form.processing ? 'Deleting...' : 'Delete permanently'}
+                            {form.processing ? 'Deleting...' : 'Delete option'}
                         </Button>
                     </DialogFooter>
                 </form>
