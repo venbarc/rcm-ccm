@@ -137,19 +137,10 @@ class DashboardTest extends TestCase
                     return $cpt !== null && $cpt['units'] === 4.0;
                 })
                 ->where('invoicedSummary.totalUnits', 6.0)
-                ->has('creditStatusSummary.rows', 2)
-                ->where('creditStatusSummary.rows', function ($rows): bool {
-                    $yes = collect($rows)->firstWhere('status', 'yes');
-                    $no = collect($rows)->firstWhere('status', 'no');
-
-                    return $yes !== null
-                        && $yes['label'] === 'Yes'
-                        && $yes['count'] === 1
-                        && $no !== null
-                        && $no['label'] === 'No'
-                        && $no['count'] === 1;
-                })
-                ->where('creditStatusSummary.totalCount', 2)
+                ->has('creditStatusSummary.rows', 1)
+                ->where('creditStatusSummary.rows.0.cpt', '99490')
+                ->where('creditStatusSummary.rows.0.count', 1)
+                ->where('creditStatusSummary.totalCount', 1)
                 ->has('modmedStatusSummary.rows', 2)
                 ->where('modmedStatusSummary.rows', function ($rows): bool {
                     $status = collect($rows)->firstWhere('group', 'Resolved/Paid');
@@ -168,33 +159,42 @@ class DashboardTest extends TestCase
                 }));
     }
 
-    public function test_credit_status_summary_date_range_excludes_undated_no_and_open_lines(): void
+    public function test_credit_status_summary_groups_yes_lines_by_cpt_and_filters_by_credit_status_date(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $baseClaim = [
             'account_type' => AccountType::Tricity->value,
             'patient_name' => 'Credit Status Summary Patient',
-            'procedure_code' => '99490',
             'work_status' => 'draft',
         ];
 
         Claim::query()->create($baseClaim + [
             'external_id' => 'CREDIT-SUMMARY-JUNE',
+            'procedure_code' => '99490',
             'credit_status' => true,
             'credit_status_date' => '2026-06-15',
         ]);
         Claim::query()->create($baseClaim + [
+            'external_id' => 'CREDIT-SUMMARY-JUNE-SECOND',
+            'procedure_code' => '99490',
+            'credit_status' => true,
+            'credit_status_date' => '2026-06-20',
+        ]);
+        Claim::query()->create($baseClaim + [
             'external_id' => 'CREDIT-SUMMARY-JULY',
+            'procedure_code' => '99439',
             'credit_status' => true,
             'credit_status_date' => '2026-07-15',
         ]);
         Claim::query()->create($baseClaim + [
             'external_id' => 'CREDIT-SUMMARY-NO',
+            'procedure_code' => '98985',
             'credit_status' => false,
             'credit_status_date' => null,
         ]);
         Claim::query()->create($baseClaim + [
             'external_id' => 'CREDIT-SUMMARY-OPEN',
+            'procedure_code' => '98980',
             'credit_status' => null,
             'credit_status_date' => null,
         ]);
@@ -212,13 +212,10 @@ class DashboardTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('panelFilters.creditStatusSummary.invoiceStart', '2026-06-01')
                 ->where('panelFilters.creditStatusSummary.invoiceEnd', '2026-06-30')
-                ->where('creditStatusSummary.rows', function ($rows): bool {
-                    $yes = collect($rows)->firstWhere('status', 'yes');
-                    $no = collect($rows)->firstWhere('status', 'no');
-
-                    return $yes['count'] === 1 && $no['count'] === 0;
-                })
-                ->where('creditStatusSummary.totalCount', 1));
+                ->has('creditStatusSummary.rows', 1)
+                ->where('creditStatusSummary.rows.0.cpt', '99490')
+                ->where('creditStatusSummary.rows.0.count', 2)
+                ->where('creditStatusSummary.totalCount', 2));
     }
 
     public function test_dashboard_panels_apply_their_own_invoice_and_service_date_ranges()

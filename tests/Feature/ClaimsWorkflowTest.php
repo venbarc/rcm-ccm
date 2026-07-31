@@ -57,6 +57,95 @@ class ClaimsWorkflowTest extends TestCase
             ->assertJsonCount(2, 'data');
     }
 
+    public function test_claims_can_filter_by_credit_status_date_and_reason(): void
+    {
+        $user = User::factory()->create();
+        $yesStatus = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_STATUS,
+            'value' => 'yes',
+        ], [
+            'label' => 'Yes',
+            'sort_order' => 0,
+        ]);
+        $noStatus = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_STATUS,
+            'value' => 'no',
+        ], [
+            'label' => 'No',
+            'sort_order' => 1,
+        ]);
+        $inactiveInsurance = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_REASON,
+            'value' => 'inactive_insurance',
+        ], [
+            'label' => 'Inactive Insurance',
+            'sort_order' => 0,
+        ]);
+        $notCovered = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_REASON,
+            'value' => 'not_covered_by_insurance',
+        ], [
+            'label' => 'Not Covered by the Insurance',
+            'sort_order' => 1,
+        ]);
+
+        Claim::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-CREDIT-FILTER-MATCH',
+            'patient_name' => 'Credit Filter Match',
+            'procedure_code' => '99490',
+            'credit_status' => true,
+            'credit_status_id' => $yesStatus->id,
+            'credit_status_date' => '2026-07-15',
+            'credit_reason' => 'inactive_insurance',
+            'credit_reason_id' => $inactiveInsurance->id,
+        ]);
+        Claim::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-CREDIT-FILTER-OLD',
+            'patient_name' => 'Credit Filter Old',
+            'procedure_code' => '99439',
+            'credit_status' => true,
+            'credit_status_id' => $yesStatus->id,
+            'credit_status_date' => '2026-06-15',
+            'credit_reason' => 'not_covered_by_insurance',
+            'credit_reason_id' => $notCovered->id,
+        ]);
+        Claim::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-CREDIT-FILTER-NO',
+            'patient_name' => 'Credit Filter No',
+            'procedure_code' => '98980',
+            'credit_status' => false,
+            'credit_status_id' => $noStatus->id,
+        ]);
+
+        $query = http_build_query([
+            'credit_status' => 'yes',
+            'credit_status_from' => '2026-07-01',
+            'credit_status_to' => '2026-07-31',
+            'credit_reason' => 'inactive_insurance',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get("/claims?{$query}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.credit_status', 'yes')
+                ->where('filters.credit_status_from', '2026-07-01')
+                ->where('filters.credit_status_to', '2026-07-31')
+                ->where('filters.credit_reason', 'inactive_insurance')
+                ->where('claims.total', 1)
+                ->where('claims.data.0.bill_id', 'TC-CREDIT-FILTER-MATCH')
+                ->where('creditStatuses.0.value', 'yes')
+                ->where('creditReasons.0.value', 'inactive_insurance'));
+    }
+
     public function test_authorized_user_can_assign_a_tricity_claim(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);

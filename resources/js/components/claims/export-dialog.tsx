@@ -44,6 +44,8 @@ const exportFilterKeys: Array<keyof Filters> = [
     'search',
     'modmed_claim_status',
     'invoiced_status',
+    'credit_status',
+    'credit_reason',
     'payer_name',
     'primary_provider',
     'denial_reason',
@@ -54,6 +56,8 @@ const exportFilterKeys: Array<keyof Filters> = [
     'service_month',
     'cf_invoice_from',
     'cf_invoice_to',
+    'credit_status_from',
+    'credit_status_to',
     'procedure_code',
 ];
 
