@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Enums\AccountType;
+use App\Enums\SystemClaimConfiguration;
 use App\Models\Claim;
 use App\Models\ClaimConfigurationOption;
+use App\Models\ClaimConfigurationSystemDefault;
 use App\Models\User;
 use App\Services\ClaimConfigurationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -422,6 +424,213 @@ class SystemConfigurationTest extends TestCase
             ->delete("/system-configuration/{$workStatus->id}", ['confirmation' => 'confirm'])
             ->assertRedirect('/system-configuration')
             ->assertSessionHasErrors('option');
+    }
+
+    public function test_admin_can_restore_system_work_status_defaults_without_changing_custom_options_or_claim_references(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $paid = ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::WORK_STATUS)
+            ->where('value', SystemClaimConfiguration::WorkPaid->internalValue())
+            ->firstOrFail();
+        $rebilled = ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::WORK_STATUS)
+            ->where('value', SystemClaimConfiguration::WorkRebilled->internalValue())
+            ->firstOrFail();
+        $claim = Claim::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'RESTORE-WORK-STATUS-1',
+            'bill_id' => 'RESTORE-WORK-STATUS-1',
+            'patient_name' => 'Restore Test',
+            'procedure_code' => '99490',
+            'work_status' => SystemClaimConfiguration::WorkPaid->internalValue(),
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->patch("/system-configuration/{$paid->id}", [
+                'label' => 'Paid V2',
+                'color' => '#ABCDEF',
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $paid->update(['value' => 'paid_v2_internal']);
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->delete("/system-configuration/{$rebilled->id}", ['confirmation' => 'confirm'])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $custom = $this->createOption($admin, ClaimConfigurationService::WORK_STATUS, 'quality_review', 'Quality Review');
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->post('/system-configuration/work_status/restore-defaults', ['confirmation' => 'restore'])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $paid->refresh();
+        $claim->refresh();
+        $custom->refresh();
+        $this->assertSame(SystemClaimConfiguration::WorkPaid->value, $paid->system_key);
+        $this->assertSame(SystemClaimConfiguration::WorkPaid->internalValue(), $paid->value);
+        $this->assertSame(SystemClaimConfiguration::WorkPaid->label(), $paid->label);
+        $this->assertSame(SystemClaimConfiguration::WorkPaid->color(), $paid->color);
+        $this->assertSame(SystemClaimConfiguration::WorkPaid->sortOrder(), $paid->sort_order);
+        $this->assertNull($paid->added_by);
+        $this->assertSame($paid->id, $claim->work_status_id);
+        $this->assertSame('Quality Review', $custom->label);
+        $this->assertSame('#FFEDD5', $custom->color);
+        $this->assertSame($admin->id, $custom->added_by);
+        $this->assertDatabaseHas('claim_configuration_options', [
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::WORK_STATUS,
+            'system_key' => SystemClaimConfiguration::WorkRebilled->value,
+            'value' => SystemClaimConfiguration::WorkRebilled->internalValue(),
+            'label' => SystemClaimConfiguration::WorkRebilled->label(),
+            'color' => SystemClaimConfiguration::WorkRebilled->color(),
+            'sort_order' => SystemClaimConfiguration::WorkRebilled->sortOrder(),
+            'added_by' => null,
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('claims.data.0.lines.0.work_status_label', SystemClaimConfiguration::WorkPaid->label()));
+    }
+
+    public function test_system_work_status_names_and_colors_remain_reserved_after_a_default_is_deleted(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $rebilled = ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::WORK_STATUS)
+            ->where('value', SystemClaimConfiguration::WorkRebilled->internalValue())
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->delete("/system-configuration/{$rebilled->id}", ['confirmation' => 'confirm'])
+            ->assertRedirect();
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/system-configuration')
+            ->post('/system-configuration', [
+                'option_type' => ClaimConfigurationService::WORK_STATUS,
+                'label' => SystemClaimConfiguration::WorkRebilled->label(),
+                'color' => '#123456',
+            ])
+            ->assertRedirect('/system-configuration')
+            ->assertSessionHasErrors('label');
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->from('/system-configuration')
+            ->post('/system-configuration', [
+                'option_type' => ClaimConfigurationService::WORK_STATUS,
+                'label' => 'Custom Blue',
+                'color' => SystemClaimConfiguration::WorkRebilled->color(),
+            ])
+            ->assertRedirect('/system-configuration')
+            ->assertSessionHasErrors('color');
+    }
+
+    public function test_admin_can_restore_defaults_for_every_system_controlled_configuration_type(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $configurations = app(ClaimConfigurationService::class);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/system-configuration')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('sections.0.can_restore_defaults', true)
+                ->where('sections.1.can_restore_defaults', true)
+                ->where('sections.2.can_restore_defaults', true)
+                ->where('sections.3.can_restore_defaults', true)
+                ->where('sections.4.type', ClaimConfigurationService::DENIAL_REASON)
+                ->where('sections.4.can_restore_defaults', false));
+
+        $modMed = $configurations->resolveModMedClaimStatusOption(AccountType::Tricity->value, 'System Review')->refresh();
+        $denial = $configurations->resolveDenialReasonOption(AccountType::Tricity->value, 'System Denial')->refresh();
+        $creditStatus = ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::CREDIT_STATUS)
+            ->where('value', SystemClaimConfiguration::CreditStatusYes->internalValue())
+            ->firstOrFail();
+        $creditReason = ClaimConfigurationOption::query()
+            ->where('account_type', AccountType::Tricity->value)
+            ->where('option_type', ClaimConfigurationService::CREDIT_REASON)
+            ->where('value', SystemClaimConfiguration::CreditReasonInactiveInsurance->internalValue())
+            ->firstOrFail();
+        $customModMed = $this->createOption($admin, ClaimConfigurationService::MODMED_CLAIM_STATUS, 'custom_modmed', 'Custom ModMed');
+        $customDenial = $this->createOption($admin, ClaimConfigurationService::DENIAL_REASON, 'custom_denial', 'Custom Denial');
+        $customCreditReason = $this->createOption($admin, ClaimConfigurationService::CREDIT_REASON, 'custom_credit', 'Custom Credit');
+
+        foreach ([
+            ClaimConfigurationService::MODMED_CLAIM_STATUS => $modMed,
+            ClaimConfigurationService::CREDIT_STATUS => $creditStatus,
+            ClaimConfigurationService::CREDIT_REASON => $creditReason,
+        ] as $type => $option) {
+            $default = ClaimConfigurationSystemDefault::query()
+                ->where('account_type', AccountType::Tricity->value)
+                ->where('option_type', $type)
+                ->where('system_key', $option->system_key)
+                ->firstOrFail();
+            $option->delete();
+
+            $this->actingAs($admin)
+                ->withSession(['account_type' => AccountType::Tricity->value])
+                ->post("/system-configuration/{$type}/restore-defaults", ['confirmation' => 'restore'])
+                ->assertRedirect()
+                ->assertSessionDoesntHaveErrors();
+
+            $this->assertDatabaseHas('claim_configuration_options', [
+                'account_type' => AccountType::Tricity->value,
+                'option_type' => $type,
+                'system_key' => $default->system_key,
+                'value' => $default->value,
+                'label' => $default->label,
+                'color' => $default->color,
+                'sort_order' => $default->sort_order,
+                'added_by' => null,
+            ]);
+        }
+
+        foreach ([$customModMed, $customDenial, $customCreditReason] as $custom) {
+            $this->assertDatabaseHas('claim_configuration_options', [
+                'id' => $custom->id,
+                'value' => $custom->value,
+                'label' => $custom->label,
+                'added_by' => $admin->id,
+            ]);
+        }
+
+        $this->assertNull($denial->system_key);
+        $this->assertDatabaseMissing('claim_configuration_system_defaults', [
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::DENIAL_REASON,
+        ]);
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->post('/system-configuration/denial_reason/restore-defaults', ['confirmation' => 'restore'])
+            ->assertNotFound();
+    }
+
+    public function test_only_admins_can_restore_system_work_status_defaults(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->post('/system-configuration/work_status/restore-defaults', ['confirmation' => 'restore'])
+            ->assertForbidden();
     }
 
     public function test_imported_denial_labels_reuse_an_existing_configured_option(): void

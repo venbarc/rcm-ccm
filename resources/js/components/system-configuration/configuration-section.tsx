@@ -3,18 +3,19 @@ import type { ConfigurationOption, ConfigurationSectionData } from '@/components
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 
 interface ConfigurationSectionProps {
     section: ConfigurationSectionData;
     onCreate: (section: ConfigurationSectionData) => void;
     onDelete: (section: ConfigurationSectionData, option: ConfigurationOption) => void;
     onEdit: (section: ConfigurationSectionData, option: ConfigurationOption) => void;
+    onRestoreDefaults: () => void;
 }
 
 const dateTime = (value: string | null) => (value ? new Date(value).toLocaleString() : '-');
 
-export function ConfigurationSection({ section, onCreate, onDelete, onEdit }: ConfigurationSectionProps) {
+export function ConfigurationSection({ section, onCreate, onDelete, onEdit, onRestoreDefaults }: ConfigurationSectionProps) {
     const showsColor = section.type === 'work_status' || section.type === 'modmed_claim_status';
     const hasFixedValues = section.type === 'credit_status';
 
@@ -27,12 +28,20 @@ export function ConfigurationSection({ section, onCreate, onDelete, onEdit }: Co
                         {section.options.length} configured option{section.options.length === 1 ? '' : 's'}
                     </p>
                 </div>
-                {!hasFixedValues && (
-                    <Button onClick={() => onCreate(section)} size="sm">
-                        <Plus />
-                        Add {section.label}
-                    </Button>
-                )}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    {section.can_restore_defaults && (
+                        <Button onClick={onRestoreDefaults} size="sm" variant="outline">
+                            <RotateCcw />
+                            Restore system defaults
+                        </Button>
+                    )}
+                    {!hasFixedValues && (
+                        <Button onClick={() => onCreate(section)} size="sm">
+                            <Plus />
+                            Add {section.label}
+                        </Button>
+                    )}
+                </div>
             </CardHeader>
             <CardContent className="p-0">
                 <div className="overflow-x-auto">

@@ -2,9 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\SystemClaimConfiguration;
 use App\Models\ClaimConfigurationOption;
+use App\Models\ClaimConfigurationSystemDefault;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ClaimConfigurationService
 {
@@ -55,6 +59,11 @@ class ClaimConfigurationService
     public function usesColor(string $type): bool
     {
         return in_array($type, [self::WORK_STATUS, self::MODMED_CLAIM_STATUS], true);
+    }
+
+    public function canRestoreDefaults(string $type): bool
+    {
+        return array_key_exists($type, $this->typeLabels()) && $type !== self::DENIAL_REASON;
     }
 
     public function claimReferenceColumn(string $type): ?string
@@ -167,6 +176,150 @@ class ClaimConfigurationService
         return $this->optionForValue($account, $type, $value)?->id;
     }
 
+    public function isSystemOption(ClaimConfigurationOption $option): bool
+    {
+        return $option->added_by === null && filled($option->system_key);
+    }
+
+    public function restoreSystemDefaults(string $account, string $type): int
+    {
+        if (! $this->canRestoreDefaults($type)) {
+            return 0;
+        }
+
+        return DB::transaction(function () use ($account, $type): int {
+            $defaults = ClaimConfigurationSystemDefault::query()
+                ->where('account_type', $account)
+                ->where('option_type', $type)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            if ($defaults->isEmpty()) {
+                return 0;
+            }
+
+            $existingDefaults = $this->query($account, $type)
+                ->whereNull('added_by')
+                ->whereIn('system_key', $defaults->pluck('system_key')->all())
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('system_key');
+            $valueConflict = $this->query($account, $type)
+                ->whereIn('value', $defaults->pluck('value')->all())
+                ->whereNotIn('id', $existingDefaults->pluck('id')->all())
+                ->first();
+            $defaultColors = $defaults->pluck('color')->filter()->all();
+            $colorConflict = $defaultColors === [] ? null : $this->query($account, $type)
+                ->whereIn('color', $defaultColors)
+                ->whereNotIn('id', $existingDefaults->pluck('id')->all())
+                ->first();
+
+            if ($valueConflict || $colorConflict) {
+                $conflict = $valueConflict ?? $colorConflict;
+
+                throw ValidationException::withMessages([
+                    'confirmation' => "{$conflict->label} uses a reserved system value or color. Change that option before restoring this configuration.",
+                ]);
+            }
+
+            if ($this->usesColor($type) && $existingDefaults->isNotEmpty()) {
+                ClaimConfigurationOption::query()
+                    ->whereIn('id', $existingDefaults->pluck('id')->all())
+                    ->update(['color' => null, 'updated_at' => now()]);
+            }
+
+            foreach ($defaults as $default) {
+                $option = $existingDefaults->get($default->system_key);
+                $attributes = [
+                    'system_key' => $default->system_key,
+                    'value' => $default->value,
+                    'label' => $default->label,
+                    'color' => $default->color,
+                    'sort_order' => $default->sort_order,
+                    'added_by' => null,
+                ];
+
+                if ($option) {
+                    $option->refresh();
+                    $option->update($attributes);
+                } else {
+                    ClaimConfigurationOption::query()->create([
+                        'account_type' => $account,
+                        'option_type' => $type,
+                        ...$attributes,
+                    ]);
+                }
+            }
+
+            return $defaults->count();
+        });
+    }
+
+    /** @return array<int, string> */
+    public function systemDefaultValues(string $account, string $type): array
+    {
+        if (! $this->canRestoreDefaults($type)) {
+            return [];
+        }
+
+        return $this->systemDefaultsQuery($account, $type)->pluck('value')->all();
+    }
+
+    /** @return array<int, string> */
+    public function systemDefaultLabels(string $account, string $type): array
+    {
+        if (! $this->canRestoreDefaults($type)) {
+            return [];
+        }
+
+        return $this->systemDefaultsQuery($account, $type)->pluck('label')->all();
+    }
+
+    /** @return array<int, string> */
+    public function systemDefaultColors(string $account, string $type): array
+    {
+        if (! $this->canRestoreDefaults($type)) {
+            return [];
+        }
+
+        return $this->systemDefaultsQuery($account, $type)->whereNotNull('color')->pluck('color')->all();
+    }
+
+    public function registerSystemDefault(ClaimConfigurationOption $option): ClaimConfigurationOption
+    {
+        if (! $this->canRestoreDefaults($option->option_type) || $option->added_by !== null) {
+            return $option;
+        }
+
+        if (! filled($option->system_key)) {
+            $builtIn = SystemClaimConfiguration::find($option->option_type, $option->value);
+            $option->forceFill([
+                'system_key' => $builtIn?->value ?? 'dynamic:'.hash('sha256', implode('|', [
+                    $option->account_type,
+                    $option->option_type,
+                    $option->value,
+                ])),
+            ])->saveQuietly();
+        }
+
+        ClaimConfigurationSystemDefault::query()->firstOrCreate(
+            [
+                'account_type' => $option->account_type,
+                'option_type' => $option->option_type,
+                'system_key' => $option->system_key,
+            ],
+            [
+                'value' => $option->value,
+                'label' => $option->label,
+                'color' => $option->color,
+                'sort_order' => $option->sort_order,
+            ],
+        );
+
+        return $option;
+    }
+
     public function resolveDenialReason(string $account, ?string $reason): ?string
     {
         return $this->resolveDenialReasonOption($account, $reason)?->value;
@@ -230,7 +383,7 @@ class ClaimConfigurationService
             ->first();
 
         if ($existing) {
-            return $this->resolvedModMedStatuses[$cacheKey] = $existing;
+            return $this->resolvedModMedStatuses[$cacheKey] = $this->registerSystemDefault($existing);
         }
 
         $option = ClaimConfigurationOption::query()->firstOrCreate(
@@ -247,7 +400,15 @@ class ClaimConfigurationService
             ],
         );
 
-        return $this->resolvedModMedStatuses[$cacheKey] = $option;
+        return $this->resolvedModMedStatuses[$cacheKey] = $this->registerSystemDefault($option);
+    }
+
+    /** @return Builder<ClaimConfigurationSystemDefault> */
+    private function systemDefaultsQuery(string $account, string $type): Builder
+    {
+        return ClaimConfigurationSystemDefault::query()
+            ->where('account_type', $account)
+            ->where('option_type', $type);
     }
 
     private function nextAutomaticColor(string $account, string $type, string $seed): string

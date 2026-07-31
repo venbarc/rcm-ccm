@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\SystemClaimConfiguration;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -30,20 +31,12 @@ return new class extends Migration
             'wc_health',
         ];
         $defaults = [
-            'work_status' => [
-                'draft' => 'Draft',
-                'paid' => 'Paid',
-                'rebilled' => 'Rebilled',
-                'appeal' => 'Appeal',
-                'pending' => 'Pending',
-                'void' => 'Void',
-                'corrected' => 'Corrected',
-                'patient_balance' => 'Patient Balance',
-            ],
-            'credit_reason' => [
-                'inactive_insurance' => 'Inactive Insurance',
-                'not_covered_by_insurance' => 'Not Covered by the Insurance',
-            ],
+            'work_status' => collect(SystemClaimConfiguration::forType('work_status'))
+                ->mapWithKeys(fn (SystemClaimConfiguration $option): array => [$option->internalValue() => $option->label()])
+                ->all(),
+            'credit_reason' => collect(SystemClaimConfiguration::forType('credit_reason'))
+                ->mapWithKeys(fn (SystemClaimConfiguration $option): array => [$option->internalValue() => $option->label()])
+                ->all(),
         ];
         $rows = [];
 

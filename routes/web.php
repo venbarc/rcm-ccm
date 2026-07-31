@@ -60,6 +60,7 @@ Route::middleware('auth')->group(function (): void {
     Route::middleware('admin')->group(function (): void {
         Route::get('/system-configuration', [SystemConfigurationController::class, 'index'])->name('system-configuration.index');
         Route::post('/system-configuration', [SystemConfigurationController::class, 'store'])->name('system-configuration.store');
+        Route::post('/system-configuration/{type}/restore-defaults', [SystemConfigurationController::class, 'restoreDefaults'])->name('system-configuration.restore-defaults');
         Route::patch('/system-configuration/{configurationOption}', [SystemConfigurationController::class, 'update'])->name('system-configuration.update');
         Route::delete('/system-configuration/{configurationOption}', [SystemConfigurationController::class, 'destroy'])->name('system-configuration.destroy');
 
