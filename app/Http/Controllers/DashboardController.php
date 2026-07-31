@@ -43,6 +43,7 @@ class DashboardController extends Controller
             'cptSummary' => $this->resolvePanelDateFilters($request, 'cpt'),
             'modmedStatusSummary' => $this->resolvePanelDateFilters($request, 'modmed'),
             'invoicedSummary' => $this->resolvePanelDateFilters($request, 'invoiced', false),
+            'creditStatusSummary' => $this->resolvePanelDateFilters($request, 'credit_status', false),
         ];
 
         $claimsByStatusQuery = clone $baseClaims;
@@ -84,6 +85,7 @@ class DashboardController extends Controller
         $adminSummaryProps = [];
 
         if ($isAdmin) {
+            $creditStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::CREDIT_STATUS);
             $cptSummaryClaims = clone $baseClaims;
             $this->applyPanelDateFilters($cptSummaryClaims, $panelFilters['cptSummary']);
 
@@ -102,6 +104,11 @@ class DashboardController extends Controller
                     $modMedStatusColors,
                 ),
                 'invoicedSummary' => $this->invoicedSummary($invoicedSummaryClaims),
+                'creditStatusSummary' => $this->creditStatusSummary(
+                    $baseClaims,
+                    $panelFilters['creditStatusSummary'],
+                    $creditStatusLabels,
+                ),
             ];
         }
 
@@ -216,6 +223,45 @@ class DashboardController extends Controller
         return [
             'rows' => $rows,
             'totalUnits' => (float) collect($rows)->sum('units'),
+        ];
+    }
+
+    /**
+     * @param  array{invoiceStart: Carbon|null, invoiceEnd: Carbon|null, serviceStart: Carbon|null, serviceEnd: Carbon|null}  $filters
+     * @param  array<string, string>  $labels
+     * @return array{rows: array<int, array{status: string, label: string, count: int}>, totalCount: int}
+     */
+    private function creditStatusSummary(Builder $query, array $filters, array $labels): array
+    {
+        $counts = (clone $query)
+            ->when(
+                $filters['invoiceStart'],
+                fn (Builder $inner) => $inner->where('credit_status_date', '>=', $filters['invoiceStart']->toDateString()),
+            )
+            ->when(
+                $filters['invoiceEnd'],
+                fn (Builder $inner) => $inner->where('credit_status_date', '<=', $filters['invoiceEnd']->toDateString()),
+            )
+            ->selectRaw('SUM(CASE WHEN credit_status = ? THEN 1 ELSE 0 END) as yes_count', [true])
+            ->selectRaw('SUM(CASE WHEN credit_status = ? THEN 1 ELSE 0 END) as no_count', [false])
+            ->first();
+
+        $rows = [
+            [
+                'status' => 'yes',
+                'label' => $labels['yes'] ?? 'Yes',
+                'count' => (int) ($counts->yes_count ?? 0),
+            ],
+            [
+                'status' => 'no',
+                'label' => $labels['no'] ?? 'No',
+                'count' => (int) ($counts->no_count ?? 0),
+            ],
+        ];
+
+        return [
+            'rows' => $rows,
+            'totalCount' => (int) collect($rows)->sum('count'),
         ];
     }
 

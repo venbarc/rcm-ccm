@@ -75,7 +75,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
                     }),
             method: 'get',
         })
-
+    
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::store
@@ -130,7 +130,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
             action: store.url(options),
             method: 'post',
         })
-
+    
     store.form = storeForm
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::restoreDefaults
@@ -157,7 +157,7 @@ restoreDefaults.url = (args: { type: string | number } | [type: string | number 
         args = { type: args }
     }
 
-
+    
     if (Array.isArray(args)) {
         args = {
                     type: args[0],
@@ -204,7 +204,7 @@ restoreDefaults.post = (args: { type: string | number } | [type: string | number
             action: restoreDefaults.url(args, options),
             method: 'post',
         })
-
+    
     restoreDefaults.form = restoreDefaultsForm
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::update
@@ -234,7 +234,7 @@ update.url = (args: { configurationOption: number | { id: number } } | [configur
             if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
             args = { configurationOption: args.id }
         }
-
+    
     if (Array.isArray(args)) {
         args = {
                     configurationOption: args[0],
@@ -293,7 +293,7 @@ update.patch = (args: { configurationOption: number | { id: number } } | [config
                     }),
             method: 'post',
         })
-
+    
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\SystemConfigurationController::destroy
@@ -323,7 +323,7 @@ destroy.url = (args: { configurationOption: number | { id: number } } | [configu
             if (typeof args === 'object' && !Array.isArray(args) && 'id' in args) {
             args = { configurationOption: args.id }
         }
-
+    
     if (Array.isArray(args)) {
         args = {
                     configurationOption: args[0],
@@ -382,7 +382,7 @@ destroy.delete = (args: { configurationOption: number | { id: number } } | [conf
                     }),
             method: 'post',
         })
-
+    
     destroy.form = destroyForm
 const SystemConfigurationController = { index, store, restoreDefaults, update, destroy }
 

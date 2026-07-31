@@ -12,7 +12,7 @@ interface InvoicedSummaryCardProps {
 
 export function InvoicedSummaryCard({ filters, summary }: InvoicedSummaryCardProps) {
     return (
-        <Card className="w-full max-w-full min-w-0 overflow-hidden">
+        <Card className="h-full w-full max-w-full min-w-0 overflow-hidden">
             <CardHeader className="space-y-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>

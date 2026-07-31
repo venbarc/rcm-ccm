@@ -1,4 +1,5 @@
 import { ClaimsByStatusCard } from '@/components/dashboard/claims-by-status-card';
+import { CreditStatusSummaryCard } from '@/components/dashboard/credit-status-summary-card';
 import { FinancialSummaryCard } from '@/components/dashboard/financial-summary-card';
 import { InvoicedSummaryCard } from '@/components/dashboard/invoiced-summary-card';
 import { RadialMetricCard } from '@/components/dashboard/radial-metric-card';
@@ -6,6 +7,7 @@ import { DashboardRangeFilter } from '@/components/dashboard/range-filter';
 import { SummaryDateFilters } from '@/components/dashboard/summary-date-filters';
 import type {
     ClaimByStatus,
+    DashboardCreditStatusSummary,
     DashboardFilters,
     DashboardFinancialSummary,
     DashboardInvoicedSummary,
@@ -31,6 +33,7 @@ interface DashboardProps {
     cptSummary?: DashboardFinancialSummary;
     modmedStatusSummary?: DashboardFinancialSummary;
     invoicedSummary?: DashboardInvoicedSummary;
+    creditStatusSummary?: DashboardCreditStatusSummary;
 }
 
 export default function Dashboard({
@@ -42,12 +45,13 @@ export default function Dashboard({
     cptSummary,
     modmedStatusSummary,
     invoicedSummary,
+    creditStatusSummary,
 }: DashboardProps) {
     const { auth } = usePage<SharedData>().props;
     const isLoading = useInertiaLoading();
     const workedLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.workedCount / workSummary.totalCount) * 100, 100) : 0;
     const paidLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.paidCount / workSummary.totalCount) * 100, 100) : 0;
-    const showAdminSummaries = auth.user.is_admin && cptSummary && modmedStatusSummary && invoicedSummary;
+    const showAdminSummaries = auth.user.is_admin && cptSummary && modmedStatusSummary && invoicedSummary && creditStatusSummary;
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }]}>
@@ -94,10 +98,24 @@ export default function Dashboard({
                                 summary={modmedStatusSummary}
                                 title="Summary by Claim Status"
                             />
-                            <InvoicedSummaryCard
-                                filters={<SummaryDateFilters filters={panelFilters.invoicedSummary} prefix="invoiced" showServiceDate={false} />}
-                                summary={invoicedSummary}
-                            />
+                            <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+                                <InvoicedSummaryCard
+                                    filters={<SummaryDateFilters filters={panelFilters.invoicedSummary} prefix="invoiced" showServiceDate={false} />}
+                                    summary={invoicedSummary}
+                                />
+                                <CreditStatusSummaryCard
+                                    filters={
+                                        <SummaryDateFilters
+                                            filters={panelFilters.creditStatusSummary}
+                                            invoiceDateLabel="Credit Status Date Range"
+                                            invoiceDatePlaceholder="Select credit status date range"
+                                            prefix="credit_status"
+                                            showServiceDate={false}
+                                        />
+                                    }
+                                    summary={creditStatusSummary}
+                                />
+                            </div>
                         </section>
                     )}
 
