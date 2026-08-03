@@ -195,9 +195,9 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                             <table className="w-full min-w-[2070px] text-sm">
                                                                 <thead className="text-muted-foreground">
                                                                     <tr className="border-b">
+                                                                        <th className="px-3 py-3 text-left font-medium">Work Status</th>
                                                                         <ClaimSourceLineHeaders showPayer={false} showPrimaryProvider={false} />
                                                                         <th className="px-3 py-3 text-left font-medium">Denial Reason</th>
-                                                                        <th className="px-3 py-3 text-left font-medium">Work Status</th>
                                                                         <th className="px-3 py-3 text-left font-medium">Assigned To</th>
                                                                         <th className="bg-muted sticky right-0 z-20 w-20 min-w-20 border-l px-3 py-3 text-right font-medium">
                                                                             Actions
@@ -211,6 +211,15 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                             key={line.id}
                                                                             style={workStatusBackgroundStyle(line.work_status_color)}
                                                                         >
+                                                                            <td className="px-3 py-3">
+                                                                                <Badge
+                                                                                    className="font-medium"
+                                                                                    style={workStatusBadgeStyle(line.work_status_color)}
+                                                                                    variant="outline"
+                                                                                >
+                                                                                    {line.work_status_label || statusLabel(line.work_status)}
+                                                                                </Badge>
+                                                                            </td>
                                                                             <ClaimSourceLineCells
                                                                                 line={{
                                                                                     ...line,
@@ -221,15 +230,6 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                             />
                                                                             <td className="text-muted-foreground px-3 py-3">
                                                                                 {line.denial_reason_label || line.denial_reason || EMPTY_VALUE}
-                                                                            </td>
-                                                                            <td className="px-3 py-3">
-                                                                                <Badge
-                                                                                    className="font-medium"
-                                                                                    style={workStatusBadgeStyle(line.work_status_color)}
-                                                                                    variant="outline"
-                                                                                >
-                                                                                    {line.work_status_label || statusLabel(line.work_status)}
-                                                                                </Badge>
                                                                             </td>
                                                                             <td className="px-3 py-3">
                                                                                 <div className="bg-background min-w-44 rounded-md border px-3 py-2">
