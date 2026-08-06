@@ -226,7 +226,13 @@ class DashboardController extends Controller
 
     /**
      * @param  array{invoiceStart: Carbon|null, invoiceEnd: Carbon|null, serviceStart: Carbon|null, serviceEnd: Carbon|null}  $filters
-     * @return array{rows: array<int, array{cpt: string|null, count: int}>, totalCount: int}
+     * @return array{
+     *     rows: array<int, array{cpt: string|null, count: int, units: float, trueCharge: float, cfInvoiceAmount: float}>,
+     *     totalCount: int,
+     *     totalUnits: float,
+     *     totalTrueCharge: float,
+     *     totalCfInvoiceAmount: float
+     * }
      */
     private function creditStatusSummary(Builder $query, array $filters): array
     {
@@ -242,6 +248,9 @@ class DashboardController extends Controller
             )
             ->selectRaw(self::CPT_EXPRESSION.' as cpt')
             ->selectRaw('COUNT(*) as line_count')
+            ->selectRaw('SUM(COALESCE(units, 0)) as units')
+            ->selectRaw('SUM('.self::TRUE_CHARGE_EXPRESSION.') as true_charge')
+            ->selectRaw('SUM('.self::CF_INVOICE_AMOUNT_EXPRESSION.') as cf_invoice_amount')
             ->groupByRaw(self::CPT_EXPRESSION)
             ->orderByDesc('line_count')
             ->orderBy('cpt')
@@ -249,12 +258,18 @@ class DashboardController extends Controller
             ->map(fn ($row): array => [
                 'cpt' => filled($row->cpt) ? (string) $row->cpt : null,
                 'count' => (int) ($row->line_count ?? 0),
+                'units' => (float) ($row->units ?? 0),
+                'trueCharge' => (float) ($row->true_charge ?? 0),
+                'cfInvoiceAmount' => (float) ($row->cf_invoice_amount ?? 0),
             ])
             ->all();
 
         return [
             'rows' => $rows,
             'totalCount' => (int) collect($rows)->sum('count'),
+            'totalUnits' => (float) collect($rows)->sum('units'),
+            'totalTrueCharge' => (float) collect($rows)->sum('trueCharge'),
+            'totalCfInvoiceAmount' => (float) collect($rows)->sum('cfInvoiceAmount'),
         ];
     }
 

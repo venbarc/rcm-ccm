@@ -1,5 +1,5 @@
 import type { DashboardCreditStatusSummary } from '@/components/dashboard/types';
-import { formatCount } from '@/components/dashboard/types';
+import { formatCount, formatCurrency, formatNumber } from '@/components/dashboard/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldCheck } from 'lucide-react';
@@ -29,39 +29,46 @@ export function CreditStatusSummaryCard({ filters, summary }: CreditStatusSummar
                 <div className="border-muted/60 bg-muted/15 rounded-lg border p-3">{filters}</div>
             </CardHeader>
             <CardContent className="p-0">
-                <table className="w-full table-fixed text-sm">
-                    <colgroup>
-                        <col />
-                        <col className="w-40" />
-                    </colgroup>
-                    <thead className="bg-muted/60 text-muted-foreground border-y">
-                        <tr>
-                            <th className="px-4 py-3 text-left font-semibold">CPT Code</th>
-                            <th className="px-4 py-3 text-right font-semibold">Count</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {summary.rows.map((row, index) => (
-                            <tr className="even:bg-muted/20 hover:bg-muted/40 transition-colors" key={row.cpt ?? `empty-${index}`}>
-                                <td className="px-4 py-3 font-mono font-semibold">{row.cpt ?? 'No CPT'}</td>
-                                <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCount(row.count)}</td>
-                            </tr>
-                        ))}
-                        {summary.rows.length === 0 && (
+                <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
+                    <table className="w-full min-w-[780px] text-sm">
+                        <thead className="bg-muted/60 text-muted-foreground border-y">
                             <tr>
-                                <td className="text-muted-foreground px-4 py-10 text-center" colSpan={2}>
-                                    No Credit Status Yes lines found for the selected date range.
-                                </td>
+                                <th className="w-32 px-3 py-3 text-left font-semibold">CPT Code</th>
+                                <th className="px-3 py-3 text-right font-semibold">Count of CPT</th>
+                                <th className="px-3 py-3 text-right font-semibold">Sum of Units</th>
+                                <th className="px-3 py-3 text-right font-semibold">Sum of True Charge</th>
+                                <th className="px-3 py-3 text-right font-semibold">Sum of CF Invoice Amount</th>
                             </tr>
-                        )}
-                    </tbody>
-                    <tfoot className="bg-primary/10 border-t-2 font-semibold">
-                        <tr>
-                            <td className="px-4 py-3">Grand Total</td>
-                            <td className="px-4 py-3 text-right tabular-nums">{formatCount(summary.totalCount)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
+                        </thead>
+                        <tbody className="divide-y">
+                            {summary.rows.map((row, index) => (
+                                <tr className="even:bg-muted/20 hover:bg-muted/40 transition-colors" key={row.cpt ?? `empty-${index}`}>
+                                    <td className="px-3 py-3 font-mono font-semibold">{row.cpt ?? 'No CPT'}</td>
+                                    <td className="px-3 py-3 text-right font-semibold tabular-nums">{formatCount(row.count)}</td>
+                                    <td className="px-3 py-3 text-right tabular-nums">{formatNumber(row.units)}</td>
+                                    <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(row.trueCharge)}</td>
+                                    <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(row.cfInvoiceAmount)}</td>
+                                </tr>
+                            ))}
+                            {summary.rows.length === 0 && (
+                                <tr>
+                                    <td className="text-muted-foreground px-4 py-10 text-center" colSpan={5}>
+                                        No Credit Status Yes lines found for the selected date range.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                        <tfoot className="bg-primary/10 border-t-2 font-semibold">
+                            <tr>
+                                <td className="px-3 py-3">Grand Total</td>
+                                <td className="px-3 py-3 text-right tabular-nums">{formatCount(summary.totalCount)}</td>
+                                <td className="px-3 py-3 text-right tabular-nums">{formatNumber(summary.totalUnits)}</td>
+                                <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(summary.totalTrueCharge)}</td>
+                                <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(summary.totalCfInvoiceAmount)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </CardContent>
         </Card>
     );
