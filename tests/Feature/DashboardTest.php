@@ -140,7 +140,13 @@ class DashboardTest extends TestCase
                 ->has('creditStatusSummary.rows', 1)
                 ->where('creditStatusSummary.rows.0.cpt', '99490')
                 ->where('creditStatusSummary.rows.0.count', 1)
+                ->where('creditStatusSummary.rows.0.units', fn ($value): bool => (float) $value === 1.0)
+                ->where('creditStatusSummary.rows.0.trueCharge', fn ($value): bool => (float) $value === 100.0)
+                ->where('creditStatusSummary.rows.0.cfInvoiceAmount', fn ($value): bool => (float) $value === 30.0)
                 ->where('creditStatusSummary.totalCount', 1)
+                ->where('creditStatusSummary.totalUnits', fn ($value): bool => (float) $value === 1.0)
+                ->where('creditStatusSummary.totalTrueCharge', fn ($value): bool => (float) $value === 100.0)
+                ->where('creditStatusSummary.totalCfInvoiceAmount', fn ($value): bool => (float) $value === 30.0)
                 ->has('modmedStatusSummary.rows', 2)
                 ->where('modmedStatusSummary.rows', function ($rows): bool {
                     $status = collect($rows)->firstWhere('group', 'Resolved/Paid');
@@ -173,18 +179,27 @@ class DashboardTest extends TestCase
             'procedure_code' => '99490',
             'credit_status' => true,
             'credit_status_date' => '2026-06-15',
+            'units' => 1,
+            'true_charge' => 100,
+            'cf_invoice_amount' => 20,
         ]);
         Claim::query()->create($baseClaim + [
             'external_id' => 'CREDIT-SUMMARY-JUNE-SECOND',
             'procedure_code' => '99490',
             'credit_status' => true,
             'credit_status_date' => '2026-06-20',
+            'units' => 2,
+            'true_charge' => 50,
+            'cf_invoice_amount' => 30,
         ]);
         Claim::query()->create($baseClaim + [
             'external_id' => 'CREDIT-SUMMARY-JULY',
             'procedure_code' => '99439',
             'credit_status' => true,
             'credit_status_date' => '2026-07-15',
+            'units' => 4,
+            'true_charge' => 200,
+            'cf_invoice_amount' => 60,
         ]);
         Claim::query()->create($baseClaim + [
             'external_id' => 'CREDIT-SUMMARY-NO',
@@ -215,7 +230,13 @@ class DashboardTest extends TestCase
                 ->has('creditStatusSummary.rows', 1)
                 ->where('creditStatusSummary.rows.0.cpt', '99490')
                 ->where('creditStatusSummary.rows.0.count', 2)
-                ->where('creditStatusSummary.totalCount', 2));
+                ->where('creditStatusSummary.rows.0.units', fn ($value): bool => (float) $value === 3.0)
+                ->where('creditStatusSummary.rows.0.trueCharge', fn ($value): bool => (float) $value === 150.0)
+                ->where('creditStatusSummary.rows.0.cfInvoiceAmount', fn ($value): bool => (float) $value === 50.0)
+                ->where('creditStatusSummary.totalCount', 2)
+                ->where('creditStatusSummary.totalUnits', fn ($value): bool => (float) $value === 3.0)
+                ->where('creditStatusSummary.totalTrueCharge', fn ($value): bool => (float) $value === 150.0)
+                ->where('creditStatusSummary.totalCfInvoiceAmount', fn ($value): bool => (float) $value === 50.0));
     }
 
     public function test_dashboard_panels_apply_their_own_invoice_and_service_date_ranges()

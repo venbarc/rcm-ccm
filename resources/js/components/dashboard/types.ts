@@ -73,11 +73,17 @@ export interface DashboardInvoicedSummary {
 export interface DashboardCreditStatusSummaryRow {
     cpt: string | null;
     count: number;
+    units: number;
+    trueCharge: number;
+    cfInvoiceAmount: number;
 }
 
 export interface DashboardCreditStatusSummary {
     rows: DashboardCreditStatusSummaryRow[];
     totalCount: number;
+    totalUnits: number;
+    totalTrueCharge: number;
+    totalCfInvoiceAmount: number;
 }
 
 export interface RecentClaim {
