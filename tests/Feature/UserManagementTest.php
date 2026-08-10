@@ -90,6 +90,68 @@ class UserManagementTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_available_members_are_lazily_paginated_ten_at_a_time_for_each_account(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        User::factory()->count(12)->create([
+            'account_types' => AccountType::values(),
+        ]);
+
+        foreach ([AccountType::Tricity, AccountType::Principle] as $account) {
+            $this->actingAs($admin)
+                ->withSession(['account_type' => $account->value])
+                ->getJson('/user-management/available-members')
+                ->assertOk()
+                ->assertJsonPath('current_page', 1)
+                ->assertJsonPath('per_page', 10)
+                ->assertJsonPath('total', 12)
+                ->assertJsonCount(10, 'data');
+
+            $this->getJson('/user-management/available-members?page=2')
+                ->assertOk()
+                ->assertJsonPath('current_page', 2)
+                ->assertJsonPath('per_page', 10)
+                ->assertJsonPath('total', 12)
+                ->assertJsonCount(2, 'data');
+        }
+    }
+
+    public function test_admin_can_see_and_enable_account_access_for_a_user_without_active_account_access(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $user = User::factory()->create([
+            'name' => 'Visible Without Principle',
+            'account_types' => [AccountType::Tricity->value],
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Principle->value])
+            ->get('/user-management')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('users.data', function ($users) use ($user): bool {
+                    $visibleUser = collect($users)->firstWhere('id', $user->id);
+
+                    return $visibleUser !== null
+                        && $visibleUser['can_manage'] === true
+                        && ! in_array(AccountType::Principle->value, $visibleUser['account_types'], true);
+                }));
+
+        $this->getJson('/user-management/available-members?search=Visible%20Without%20Principle')
+            ->assertOk()
+            ->assertJsonPath('total', 0);
+
+        $this->patch("/user-management/{$user->id}", [
+            'account_types' => [AccountType::Tricity->value, AccountType::Principle->value],
+        ])->assertRedirect();
+
+        $this->getJson('/user-management/available-members?search=Visible%20Without%20Principle')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.id', $user->id)
+            ->assertJsonPath('data.0.is_selectable', true);
+    }
+
     public function test_admin_index_shows_member_ownership_and_supports_membership_filters(): void
     {
         $admin = User::factory()->create(['is_admin' => true, 'name' => 'Current Admin']);

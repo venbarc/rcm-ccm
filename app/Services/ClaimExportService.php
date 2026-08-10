@@ -8,6 +8,8 @@ use App\Models\Claim;
 use App\Models\ClaimExport;
 use App\Models\ClaimImport;
 use App\Models\User;
+use App\Support\AccountContext;
+use App\Support\ClaimWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +33,15 @@ class ClaimExportService
         'Credit Status Date', 'Credit Reason', 'Last Updated',
     ];
 
+    private const PRINCIPLE_HEADERS = [
+        'Primary Claim ID', 'Patient Name', 'Patient Date of Birth', 'Chart Number',
+        'Responsible Payer', 'Rendering Provider', 'Location Name', 'Date of Service',
+        'Procedure Code', 'Units', 'Charge Amount', 'CF Invoice Amount', 'Total Payment',
+        'True Charge', 'True Charge Per Unit', 'Insurance Balance', 'Patient Balance',
+        'Total Balance', 'claim-cpt', 'Work Status', 'Assigned To', 'Denial Reason',
+        'Notes', 'Credit Status', 'Credit Status Date', 'Credit Reason', 'Last Updated',
+    ];
+
     private const INVOICED_STATUS_LABELS = [
         'invoiced' => 'Invoiced',
     ];
@@ -49,6 +60,10 @@ class ClaimExportService
      */
     public function startExport(string $account, User $user, array $filters): ClaimExport
     {
+        if (AccountContext::activeAccountType() !== $account) {
+            return AccountContext::runWith($account, fn (): ClaimExport => $this->startExport($account, $user, $filters));
+        }
+
         if (ClaimImport::query()
             ->where('account_type', $account)
             ->whereIn('status', ['queued', 'processing'])
@@ -87,7 +102,7 @@ class ClaimExportService
         $filePath = 'claim-exports/'.Str::slug($account).'/'.Str::uuid().'_'.$fileName;
 
         Storage::makeDirectory(dirname($filePath));
-        $this->writeHeaders($filePath);
+        $this->writeHeaders($filePath, $account);
 
         $export = null;
 
@@ -105,9 +120,9 @@ class ClaimExportService
 
             $jobs = [];
             for ($chunk = 1; $chunk <= $totalChunks; $chunk++) {
-                $jobs[] = new ProcessClaimExportChunk($export->id, $chunk);
+                $jobs[] = new ProcessClaimExportChunk($export->id, $chunk, $account);
             }
-            $jobs[] = new FinalizeClaimExport($export->id);
+            $jobs[] = new FinalizeClaimExport($export->id, $account);
 
             Bus::chain($jobs)->dispatch();
 
@@ -306,7 +321,7 @@ class ClaimExportService
         ];
     }
 
-    private function writeHeaders(string $filePath): void
+    private function writeHeaders(string $filePath, string $account): void
     {
         $handle = fopen(Storage::path($filePath), 'wb');
         if ($handle === false) {
@@ -314,7 +329,7 @@ class ClaimExportService
         }
 
         try {
-            fputcsv($handle, self::HEADERS, ',', '"', '\\');
+            fputcsv($handle, ClaimWorkspace::isPrinciple($account) ? self::PRINCIPLE_HEADERS : self::HEADERS, ',', '"', '\\');
         } finally {
             fclose($handle);
         }
@@ -325,6 +340,47 @@ class ClaimExportService
      */
     private function formatRow(Claim $claim): array
     {
+        if (ClaimWorkspace::isPrinciple($claim->account_type)) {
+            return array_map($this->sanitizeCsvValue(...), [
+                $claim->primary_claim_id,
+                $claim->patient_name,
+                $claim->patient_date_of_birth?->format('Y-m-d'),
+                $claim->chart_number,
+                $claim->responsible_payer,
+                $claim->rendering_provider,
+                $claim->location_name,
+                $claim->date_of_service?->format('Y-m-d'),
+                $claim->procedure_code,
+                $claim->units,
+                $claim->charge_amount,
+                $claim->cf_invoice_amount,
+                $claim->total_payment,
+                $claim->true_charge,
+                $claim->true_charge_per_unit,
+                $claim->insurance_balance,
+                $claim->patient_balance,
+                $claim->total_balance,
+                $claim->claim_cpt,
+                $claim->workStatusOption?->label
+                    ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::WORK_STATUS, $claim->work_status ?: 'draft'),
+                $claim->assignee?->name,
+                $claim->denialReasonOption?->label
+                    ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::DENIAL_REASON, $claim->denial_reason),
+                $claim->notes,
+                match ($claim->credit_status) {
+                    true => $claim->creditStatusOption?->label
+                        ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'yes'),
+                    false => $claim->creditStatusOption?->label
+                        ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_STATUS, 'no'),
+                    null => '--',
+                },
+                $claim->credit_status_date?->format('Y-m-d'),
+                $claim->creditReasonOption?->label
+                    ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_REASON, $claim->credit_reason),
+                $claim->updated_at?->format('Y-m-d H:i:s'),
+            ]);
+        }
+
         $procedureCode = $claim->procedure_code ?: $claim->cpt_code;
         $payer = $claim->payer_name ?: $claim->payer;
 

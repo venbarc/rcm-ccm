@@ -3,6 +3,7 @@ import { lineProcedureCode } from '@/components/claims/utils';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 
 interface EditFormState {
     work_status: string;
@@ -43,6 +44,7 @@ export function ClaimEditDialog({
     onOpenChange,
     onSave,
 }: ClaimEditDialogProps) {
+    const workspace = useClaimWorkspace();
     const isCredited = editForm.credit_status === 'yes';
     const affirmativeCreditStatusLabel = creditStatuses.find((item) => item.value === 'yes')?.label ?? 'Yes';
     const isCreditStatusDateMissing = isCredited && editForm.credit_status_date === '';
@@ -54,16 +56,18 @@ export function ClaimEditDialog({
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Edit claim line</DialogTitle>
-                    <DialogDescription>Update only the selected CPT line under Bill ID {claim?.bill_id}.</DialogDescription>
+                    <DialogDescription>
+                        Update only the selected {workspace.procedureLabel} line under {workspace.identifierLabel} {claim?.bill_id}.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-                            <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">Bill ID</div>
+                            <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">{workspace.identifierLabel}</div>
                             <div className="mt-1 text-sm font-medium text-slate-900">{claim?.bill_id ?? 'N/A'}</div>
                         </div>
                         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-                            <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">CPT code</div>
+                            <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">{workspace.procedureLabel}</div>
                             <div className="mt-1 text-sm font-medium text-slate-900">
                                 {line ? lineProcedureCode(line.procedure_code, line.cpt_code) : 'N/A'}
                             </div>
@@ -86,34 +90,38 @@ export function ClaimEditDialog({
                             ))}
                         </select>
                     </label>
-                    <label className="grid gap-1.5 text-sm font-medium">
-                        ModMed Claim Status
-                        <select
-                            className="bg-background h-10 rounded-md border px-3 font-normal"
-                            onChange={(event) => setEditForm({ ...editForm, modmed_claim_status: event.target.value })}
-                            value={editForm.modmed_claim_status}
-                        >
-                            <option value="">--</option>
-                            {!modMedClaimStatuses.some((item) => item.value === editForm.modmed_claim_status) && editForm.modmed_claim_status && (
-                                <option value={editForm.modmed_claim_status}>{editForm.modmed_claim_status}</option>
-                            )}
-                            {modMedClaimStatuses.map((item) => (
-                                <option key={item.value} value={item.value}>
-                                    {item.label}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    {workspace.showModMed && (
                         <label className="grid gap-1.5 text-sm font-medium">
-                            Invoiced Status
-                            <Input className="bg-muted text-muted-foreground" readOnly value="Invoiced" />
+                            ModMed Claim Status
+                            <select
+                                className="bg-background h-10 rounded-md border px-3 font-normal"
+                                onChange={(event) => setEditForm({ ...editForm, modmed_claim_status: event.target.value })}
+                                value={editForm.modmed_claim_status}
+                            >
+                                <option value="">--</option>
+                                {!modMedClaimStatuses.some((item) => item.value === editForm.modmed_claim_status) && editForm.modmed_claim_status && (
+                                    <option value={editForm.modmed_claim_status}>{editForm.modmed_claim_status}</option>
+                                )}
+                                {modMedClaimStatuses.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
                         </label>
-                        <label className="grid gap-1.5 text-sm font-medium">
-                            Invoiced Status Date
-                            <Input className="bg-muted text-muted-foreground" readOnly type="date" value={line?.cf_invoice_date ?? ''} />
-                        </label>
-                    </div>
+                    )}
+                    {workspace.showInvoiceFields && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="grid gap-1.5 text-sm font-medium">
+                                Invoiced Status
+                                <Input className="bg-muted text-muted-foreground" readOnly value="Invoiced" />
+                            </label>
+                            <label className="grid gap-1.5 text-sm font-medium">
+                                Invoiced Status Date
+                                <Input className="bg-muted text-muted-foreground" readOnly type="date" value={line?.cf_invoice_date ?? ''} />
+                            </label>
+                        </div>
+                    )}
                     <div className="grid gap-3 sm:grid-cols-2">
                         <label className="grid gap-1.5 text-sm font-medium">
                             Credit Status

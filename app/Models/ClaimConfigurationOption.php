@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesAccountScopedTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ClaimConfigurationOption extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, UsesAccountScopedTable;
 
     protected $fillable = [
         'account_type',

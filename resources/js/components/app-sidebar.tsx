@@ -2,6 +2,7 @@ import { AccountSwitcherBadge } from '@/components/account-switcher-badge';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { useActiveAccount } from '@/hooks/use-active-account';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { Activity, ArrowLeft, FileText, LayoutGrid, Settings2, UserRoundCog } from 'lucide-react';
@@ -9,6 +10,7 @@ import AppLogo from './app-logo';
 
 export function AppSidebar() {
     const { auth, activeAccount, accountTypes } = usePage<SharedData>().props;
+    const { workspaceLabel } = useActiveAccount();
     const workspaceItems: NavItem[] = [
         { title: 'Dashboard', url: '/dashboard', icon: LayoutGrid },
         { title: 'Claims', url: '/claims', icon: FileText },
@@ -27,7 +29,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton asChild size="lg" tooltip="RCM CCM dashboard">
-                            <Link href="/dashboard" prefetch>
+                            <Link href="/dashboard">
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -51,7 +53,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={workspaceItems} />
+                <NavMain items={workspaceItems} label={workspaceLabel} />
                 {administrationItems.length > 0 && <NavMain items={administrationItems} label="Administration" />}
             </SidebarContent>
 

@@ -6,6 +6,7 @@ use App\Models\Claim;
 use App\Models\User;
 use App\Services\ClaimConfigurationService;
 use App\Services\TeamService;
+use App\Support\ClaimWorkspace;
 use App\Support\CurrentAccount;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -122,26 +123,33 @@ class ActivityLogController extends Controller
         }
         $this->applyWorkedLineFilters($claims, $request, $account->value);
 
-        return response()->streamDownload(function () use ($claims, $statusLabels): void {
+        $isPrinciple = ClaimWorkspace::isPrinciple($account->value);
+
+        return response()->streamDownload(function () use ($claims, $isPrinciple, $statusLabels): void {
             $stream = fopen('php://output', 'w');
             if ($stream === false) {
                 return;
             }
 
-            fputcsv($stream, ['User', 'Email', 'Bill ID', 'Patient', 'CPT Code', 'Status', 'True Charge', 'Payments', 'True Balance', 'Worked At']);
+            fputcsv($stream, $isPrinciple
+                ? ['User', 'Email', 'Primary Claim ID', 'Patient Name', 'Procedure Code', 'Status', 'True Charge', 'Total Payment', 'Worked At']
+                : ['User', 'Email', 'Bill ID', 'Patient', 'CPT Code', 'Status', 'True Charge', 'Payments', 'True Balance', 'Worked At']);
             foreach ($claims->orderBy('id')->lazyById(500) as $line) {
-                fputcsv($stream, [
+                $row = [
                     $line->assignee?->name ?? 'Unassigned',
                     $line->assignee?->email ?? '',
-                    $line->bill_id,
+                    $isPrinciple ? $line->primary_claim_id : $line->bill_id,
                     $line->patient_name,
-                    $line->procedure_code ?: $line->cpt_code,
+                    $isPrinciple ? $line->procedure_code : ($line->procedure_code ?: $line->cpt_code),
                     $line->workStatusOption?->label ?? $statusLabels[$line->work_status_id] ?? ($line->work_status ?: 'draft'),
                     (float) ($line->true_charge ?? $line->billed_amount ?? 0),
-                    (float) ($line->payments ?? 0),
-                    (float) ($line->true_balance ?? $line->balance ?? 0),
-                    $line->updated_at?->toIso8601String(),
-                ]);
+                    (float) ($isPrinciple ? $line->total_payment : ($line->payments ?? 0)),
+                ];
+                if (! $isPrinciple) {
+                    $row[] = (float) ($line->true_balance ?? $line->balance ?? 0);
+                }
+                $row[] = $line->updated_at?->toIso8601String();
+                fputcsv($stream, $row);
             }
             fclose($stream);
         }, 'activity-logs-'.now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);

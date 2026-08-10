@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Claim;
 use App\Services\ClaimConfigurationService;
+use App\Support\ClaimWorkspace;
 use App\Support\CurrentAccount;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,6 +34,7 @@ class DashboardController extends Controller
     public function __invoke(Request $request): Response
     {
         $account = CurrentAccount::resolve($request);
+        $hasCfInvoiceDate = ClaimWorkspace::supports($account->value, 'cf_invoice_date');
         $filters = $this->resolveDateRange($request);
         $baseClaims = Claim::query()->where('account_type', $account->value);
         $workSummaryClaims = clone $baseClaims;
@@ -42,7 +44,12 @@ class DashboardController extends Controller
             'claimsByStatus' => $this->resolvePanelDateFilters($request, 'claims_status'),
             'cptSummary' => $this->resolvePanelDateFilters($request, 'cpt'),
             'modmedStatusSummary' => $this->resolvePanelDateFilters($request, 'modmed'),
-            'invoicedSummary' => $this->resolvePanelDateFilters($request, 'invoiced', false),
+            'invoicedSummary' => $this->resolvePanelDateFilters(
+                $request,
+                'invoiced',
+                includeService: ! $hasCfInvoiceDate,
+                includeInvoice: $hasCfInvoiceDate,
+            ),
             'creditStatusSummary' => $this->resolvePanelDateFilters($request, 'credit_status', false),
         ];
 
@@ -91,7 +98,9 @@ class DashboardController extends Controller
             $modmedStatusSummaryClaims = clone $baseClaims;
             $this->applyPanelDateFilters($modmedStatusSummaryClaims, $panelFilters['modmedStatusSummary']);
 
-            $invoicedSummaryClaims = (clone $baseClaims)->whereNotNull('cf_invoice_date');
+            $invoicedSummaryClaims = (clone $baseClaims)->whereNotNull(
+                $hasCfInvoiceDate ? 'cf_invoice_date' : 'cf_invoice_amount',
+            );
             $this->applyPanelDateFilters($invoicedSummaryClaims, $panelFilters['invoicedSummary']);
 
             $adminSummaryProps = [
@@ -462,11 +471,14 @@ class DashboardController extends Controller
         Request $request,
         string $prefix,
         bool $includeService = true,
+        bool $includeInvoice = true,
     ): array {
-        [$invoiceStart, $invoiceEnd] = $this->normalizedDateRange(
-            $request->input("{$prefix}_invoice_start"),
-            $request->input("{$prefix}_invoice_end"),
-        );
+        [$invoiceStart, $invoiceEnd] = $includeInvoice
+            ? $this->normalizedDateRange(
+                $request->input("{$prefix}_invoice_start"),
+                $request->input("{$prefix}_invoice_end"),
+            )
+            : [null, null];
         [$serviceStart, $serviceEnd] = $includeService
             ? $this->normalizedDateRange(
                 $request->input("{$prefix}_service_start"),

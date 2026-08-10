@@ -35,6 +35,14 @@ enum AccountType: string
 
     public function isReady(): bool
     {
-        return $this === self::Tricity;
+        return in_array($this, [self::Tricity, self::Principle], true);
+    }
+
+    public function tablePrefix(): string
+    {
+        return match ($this) {
+            self::Principle => 'principle_',
+            self::Tricity, self::WcHealth => '',
+        };
     }
 }

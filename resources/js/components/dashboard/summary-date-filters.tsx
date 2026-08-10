@@ -10,6 +10,8 @@ interface SummaryDateFiltersProps {
     filters: DashboardPanelDateFilters;
     prefix: FilterPrefix;
     showServiceDate?: boolean;
+    showInvoiceDate?: boolean;
+    serviceDateLabel?: string;
     invoiceDateLabel?: string;
     invoiceDatePlaceholder?: string;
 }
@@ -26,6 +28,8 @@ export function SummaryDateFilters({
     filters,
     prefix,
     showServiceDate = true,
+    showInvoiceDate = true,
+    serviceDateLabel = 'Service Date Range',
     invoiceDateLabel = 'CF Invoice Date Range',
     invoiceDatePlaceholder = 'Select CF invoice date range',
 }: SummaryDateFiltersProps) {
@@ -59,7 +63,9 @@ export function SummaryDateFilters({
 
     const clearFilters = () => {
         const params = currentDashboardParams();
-        const filterKinds: Array<'invoice' | 'service'> = showServiceDate ? ['invoice', 'service'] : ['invoice'];
+        const filterKinds: Array<'invoice' | 'service'> = [];
+        if (showInvoiceDate) filterKinds.push('invoice');
+        if (showServiceDate) filterKinds.push('service');
 
         filterKinds.forEach((kind) => {
             delete params[`${prefix}_${kind}_start`];
@@ -70,23 +76,26 @@ export function SummaryDateFilters({
     };
 
     const hasActiveFilters =
-        Boolean(filters.invoiceStart || filters.invoiceEnd) || (showServiceDate && Boolean(filters.serviceStart || filters.serviceEnd));
+        (showInvoiceDate && Boolean(filters.invoiceStart || filters.invoiceEnd)) ||
+        (showServiceDate && Boolean(filters.serviceStart || filters.serviceEnd));
 
     return (
         <div className="flex flex-wrap items-end gap-3">
-            <DateRangeFilterField
-                className="w-full sm:w-72"
-                from={filters.invoiceStart ?? ''}
-                label={invoiceDateLabel}
-                onApply={({ from, to }) => updateRange('invoice', from, to)}
-                placeholder={invoiceDatePlaceholder}
-                to={filters.invoiceEnd ?? ''}
-            />
+            {showInvoiceDate && (
+                <DateRangeFilterField
+                    className="w-full sm:w-72"
+                    from={filters.invoiceStart ?? ''}
+                    label={invoiceDateLabel}
+                    onApply={({ from, to }) => updateRange('invoice', from, to)}
+                    placeholder={invoiceDatePlaceholder}
+                    to={filters.invoiceEnd ?? ''}
+                />
+            )}
             {showServiceDate && (
                 <DateRangeFilterField
                     className="w-full sm:w-72"
                     from={filters.serviceStart ?? ''}
-                    label="Service Date Range"
+                    label={serviceDateLabel}
                     onApply={({ from, to }) => updateRange('service', from, to)}
                     placeholder="Select service date range"
                     to={filters.serviceEnd ?? ''}

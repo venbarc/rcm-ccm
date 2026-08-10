@@ -95,7 +95,7 @@ class SsoCallbackTest extends TestCase
             'email' => 'agent@example.com',
             'additional_emails' => [],
             'name' => 'Claims Agent',
-            'account_type' => AccountType::Principle->value,
+            'account_type' => AccountType::WcHealth->value,
             'state' => 'expected-state',
         ])]);
 

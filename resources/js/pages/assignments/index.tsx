@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select';
+import { useActiveAccount } from '@/hooks/use-active-account';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
@@ -76,6 +78,8 @@ export default function Assignments({
     groupDefinitions: GroupDefinition[];
     assignees: UserOption[];
 }) {
+    const { label: accountLabel } = useActiveAccount();
+    const workspace = useClaimWorkspace();
     const isPageLoading = useInertiaLoading();
     const [activeGroupBy, setActiveGroupBy] = useState<string>('all');
     const [selectionIdsByKey, setSelectionIdsByKey] = useState<Record<string, string[]>>({});
@@ -205,14 +209,16 @@ export default function Assignments({
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Assignments', href: '/assignments' }]}>
-            <Head title="Grouped Bill Distribution" />
+            <Head title={`Grouped ${workspace.identifierLabel} Distribution`} />
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
                 <div>
-                    <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">Bill-ID-safe routing</p>
+                    <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">
+                        {workspace.identifierLabel}-safe routing
+                    </p>
                     <h1 className="text-3xl font-semibold tracking-tight">Grouped claim distribution</h1>
                     <p className="text-muted-foreground text-sm">
-                        Use the same dropdown-style distribution flow as the RCM portal: pick a queue slice, apply it, then distribute complete Bill
-                        IDs by True Balance target.
+                        Pick a queue slice, apply it, then distribute complete {workspace.identifierLabel} groups
+                        {workspace.showTrueBalance ? ' by True Balance target.' : ' evenly across assignees.'}
                     </p>
                 </div>
 
@@ -226,8 +232,8 @@ export default function Assignments({
                                     <Layers3 className="size-5" /> Distribution selectors
                                 </CardTitle>
                                 <CardDescription>
-                                    Each dropdown shows the claims and True Balance behind that value. Apply one selector to preview and distribute
-                                    that slice.
+                                    Each dropdown shows the matching claims{workspace.showTrueBalance ? ' and True Balance' : ''}. Apply one selector
+                                    to preview and distribute that slice.
                                 </CardDescription>
                             </div>
                             <Button onClick={useEntireQueue} type="button" variant={activeGroupBy === 'all' ? 'default' : 'outline'}>
@@ -236,10 +242,10 @@ export default function Assignments({
                             </Button>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-950">
+                            <div className="border-border bg-secondary/60 text-secondary-foreground rounded-lg border px-4 py-3 text-sm">
                                 <strong>Active scope:</strong> {activeGroupLabel}
                                 {activeGroupBy !== 'all' && (
-                                    <span className="ml-1 text-blue-900/80">
+                                    <span className="text-secondary-foreground/80 ml-1">
                                         with {selectedValues.length} selected {selectedValues.length === 1 ? 'value' : 'values'}.
                                     </span>
                                 )}
@@ -252,16 +258,17 @@ export default function Assignments({
                                     const isApplied = activeGroupBy === definition.key && selectedValues.length > 0;
 
                                     return (
-                                        <div className="rounded-xl border border-blue-100 bg-white p-4" key={definition.key}>
+                                        <div className="border-border rounded-xl border bg-white p-4" key={definition.key}>
                                             <div className="mb-3 flex items-start justify-between gap-3">
                                                 <div>
-                                                    <p className="text-xs font-semibold tracking-wide text-blue-900 uppercase">{definition.label}</p>
+                                                    <p className="text-primary text-xs font-semibold tracking-wide uppercase">{definition.label}</p>
                                                     <p className="text-muted-foreground mt-1 text-xs">
-                                                        {selectionSummary.count.toLocaleString()} claims / {currency(selectionSummary.balance)}
+                                                        {selectionSummary.count.toLocaleString()} claims
+                                                        {workspace.showTrueBalance ? ` / ${currency(selectionSummary.balance)}` : ''}
                                                     </p>
                                                 </div>
                                                 {isApplied && (
-                                                    <Badge className="border-blue-200 bg-blue-50 text-blue-900" variant="outline">
+                                                    <Badge className="border-border bg-secondary text-secondary-foreground" variant="outline">
                                                         Applied
                                                     </Badge>
                                                 )}
@@ -313,7 +320,8 @@ export default function Assignments({
                                                                 <span className="truncate">{typedOption.name}</span>
                                                             </span>
                                                             <span className="text-muted-foreground shrink-0 text-xs">
-                                                                {typedOption.count.toLocaleString()} / {currency(typedOption.balance)}
+                                                                {typedOption.count.toLocaleString()}
+                                                                {workspace.showTrueBalance ? ` / ${currency(typedOption.balance)}` : ''}
                                                             </span>
                                                         </div>
                                                     );
@@ -333,7 +341,7 @@ export default function Assignments({
                             <CardTitle className="flex items-center gap-2">
                                 <Users className="size-5" /> Assignees
                             </CardTitle>
-                            <CardDescription>Each person receives complete Bill ID groups.</CardDescription>
+                            <CardDescription>Each person receives complete {workspace.identifierLabel} groups.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-2">
                             <div className="mb-3 flex gap-2">
@@ -359,7 +367,7 @@ export default function Assignments({
                                 </label>
                             ))}
                             {assignees.length === 0 && (
-                                <p className="text-muted-foreground py-8 text-center text-sm">Your Tricity team has no available users.</p>
+                                <p className="text-muted-foreground py-8 text-center text-sm">Your {accountLabel} team has no available users.</p>
                             )}
                         </CardContent>
                     </Card>

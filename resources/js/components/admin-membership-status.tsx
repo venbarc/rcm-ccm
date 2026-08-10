@@ -14,7 +14,7 @@ export function AdminMembershipStatus() {
 
     if (auth.user.is_admin) {
         return (
-            <Badge className="gap-1.5 border-blue-300 bg-blue-50 px-2.5 py-1 text-blue-800" title="Administrator" variant="outline">
+            <Badge className="border-border bg-secondary text-secondary-foreground gap-1.5 px-2.5 py-1" title="Administrator" variant="outline">
                 <ShieldCheck aria-hidden="true" className="size-3.5 shrink-0" />
                 <span className="font-semibold">Administrator</span>
             </Badge>

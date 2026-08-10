@@ -3,6 +3,7 @@ import { formatCurrency, formatNumber } from '@/components/activity-logs/types';
 import { Pagination } from '@/components/pagination';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { Link } from '@inertiajs/react';
 import { Eye } from 'lucide-react';
 
@@ -12,6 +13,7 @@ interface UserMetricsTableProps {
 }
 
 export function UserMetricsTable({ metrics, filters }: UserMetricsTableProps) {
+    const workspace = useClaimWorkspace();
     const workedLinesUrl = (userId: number) => {
         const params = new URLSearchParams();
         Object.entries(filters).forEach(([key, value]) => value && value !== 'all' && params.set(key, value));
@@ -31,8 +33,8 @@ export function UserMetricsTable({ metrics, filters }: UserMetricsTableProps) {
                             <th className="w-32 px-4 py-3 font-semibold">Role</th>
                             <th className="px-4 py-3 text-right font-semibold">Assigned</th>
                             <th className="px-4 py-3 text-right font-semibold">Worked/Closed</th>
-                            <th className="px-4 py-3 text-right font-semibold">Balance</th>
-                            <th className="px-4 py-3 text-right font-semibold">Closed Balance</th>
+                            {workspace.showTrueBalance && <th className="px-4 py-3 text-right font-semibold">Balance</th>}
+                            {workspace.showTrueBalance && <th className="px-4 py-3 text-right font-semibold">Closed Balance</th>}
                             <th className="px-4 py-3 text-center font-semibold">Action</th>
                         </tr>
                     </thead>
@@ -49,8 +51,12 @@ export function UserMetricsTable({ metrics, filters }: UserMetricsTableProps) {
                                 <td className="px-4 py-3 text-right font-semibold">
                                     {formatNumber(item.worked_lines)}/{formatNumber(item.closed_lines)}
                                 </td>
-                                <td className="px-4 py-3 text-right font-semibold text-rose-600">{formatCurrency(item.total_balance)}</td>
-                                <td className="px-4 py-3 text-right font-semibold text-emerald-600">{formatCurrency(item.closed_balance)}</td>
+                                {workspace.showTrueBalance && (
+                                    <td className="px-4 py-3 text-right font-semibold text-rose-600">{formatCurrency(item.total_balance)}</td>
+                                )}
+                                {workspace.showTrueBalance && (
+                                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">{formatCurrency(item.closed_balance)}</td>
+                                )}
                                 <td className="px-4 py-3 text-center">
                                     {item.worked_lines > 0 ? (
                                         <Button asChild size="sm" variant="outline">
@@ -70,7 +76,7 @@ export function UserMetricsTable({ metrics, filters }: UserMetricsTableProps) {
                         ))}
                         {metrics.data.length === 0 && (
                             <tr>
-                                <td className="text-muted-foreground p-12 text-center" colSpan={8}>
+                                <td className="text-muted-foreground p-12 text-center" colSpan={workspace.showTrueBalance ? 8 : 6}>
                                     No activity found.
                                 </td>
                             </tr>

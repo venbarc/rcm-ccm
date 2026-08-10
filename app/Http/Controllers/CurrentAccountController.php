@@ -28,6 +28,6 @@ class CurrentAccountController extends Controller
 
         $request->session()->put('account_type', $account->value);
 
-        return redirect()->route('dashboard')->with('success', "Switched account to {$account->label()}.");
+        return back()->with('success', "Switched account to {$account->label()}.");
     }
 }

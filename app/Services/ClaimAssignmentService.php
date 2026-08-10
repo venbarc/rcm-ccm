@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Claim;
+use App\Models\ClaimConfigurationOption;
 use App\Models\User;
+use App\Support\ClaimWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,9 +26,17 @@ class ClaimAssignmentService
     ];
 
     /** @return array<int, array{key: string, label: string}> */
-    public function groupDefinitions(): array
+    public function groupDefinitions(string $account): array
     {
-        return collect(self::GROUP_LABELS)
+        $labels = ClaimWorkspace::isPrinciple($account) ? [
+            ...self::GROUP_LABELS,
+            'procedure_code' => 'Procedure Code',
+            'payer_name' => 'Responsible Payer',
+            'primary_provider' => 'Rendering Provider',
+            'service_month' => 'Date of Service month',
+        ] : self::GROUP_LABELS;
+
+        return collect($labels)
             ->map(fn (string $label, string $key): array => compact('key', 'label'))
             ->values()
             ->all();
@@ -111,7 +121,7 @@ class ClaimAssignmentService
      */
     public function options(string $account, string $groupBy, ?string $search = null, int $page = 1, int $perPage = 10): array
     {
-        $expression = $this->groupExpression($groupBy);
+        $expression = $this->groupExpression($account, $groupBy);
         if ($expression === null) {
             return [
                 'data' => [],
@@ -125,7 +135,7 @@ class ClaimAssignmentService
 
         $query = $this->unassignedRows($account)
             ->when($groupBy === 'denial_reason', fn (Builder $query) => $query
-                ->leftJoin('claim_configuration_options as grouped_configuration', function ($join): void {
+                ->leftJoin((new ClaimConfigurationOption)->getTable().' as grouped_configuration', function ($join): void {
                     $join->on('grouped_configuration.id', '=', 'claims.denial_reason_id')
                         ->where('grouped_configuration.option_type', ClaimConfigurationService::DENIAL_REASON);
                 }))
@@ -224,12 +234,15 @@ class ClaimAssignmentService
 
     private function unassignedRows(string $account): Builder
     {
+        $claimsTable = (new Claim)->getTable();
+
         return Claim::query()
+            ->from($claimsTable.' as claims')
             ->where('claims.account_type', $account)
             ->whereNull('claims.assigned_to')
-            ->whereNotExists(function ($query): void {
+            ->whereNotExists(function ($query) use ($claimsTable): void {
                 $query->selectRaw('1')
-                    ->from('claims as assigned_sibling')
+                    ->from($claimsTable.' as assigned_sibling')
                     ->whereColumn('assigned_sibling.account_type', 'claims.account_type')
                     ->whereColumn('assigned_sibling.bill_id', 'claims.bill_id')
                     ->whereNotNull('assigned_sibling.assigned_to');
@@ -238,21 +251,24 @@ class ClaimAssignmentService
 
     private function assignedGroupRows(string $account): Builder
     {
+        $claimsTable = (new Claim)->getTable();
+
         // A partially assigned Bill ID is one workload. Attribute every sibling
         // line to the most recently updated assigned line so nothing is omitted
         // or counted more than once.
         return Claim::query()
+            ->from($claimsTable.' as claims')
             ->where('claims.account_type', $account)
-            ->whereExists(function ($query): void {
+            ->whereExists(function ($query) use ($claimsTable): void {
                 $query->selectRaw('1')
-                    ->from('claims as assigned_sibling')
+                    ->from($claimsTable.' as assigned_sibling')
                     ->whereColumn('assigned_sibling.account_type', 'claims.account_type')
                     ->whereColumn('assigned_sibling.bill_id', 'claims.bill_id')
                     ->whereNotNull('assigned_sibling.assigned_to');
             })
             ->select('claims.*')
-            ->selectSub(function ($query): void {
-                $query->from('claims as group_owner')
+            ->selectSub(function ($query) use ($claimsTable): void {
+                $query->from($claimsTable.' as group_owner')
                     ->select('group_owner.assigned_to')
                     ->whereColumn('group_owner.account_type', 'claims.account_type')
                     ->whereColumn('group_owner.bill_id', 'claims.bill_id')
@@ -274,7 +290,7 @@ class ClaimAssignmentService
             return $query;
         }
 
-        $expression = $this->groupExpression($groupBy);
+        $expression = $this->groupExpression($account, $groupBy);
         $values = array_values(array_unique(array_filter(array_map(
             fn (mixed $value): string => trim((string) $value),
             $groupValues,
@@ -287,14 +303,14 @@ class ClaimAssignmentService
         return $query->whereIn(DB::raw($expression), $values);
     }
 
-    private function groupExpression(string $groupBy): ?string
+    private function groupExpression(string $account, string $groupBy): ?string
     {
         return match ($groupBy) {
-            'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
-            'payer_name' => "COALESCE(NULLIF(payer_name, ''), NULLIF(payer, ''))",
-            'primary_provider' => "COALESCE(NULLIF(primary_provider, ''), NULLIF(provider, ''))",
+            'procedure_code' => ClaimWorkspace::expression($account, 'procedure'),
+            'payer_name' => ClaimWorkspace::expression($account, 'payer'),
+            'primary_provider' => ClaimWorkspace::expression($account, 'provider'),
             'denial_reason' => 'claims.denial_reason_id',
-            'service_month' => 'SUBSTR(COALESCE(service_date_start, date_of_service), 1, 7)',
+            'service_month' => 'SUBSTR('.ClaimWorkspace::field($account, 'service_date').', 1, 7)',
             default => null,
         };
     }

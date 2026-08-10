@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesAccountScopedTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClaimRawRow extends Model
 {
+    use UsesAccountScopedTable;
+
     protected $guarded = ['id'];
 
     protected function casts(): array

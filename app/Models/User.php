@@ -65,6 +65,11 @@ class User extends Authenticatable
             : array_values(array_intersect($this->account_types ?? [], AccountType::values()));
     }
 
+    public function defaultAccountType(): ?string
+    {
+        return $this->allowedAccountTypes()[0] ?? null;
+    }
+
     public function canAccessAccount(AccountType|string $account): bool
     {
         $value = $account instanceof AccountType ? $account->value : $account;
@@ -74,7 +79,7 @@ class User extends Authenticatable
 
     public function canAssignClaims(): bool
     {
-        return $this->is_admin;
+        return (bool) $this->is_admin;
     }
 
     public function members(): BelongsToMany

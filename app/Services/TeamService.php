@@ -16,12 +16,9 @@ class TeamService
         abort_unless($admin->is_admin, 422, 'Only administrators can manage users.');
 
         return User::query()
-            ->where(function (Builder $query) use ($admin, $account): void {
+            ->where(function (Builder $query) use ($admin): void {
                 $query->whereKey($admin->id)
-                    ->orWhere(function (Builder $members) use ($account): void {
-                        $members->where('is_admin', false)
-                            ->whereJsonContains('account_types', $account);
-                    });
+                    ->orWhere('is_admin', false);
             });
     }
 
@@ -35,7 +32,7 @@ class TeamService
             return true;
         }
 
-        if ($target->is_admin || ! $target->canAccessAccount($account)) {
+        if ($target->is_admin) {
             return false;
         }
 

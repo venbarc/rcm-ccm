@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
@@ -40,6 +41,7 @@ export default function WorkedClaimLines({
     returnTo: string;
 }) {
     const isLoading = useInertiaLoading();
+    const workspace = useClaimWorkspace();
     const [local, setLocal] = useState(filters);
     const path = `/activity-logs/users/${user.id}/worked-claim-lines`;
     const workedReturnTo = `${path}?${new URLSearchParams({ ...filters, return_to: returnTo }).toString()}`;
@@ -92,7 +94,7 @@ export default function WorkedClaimLines({
                             </div>
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="flex flex-col gap-2">
-                                    <Label htmlFor="claim-number">Bill ID</Label>
+                                    <Label htmlFor="claim-number">{workspace.identifierLabel}</Label>
                                     <SearchInput
                                         id="claim-number"
                                         value={local.claim_number}
@@ -100,7 +102,7 @@ export default function WorkedClaimLines({
                                     />
                                 </div>
                                 <div className="flex flex-col gap-2">
-                                    <Label htmlFor="cpt-code">CPT Code</Label>
+                                    <Label htmlFor="cpt-code">{workspace.procedureLabel}</Label>
                                     <Input
                                         id="cpt-code"
                                         value={local.cpt_code}

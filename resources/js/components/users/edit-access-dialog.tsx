@@ -33,7 +33,7 @@ export function EditAccessDialog({ user, accountTypes, onClose }: EditAccessDial
                         Manage account access for {user.name}. Roles are controlled by OneAccess and cannot be changed here.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4">
+                <div className="border-border bg-secondary/70 rounded-xl border p-4">
                     <p className="font-semibold text-slate-900">{user.name}</p>
                     <p className="text-sm text-slate-600">{user.email}</p>
                 </div>
@@ -47,7 +47,7 @@ export function EditAccessDialog({ user, accountTypes, onClose }: EditAccessDial
                             >
                                 <input
                                     checked={form.data.account_types.includes(account.value)}
-                                    className="accent-blue-700"
+                                    className="accent-primary"
                                     disabled={!account.ready}
                                     onChange={() => toggleAccount(account.value)}
                                     type="checkbox"

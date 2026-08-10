@@ -2,7 +2,7 @@ import { formatServiceMonth } from '@/components/claims/utils';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface FilterSearchSelectProps {
-    filter: 'modmed_claim_status' | 'payer_name' | 'primary_provider' | 'procedure_code' | 'service_month';
+    filter: 'modmed_claim_status' | 'payer_name' | 'primary_provider' | 'procedure_code' | 'service_month' | 'location';
     value: string;
     onValueChange: (value: string) => void;
     placeholder: string;

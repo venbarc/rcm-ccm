@@ -25,7 +25,7 @@ export function RestoreConfigurationDefaultsDialog({ section, onClose }: Restore
         <Dialog open onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <div className="mb-2 flex size-11 items-center justify-center rounded-full bg-blue-100 text-blue-800">
+                    <div className="bg-secondary text-primary mb-2 flex size-11 items-center justify-center rounded-full">
                         <RotateCcw className="size-5" />
                     </div>
                     <DialogTitle>Restore {section.label} defaults?</DialogTitle>

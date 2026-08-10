@@ -2,6 +2,7 @@ import { workStatusBadgeStyle } from '@/components/claims/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import type { ReactNode } from 'react';
 import type { ClaimByStatus } from './types';
 import { formatCount, formatCurrency } from './types';
@@ -12,6 +13,7 @@ interface ClaimsByStatusCardProps {
 }
 
 export function ClaimsByStatusCard({ filters, statuses }: ClaimsByStatusCardProps) {
+    const workspace = useClaimWorkspace();
     const totalCount = statuses.reduce((sum, item) => sum + item.count, 0);
 
     return (
@@ -51,7 +53,9 @@ export function ClaimsByStatusCard({ filters, statuses }: ClaimsByStatusCardProp
                                         {formatCount(item.count)} claims
                                     </span>
                                 </div>
-                                <p className="mt-1 text-sm font-semibold tabular-nums md:text-base">{formatCurrency(item.amount)}</p>
+                                {workspace.showTrueBalance && (
+                                    <p className="mt-1 text-sm font-semibold tabular-nums md:text-base">{formatCurrency(item.amount)}</p>
+                                )}
                                 <div className="bg-primary/20 mt-1 h-3 overflow-hidden rounded-full">
                                     <div
                                         className="bg-primary h-full rounded-full"

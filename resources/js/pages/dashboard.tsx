@@ -19,6 +19,7 @@ import { WorkSummaryTable } from '@/components/dashboard/work-summary-table';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
@@ -49,6 +50,7 @@ export default function Dashboard({
 }: DashboardProps) {
     const { auth } = usePage<SharedData>().props;
     const isLoading = useInertiaLoading();
+    const workspace = useClaimWorkspace();
     const workedLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.workedCount / workSummary.totalCount) * 100, 100) : 0;
     const paidLinePercent = workSummary.totalCount > 0 ? Math.min((workSummary.paidCount / workSummary.totalCount) * 100, 100) : 0;
     const showAdminSummaries = auth.user.is_admin && cptSummary && modmedStatusSummary && invoicedSummary && creditStatusSummary;
@@ -61,7 +63,7 @@ export default function Dashboard({
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-                            <p className="text-muted-foreground mt-1 text-sm">Claims performance and collection progress</p>
+                            <p className="text-muted-foreground mt-1 text-sm">Claims performance and work progress</p>
                         </div>
                         <Badge variant="outline">{accountLabel}</Badge>
                     </div>
@@ -83,26 +85,45 @@ export default function Dashboard({
                     {showAdminSummaries && (
                         <section aria-label="Admin financial summaries" className="flex min-w-0 flex-col gap-6">
                             <FinancialSummaryCard
-                                description="CPT-level volume, collections, balances, and CF invoice totals for the selected range."
-                                filters={<SummaryDateFilters filters={panelFilters.cptSummary} prefix="cpt" />}
-                                groupHeading="CPT"
+                                description={`${workspace.procedureLabel}-level volume and confirmed financial totals for the selected range.`}
+                                filters={
+                                    <SummaryDateFilters
+                                        filters={panelFilters.cptSummary}
+                                        prefix="cpt"
+                                        showInvoiceDate={workspace.showInvoiceFields}
+                                        serviceDateLabel={`${workspace.serviceDateLabel} Range`}
+                                    />
+                                }
+                                groupHeading={workspace.procedureLabel}
                                 groupKind="cpt"
                                 summary={cptSummary}
-                                title="Summary by CPT Codes"
+                                title={`Summary by ${workspace.procedureLabel}s`}
                             />
-                            <FinancialSummaryCard
-                                description="Financial performance grouped by the imported ModMed Claim Status."
-                                filters={<SummaryDateFilters filters={panelFilters.modmedStatusSummary} prefix="modmed" />}
-                                groupHeading="ModMed Claim Status"
-                                groupKind="modmed-status"
-                                summary={modmedStatusSummary}
-                                title="Summary by Claim Status"
-                            />
-                            <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-                                <InvoicedSummaryCard
-                                    filters={<SummaryDateFilters filters={panelFilters.invoicedSummary} prefix="invoiced" showServiceDate={false} />}
-                                    summary={invoicedSummary}
+                            {workspace.showModMed && (
+                                <FinancialSummaryCard
+                                    description="Financial performance grouped by the imported ModMed Claim Status."
+                                    filters={<SummaryDateFilters filters={panelFilters.modmedStatusSummary} prefix="modmed" />}
+                                    groupHeading="ModMed Claim Status"
+                                    groupKind="modmed-status"
+                                    summary={modmedStatusSummary}
+                                    title="Summary by Claim Status"
                                 />
+                            )}
+                            <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+                                {workspace.showInvoiceSummary && (
+                                    <InvoicedSummaryCard
+                                        filters={
+                                            <SummaryDateFilters
+                                                filters={panelFilters.invoicedSummary}
+                                                prefix="invoiced"
+                                                serviceDateLabel={`${workspace.serviceDateLabel} Range`}
+                                                showInvoiceDate={workspace.showInvoiceFields}
+                                                showServiceDate={!workspace.showInvoiceFields}
+                                            />
+                                        }
+                                        summary={invoicedSummary}
+                                    />
+                                )}
                                 <CreditStatusSummaryCard
                                     filters={
                                         <SummaryDateFilters
@@ -120,7 +141,14 @@ export default function Dashboard({
                     )}
 
                     <ClaimsByStatusCard
-                        filters={<SummaryDateFilters filters={panelFilters.claimsByStatus} prefix="claims_status" />}
+                        filters={
+                            <SummaryDateFilters
+                                filters={panelFilters.claimsByStatus}
+                                prefix="claims_status"
+                                showInvoiceDate={workspace.showInvoiceFields}
+                                serviceDateLabel={`${workspace.serviceDateLabel} Range`}
+                            />
+                        }
                         statuses={claimsByStatus}
                     />
 
@@ -135,7 +163,7 @@ export default function Dashboard({
                                     label="Worked"
                                     value={`${formatCount(workSummary.workedCount)} / ${formatCount(workSummary.totalCount)}`}
                                     percentage={workedLinePercent}
-                                    colorClass="text-blue-500"
+                                    colorClass="text-primary"
                                     helperText="Worked / total CPT lines"
                                 />
                                 <RadialMetricCard
