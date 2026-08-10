@@ -21,7 +21,7 @@ export function CreditStatusSummaryCard({ filters, summary }: CreditStatusSummar
                             Credit Status Yes lines grouped by CPT code for the selected Credit Status Date range.
                         </CardDescription>
                     </div>
-                    <Badge className="w-fit gap-1.5 border-blue-200 bg-blue-50 text-blue-800" variant="outline">
+                    <Badge className="border-border bg-secondary text-secondary-foreground w-fit gap-1.5" variant="outline">
                         <ShieldCheck className="size-3.5" />
                         Admin only
                     </Badge>

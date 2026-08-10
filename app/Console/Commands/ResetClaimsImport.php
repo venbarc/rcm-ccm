@@ -7,6 +7,7 @@ use App\Models\Claim;
 use App\Models\ClaimActivity;
 use App\Models\ClaimExport;
 use App\Models\ClaimImport;
+use App\Support\AccountContext;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -16,20 +17,36 @@ class ResetClaimsImport extends Command
 {
     protected $signature = 'reset-claims:import
         {--tricity : Reset Tricity Pain Associates claim data}
+        {--principle : Reset Principle Spine and Pain claim data}
         {--force : Skip the destructive-action confirmation}';
 
     protected $description = 'Remove claim data and generated claim files for a selected account before a fresh import';
 
     public function handle(): int
     {
-        if (! $this->option('tricity')) {
-            $this->error('Select an account to reset. Currently supported: --tricity');
+        $selected = array_filter([
+            'tricity' => (bool) $this->option('tricity'),
+            'principle' => (bool) $this->option('principle'),
+        ]);
+
+        if (count($selected) !== 1) {
+            $this->error('Select exactly one account to reset: --tricity or --principle');
 
             return self::INVALID;
         }
 
-        $account = AccountType::Tricity->value;
-        $accountLabel = AccountType::Tricity->label();
+        $accountType = isset($selected['principle']) ? AccountType::Principle : AccountType::Tricity;
+
+        return AccountContext::runWith(
+            $accountType->value,
+            fn (): int => $this->resetAccount($accountType),
+        );
+    }
+
+    private function resetAccount(AccountType $accountType): int
+    {
+        $account = $accountType->value;
+        $accountLabel = $accountType->label();
         $counts = [
             'claims' => Claim::query()->where('account_type', $account)->count(),
             'activities' => ClaimActivity::query()->where('account_type', $account)->count(),

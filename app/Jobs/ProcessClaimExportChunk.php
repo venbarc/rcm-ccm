@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Services\ClaimExportService;
+use App\Support\AccountContext;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -18,18 +19,22 @@ class ProcessClaimExportChunk implements ShouldQueue
     public function __construct(
         public readonly int $exportId,
         public readonly int $chunkNumber,
+        public readonly string $accountType = 'tricity_pain_associates',
     ) {}
 
     public function handle(ClaimExportService $exports): void
     {
-        $exports->processChunk($this->exportId, $this->chunkNumber);
+        AccountContext::runWith(
+            $this->accountType,
+            fn () => $exports->processChunk($this->exportId, $this->chunkNumber),
+        );
     }
 
     public function failed(?Throwable $exception): void
     {
-        app(ClaimExportService::class)->failExport(
+        AccountContext::runWith($this->accountType, fn () => app(ClaimExportService::class)->failExport(
             $this->exportId,
             $exception?->getMessage() ?? 'The export queue job failed.',
-        );
+        ));
     }
 }

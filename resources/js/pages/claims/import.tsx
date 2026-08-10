@@ -3,6 +3,8 @@ import { Pagination, type PaginationLink } from '@/components/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useActiveAccount } from '@/hooks/use-active-account';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { CheckCircle2, ChevronDown, ChevronUp, FileSpreadsheet, History, Loader2, Upload } from 'lucide-react';
@@ -39,35 +41,9 @@ interface Progress {
     progress_percentage: number;
 }
 
-const expectedColumns = [
-    'CPT',
-    'Location',
-    'Bill ID',
-    'Invoice Rate Per Unit',
-    'CF Invoice Amount',
-    'Payments',
-    'True Balance',
-    'True Charge',
-    'Units',
-    'BillingID-CPT',
-    'Charges',
-    'ModMed_Claim_Status',
-    'CF Invoice Date',
-    'Patient DOB',
-    'Patient First Name',
-    'Patient Last Name',
-    'Patient Name',
-    'Patient MRN',
-    'Payer',
-    'Payer-CPT',
-    'Place of Service Code',
-    'Posted Date Month/Year',
-    'Primary Provider',
-    'Service Date',
-    'True Charge Per Unit',
-];
-
 export default function ClaimImport({ imports, activeImportId }: { imports: ImportPage; activeImportId: number | null }) {
+    const { label } = useActiveAccount();
+    const workspace = useClaimWorkspace();
     const form = useForm<{ file: File | null }>({ file: null });
     const [progress, setProgress] = useState<Progress | null>(null);
     const [showHistory, setShowHistory] = useState(false);
@@ -109,12 +85,12 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                 { title: 'Import', href: '/claims-import' },
             ]}
         >
-            <Head title="Import Tricity Claims" />
+            <Head title={`Import ${label} Claims`} />
             <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">Queue-backed ingestion</p>
-                        <h1 className="text-3xl font-semibold tracking-tight">Import Tricity claims</h1>
+                        <h1 className="text-3xl font-semibold tracking-tight">Import {label} claims</h1>
                         <p className="text-muted-foreground text-sm">Large files are processed in memory-safe chunks by the queue worker.</p>
                     </div>
                     <Button
@@ -129,11 +105,11 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                     </Button>
                 </div>
                 {active && (active.status === 'processing' || active.status === 'queued') && (
-                    <Card className="border-sky-200 bg-sky-50/40">
+                    <Card className="border-border bg-secondary/40">
                         <CardContent className="p-5">
                             <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-3">
-                                    <Loader2 className="size-5 animate-spin text-sky-600" />
+                                    <Loader2 className="text-primary size-5 animate-spin" />
                                     <div>
                                         <p className="font-medium">Import in progress</p>
                                         <p className="text-muted-foreground text-sm">
@@ -148,9 +124,9 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                                     %
                                 </span>
                             </div>
-                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-sky-100">
+                            <div className="bg-secondary mt-4 h-2 overflow-hidden rounded-full">
                                 <div
-                                    className="h-full rounded-full bg-sky-600 transition-all"
+                                    className="bg-primary h-full rounded-full transition-all"
                                     style={{ width: `${'progress_percentage' in active ? active.progress_percentage : 0}%` }}
                                 />
                             </div>
@@ -161,12 +137,13 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <FileSpreadsheet className="size-5" /> Tricity billing workbook
+                                <FileSpreadsheet className="size-5" /> {label} billing workbook
                             </CardTitle>
                             <CardDescription>
-                                Upload CSV, XLSX, or XLS up to 20 MB. Bill ID is required and groups its CPT rows into one claim. Every workbook
-                                column is retained in the raw payload; displayed fields are also normalized for fast filtering and sorting. Reimports
-                                refresh source data while preserving assignments and manually worked fields.
+                                Upload CSV, XLSX, or XLS up to 20 MB. {workspace.identifierLabel} is required and groups its{' '}
+                                {workspace.procedureLabel} rows into one claim. Every workbook column is retained in the raw payload; confirmed
+                                displayed fields are normalized for fast filtering and sorting. Reimports refresh source data while preserving
+                                assignments and manually worked fields.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -186,11 +163,11 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">Recognized Tricity columns</CardTitle>
+                            <CardTitle className="text-base">Recognized billing columns</CardTitle>
                             <CardDescription>Other columns are retained in the raw source payload.</CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-wrap gap-2">
-                            {expectedColumns.map((column) => (
+                            {workspace.expectedImportColumns.map((column) => (
                                 <Badge key={column} variant="outline">
                                     {column}
                                 </Badge>
@@ -204,7 +181,7 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                             <CardTitle className="flex items-center gap-2 text-lg">
                                 <History className="size-5" /> Import History
                             </CardTitle>
-                            <CardDescription>View the history of all Tricity claim imports.</CardDescription>
+                            <CardDescription>View the history of all {label} claim imports.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="divide-y">

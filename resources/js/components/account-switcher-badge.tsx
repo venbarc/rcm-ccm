@@ -35,13 +35,13 @@ export function AccountSwitcherBadge({ activeAccount, allowedAccountTypes, accou
     }
 
     const badgeClassName =
-        'bg-sky-100 font-semibold text-blue-950 hover:bg-sky-200 hover:text-blue-950 data-[state=open]:bg-sky-200 data-[state=open]:text-blue-950 disabled:cursor-not-allowed disabled:opacity-70';
+        'bg-sidebar-accent font-semibold text-sidebar-accent-foreground hover:bg-secondary hover:text-secondary-foreground data-[state=open]:bg-secondary data-[state=open]:text-secondary-foreground disabled:cursor-not-allowed disabled:opacity-70';
 
     if (availableAccounts.length <= 1) {
         return (
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild className={`${badgeClassName} hover:bg-sky-100`} tooltip={`Current account: ${currentOption.label}`}>
+                    <SidebarMenuButton asChild className={badgeClassName} tooltip={`Current account: ${currentOption.label}`}>
                         <div role="status">
                             <Building2 aria-hidden="true" />
                             <span>{currentOption.label}</span>
@@ -102,11 +102,15 @@ export function AccountSwitcherBadge({ activeAccount, allowedAccountTypes, accou
                                     }
 
                                     setSwitchingAccount(value);
+                                    // Account-scoped Inertia responses must never survive a workspace change.
+                                    router.flushAll();
                                     router.post(
                                         '/account-type/switch',
                                         { account_type: value },
                                         {
                                             preserveScroll: true,
+                                            preserveState: false,
+                                            replace: true,
                                             onFinish: () => setSwitchingAccount(null),
                                         },
                                     );
@@ -134,8 +138,8 @@ export function AccountSwitcherBadge({ activeAccount, allowedAccountTypes, accou
                     <DialogHeader>
                         <DialogTitle>{comingSoonAccount?.label} — Coming Soon</DialogTitle>
                         <DialogDescription>
-                            The claims workspace for {comingSoonAccount?.label} is still being developed. We're focused on Tricity Pain Associates
-                            right now—check back soon for this account.
+                            The claims workspace for {comingSoonAccount?.label} is still being developed. Choose one of the available accounts for now
+                            and check back soon.
                         </DialogDescription>
                     </DialogHeader>
                 </DialogContent>

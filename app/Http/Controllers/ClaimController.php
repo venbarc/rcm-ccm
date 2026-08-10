@@ -11,6 +11,7 @@ use App\Services\ClaimActivityService;
 use App\Services\ClaimConfigurationService;
 use App\Services\ClaimFilterService;
 use App\Services\TeamService;
+use App\Support\ClaimWorkspace;
 use App\Support\CurrentAccount;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,6 +41,7 @@ class ClaimController extends Controller
         'primary_provider',
         'procedure_code',
         'service_month',
+        'location',
     ];
 
     private const INVOICED_STATUSES = [
@@ -69,6 +71,12 @@ class ClaimController extends Controller
         $creditStatusLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::CREDIT_STATUS);
         $creditReasonLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::CREDIT_REASON);
         $denialReasonLabels = $this->configurations->labelMap($accountValue, ClaimConfigurationService::DENIAL_REASON);
+        $isPrinciple = ClaimWorkspace::isPrinciple($accountValue);
+        $serviceDateField = ClaimWorkspace::field($accountValue, 'service_date');
+        $paymentsField = ClaimWorkspace::field($accountValue, 'payments');
+        $locationField = ClaimWorkspace::field($accountValue, 'location');
+        $providerField = ClaimWorkspace::field($accountValue, 'provider');
+        $payerField = ClaimWorkspace::field($accountValue, 'payer');
         $matchedClaims = $this->buildMatchedClaimGroupQuery($request, $accountValue);
         $matchedBillIds = (clone $matchedClaims)->select('bill_id')->distinct();
 
@@ -87,10 +95,10 @@ class ClaimController extends Controller
             ->selectRaw('MAX(NULLIF(patient_name, \'\')) as patient_name')
             ->selectRaw('MAX(NULLIF(first_name, \'\')) as first_name')
             ->selectRaw('MAX(NULLIF(last_name, \'\')) as last_name')
-            ->selectRaw('MIN(service_date_start) as service_date_start')
+            ->selectRaw("MIN({$serviceDateField}) as service_date_start")
             ->selectRaw('MAX(service_date_end) as service_date_end')
             ->selectRaw('MIN(cf_invoice_date) as cf_invoice_date')
-            ->selectRaw('SUM(COALESCE(payments, 0)) as payments')
+            ->selectRaw("SUM(COALESCE({$paymentsField}, 0)) as payments")
             ->selectRaw('SUM(COALESCE(true_charge, 0)) as true_charge')
             ->selectRaw('SUM(COALESCE(true_balance, 0)) as true_balance')
             ->selectRaw('MAX(updated_at) as updated_at')
@@ -107,9 +115,9 @@ class ClaimController extends Controller
             ->selectRaw('MAX(NULLIF(notes, \'\')) as notes')
             ->selectRaw('MAX(NULLIF(activity_type, \'\')) as activity_type')
             ->selectRaw('MAX(NULLIF(batch_name, \'\')) as batch_name')
-            ->selectRaw('MAX(NULLIF(location, \'\')) as location')
-            ->selectRaw('MAX(NULLIF(primary_provider, \'\')) as primary_provider')
-            ->selectRaw('MAX(NULLIF(payer_name, \'\')) as payer_name')
+            ->selectRaw("MAX(NULLIF({$locationField}, '')) as location")
+            ->selectRaw("MAX(NULLIF({$providerField}, '')) as primary_provider")
+            ->selectRaw("MAX(NULLIF({$payerField}, '')) as payer_name")
             ->selectRaw('MAX(NULLIF(place_of_service_code, \'\')) as place_of_service_code')
             ->selectRaw('MAX(CASE WHEN work_status_manually_set = 1 OR modmed_claim_status_manually_set = 1 OR (notes IS NOT NULL AND TRIM(notes) != \'\') OR denial_reason_id IS NOT NULL OR credit_status_id IS NOT NULL OR credit_reason_id IS NOT NULL THEN 1 ELSE 0 END) as is_modified')
             ->groupBy('bill_id')
@@ -122,7 +130,7 @@ class ClaimController extends Controller
             ->with(['assignee:id,name,email', ...self::CONFIGURATION_RELATIONS])
             ->where('account_type', $accountValue)
             ->whereIn('bill_id', $claimGroups->getCollection()->pluck('bill_id')->all())
-            ->orderBy('service_date_start')
+            ->orderBy($serviceDateField)
             ->orderBy('id')
             ->get()
             ->groupBy('bill_id');
@@ -146,6 +154,7 @@ class ClaimController extends Controller
             $latestActivities,
             $modMedStatusColors,
             $modMedStatusLabels,
+            $isPrinciple,
             $workStatusColors,
             $workStatusLabels,
         ) {
@@ -177,15 +186,15 @@ class ClaimController extends Controller
 
             return [
                 'id' => (int) ($lines->min('id') ?? 0),
-                'bill_id' => (string) $group->bill_id,
+                'bill_id' => (string) ($isPrinciple ? $representative?->primary_claim_id : $group->bill_id),
                 'patient_name' => $representative?->patient_name ?: ($group->patient_name ?: 'Unknown patient'),
                 'first_name' => $representative?->first_name,
                 'last_name' => $representative?->last_name,
-                'patient_dob' => $representative?->patient_dob?->toDateString(),
-                'patient_id' => $representative?->patient_id,
-                'payer_name' => $representative?->payer_name ?: $representative?->payer ?: $group->payer_name,
-                'primary_provider' => $representative?->primary_provider ?: $representative?->provider ?: $group->primary_provider,
-                'facility' => $representative?->practice_location ?: $representative?->location,
+                'patient_dob' => ($isPrinciple ? $representative?->patient_date_of_birth : $representative?->patient_dob)?->toDateString(),
+                'patient_id' => $isPrinciple ? $representative?->chart_number : $representative?->patient_id,
+                'payer_name' => $isPrinciple ? $representative?->responsible_payer : ($representative?->payer_name ?: $representative?->payer ?: $group->payer_name),
+                'primary_provider' => $isPrinciple ? $representative?->rendering_provider : ($representative?->primary_provider ?: $representative?->provider ?: $group->primary_provider),
+                'facility' => $isPrinciple ? $representative?->location_name : ($representative?->practice_location ?: $representative?->location),
                 'modified_by' => $latestActivity?->user?->only(['id', 'name', 'email']),
                 'service_date_start' => $group->service_date_start ? Carbon::parse($group->service_date_start)->toDateString() : null,
                 'service_date_end' => $group->service_date_end ? Carbon::parse($group->service_date_end)->toDateString() : null,
@@ -229,16 +238,25 @@ class ClaimController extends Controller
                 'is_modified' => (bool) $group->is_modified,
                 'lines' => $lines->map(fn (Claim $claim): array => [
                     'id' => $claim->id,
-                    'bill_id' => $claim->bill_id,
+                    'bill_id' => $isPrinciple ? $claim->primary_claim_id : $claim->bill_id,
                     'procedure_code' => $claim->procedure_code,
                     'cpt_code' => $claim->cpt_code,
                     'service_date_start' => $claim->service_date_start?->toDateString(),
                     'service_date_end' => $claim->service_date_end?->toDateString(),
                     'true_charge' => $claim->true_charge !== null ? (float) $claim->true_charge : null,
                     'true_balance' => $claim->true_balance !== null ? (float) $claim->true_balance : null,
-                    'primary_provider' => $claim->primary_provider ?: $claim->provider,
-                    'payer_name' => $claim->payer_name ?: $claim->payer,
-                    'patient_id' => $claim->patient_id,
+                    'primary_provider' => $isPrinciple ? $claim->rendering_provider : ($claim->primary_provider ?: $claim->provider),
+                    'payer_name' => $isPrinciple ? $claim->responsible_payer : ($claim->payer_name ?: $claim->payer),
+                    'patient_id' => $isPrinciple ? $claim->chart_number : $claim->patient_id,
+                    'claim_cpt' => $claim->claim_cpt,
+                    'units' => $claim->units !== null ? (float) $claim->units : null,
+                    'charge_amount' => $claim->charge_amount !== null ? (float) $claim->charge_amount : null,
+                    'cf_invoice_amount' => $claim->cf_invoice_amount !== null ? (float) $claim->cf_invoice_amount : null,
+                    'total_payment' => $claim->total_payment !== null ? (float) $claim->total_payment : null,
+                    'true_charge_per_unit' => $claim->true_charge_per_unit !== null ? (float) $claim->true_charge_per_unit : null,
+                    'insurance_balance' => $claim->insurance_balance !== null ? (float) $claim->insurance_balance : null,
+                    'patient_balance' => $claim->patient_balance !== null ? (float) $claim->patient_balance : null,
+                    'total_balance' => $claim->total_balance !== null ? (float) $claim->total_balance : null,
                     'modmed_claim_status_id' => $claim->modmed_claim_status_id,
                     'modmed_claim_status' => $this->configurationValue($claim->modMedClaimStatusOption, $claim->modmed_claim_status),
                     'modmed_claim_status_label' => $this->configurationLabel($claim->modMedClaimStatusOption, $claim->modmed_claim_status, $modMedStatusLabels),
@@ -293,6 +311,7 @@ class ClaimController extends Controller
                 'credit_reason' => (string) $request->input('credit_reason', ''),
                 'payer_name' => (string) $request->input('payer_name', ''),
                 'primary_provider' => (string) $request->input('primary_provider', ''),
+                'location' => (string) $request->input('location', ''),
                 'denial_reason' => (string) $request->input('denial_reason', ''),
                 'work_status' => (string) $request->input('work_status', ''),
                 'assigned_to' => is_scalar($assignedTo) ? (string) $assignedTo : '',
@@ -310,9 +329,9 @@ class ClaimController extends Controller
             ],
             'summary' => [
                 'totalCount' => (clone $summaryQuery)->count(),
-                'totalTrueBalance' => (float) ((clone $summaryQuery)->where('true_balance', '>', 0)->sum('true_balance') ?? 0),
+                'totalTrueBalance' => $isPrinciple ? null : (float) ((clone $summaryQuery)->where('true_balance', '>', 0)->sum('true_balance') ?? 0),
                 'totalTrueCharge' => (float) ((clone $summaryQuery)->sum('true_charge') ?? 0),
-                'totalPayments' => (float) ((clone $summaryQuery)->where('payments', '>', 0)->sum('payments') ?? 0),
+                'totalPayments' => (float) ((clone $summaryQuery)->where($paymentsField, '>', 0)->sum($paymentsField) ?? 0),
             ],
             'workStatuses' => $this->configurations->selectOptions($accountValue, ClaimConfigurationService::WORK_STATUS),
             'modMedClaimStatuses' => $this->configurations->selectOptions($accountValue, ClaimConfigurationService::MODMED_CLAIM_STATUS),
@@ -377,10 +396,11 @@ class ClaimController extends Controller
         }
 
         if ($filter === 'service_month') {
+            $serviceDateField = ClaimWorkspace::field($account->value, 'service_date');
             $months = Claim::query()
                 ->where('account_type', $account->value)
-                ->whereNotNull('service_date_start')
-                ->pluck('service_date_start')
+                ->whereNotNull($serviceDateField)
+                ->pluck($serviceDateField)
                 ->map(fn ($date): string => Carbon::parse($date)->format('Y-m'))
                 ->filter(fn (string $value): bool => $search === '' || str_contains($value, $search) || str_contains(strtolower(Carbon::createFromFormat('Y-m', $value)->format('F Y')), strtolower($search)))
                 ->unique()
@@ -403,7 +423,7 @@ class ClaimController extends Controller
             ]);
         }
 
-        $expression = $this->filterExpression($filter);
+        $expression = $this->filterExpression($account->value, $filter);
         abort_if($expression === null, 422, 'Choose a valid claims filter.');
 
         $query = Claim::query()
@@ -438,6 +458,7 @@ class ClaimController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         abort_unless($claim->account_type === $account->value, 404);
+        $isPrinciple = ClaimWorkspace::isPrinciple($account->value);
         $workStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::WORK_STATUS);
         $workStatusColors = $this->configurations->colorMap($account->value, ClaimConfigurationService::WORK_STATUS);
         $modMedStatusLabels = $this->configurations->labelMap($account->value, ClaimConfigurationService::MODMED_CLAIM_STATUS);
@@ -450,18 +471,18 @@ class ClaimController extends Controller
             ->with(['assignee:id,name,email', ...self::CONFIGURATION_RELATIONS])
             ->where('account_type', $account->value)
             ->where('bill_id', $claim->bill_id)
-            ->orderBy('service_date_start')
+            ->orderBy(ClaimWorkspace::field($account->value, 'service_date'))
             ->orderBy('id')
             ->get();
         $representative = $lines->firstWhere('id', $claim->id) ?? $lines->firstOrFail();
         $activities = $this->claimActivitiesPage($account->value, $lines, 1);
         $returnTo = $this->safeClaimsReturnUrl($request->query('return_to'));
         $serviceStart = $lines
-            ->map(fn (Claim $line) => $line->service_date_start ?? $line->date_of_service)
+            ->map(fn (Claim $line) => $isPrinciple ? $line->date_of_service : ($line->service_date_start ?? $line->date_of_service))
             ->filter()
             ->min();
         $serviceEnd = $lines
-            ->map(fn (Claim $line) => $line->service_date_end ?? $line->service_date_start ?? $line->date_of_service)
+            ->map(fn (Claim $line) => $isPrinciple ? $line->date_of_service : ($line->service_date_end ?? $line->service_date_start ?? $line->date_of_service))
             ->filter()
             ->max();
 
@@ -478,19 +499,19 @@ class ClaimController extends Controller
         return Inertia::render('claims/show', [
             'claim' => [
                 'id' => (int) $lines->min('id'),
-                'bill_id' => (string) $claim->bill_id,
+                'bill_id' => (string) ($isPrinciple ? $claim->primary_claim_id : $claim->bill_id),
                 'patient_name' => $representative->patient_name ?: trim("{$representative->first_name} {$representative->last_name}"),
-                'patient_id' => $representative->patient_id,
-                'patient_dob' => $representative->patient_dob?->toDateString(),
-                'facility' => $representative->practice_location ?: $representative->location,
+                'patient_id' => $isPrinciple ? $representative->chart_number : $representative->patient_id,
+                'patient_dob' => ($isPrinciple ? $representative->patient_date_of_birth : $representative->patient_dob)?->toDateString(),
+                'facility' => $isPrinciple ? $representative->location_name : ($representative->practice_location ?: $representative->location),
                 'service_date_start' => $serviceStart?->toDateString(),
                 'service_date_end' => $serviceEnd?->toDateString(),
-                'service_type' => $representative->service_type,
-                'diagnosis_codes' => $diagnosisCodes,
+                'service_type' => $isPrinciple ? null : $representative->service_type,
+                'diagnosis_codes' => $isPrinciple ? [] : $diagnosisCodes,
                 'line_count' => $lines->count(),
                 'total_true_charge' => (float) $lines->sum(fn (Claim $line): float => (float) ($line->true_charge ?? $line->billed_amount ?? 0)),
-                'total_payments' => (float) $lines->sum(fn (Claim $line): float => (float) ($line->payments ?? 0)),
-                'total_true_balance' => (float) $lines->sum(fn (Claim $line): float => (float) ($line->true_balance ?? $line->balance ?? 0)),
+                'total_payments' => (float) $lines->sum(fn (Claim $line): float => (float) ($isPrinciple ? $line->total_payment : ($line->payments ?? 0))),
+                'total_true_balance' => $isPrinciple ? null : (float) $lines->sum(fn (Claim $line): float => (float) ($line->true_balance ?? $line->balance ?? 0)),
                 'lines' => $lines->map(fn (Claim $line): array => [
                     'id' => $line->id,
                     'cpt_code' => $line->procedure_code ?: $line->cpt_code,
@@ -498,6 +519,14 @@ class ClaimController extends Controller
                     'units' => $line->units !== null ? (float) $line->units : null,
                     'true_charge' => (float) ($line->true_charge ?? $line->billed_amount ?? 0),
                     'true_balance' => (float) ($line->true_balance ?? $line->balance ?? 0),
+                    'claim_cpt' => $line->claim_cpt,
+                    'charge_amount' => $line->charge_amount !== null ? (float) $line->charge_amount : null,
+                    'cf_invoice_amount' => $line->cf_invoice_amount !== null ? (float) $line->cf_invoice_amount : null,
+                    'total_payment' => $line->total_payment !== null ? (float) $line->total_payment : null,
+                    'true_charge_per_unit' => $line->true_charge_per_unit !== null ? (float) $line->true_charge_per_unit : null,
+                    'insurance_balance' => $line->insurance_balance !== null ? (float) $line->insurance_balance : null,
+                    'patient_balance' => $line->patient_balance !== null ? (float) $line->patient_balance : null,
+                    'total_balance' => $line->total_balance !== null ? (float) $line->total_balance : null,
                     'work_status_id' => $line->work_status_id,
                     'work_status' => $this->configurationValue($line->workStatusOption, $line->work_status, 'draft'),
                     'work_status_label' => $this->configurationLabel($line->workStatusOption, $line->work_status ?: 'draft', $workStatusLabels, true),
@@ -505,8 +534,8 @@ class ClaimController extends Controller
                     'denial_reason_id' => $line->denial_reason_id,
                     'denial_reason' => $this->configurationValue($line->denialReasonOption, $line->denial_reason),
                     'denial_reason_label' => $this->configurationLabel($line->denialReasonOption, $line->denial_reason, $denialReasonLabels),
-                    'payer_name' => $line->payer_name ?: $line->payer,
-                    'primary_provider' => $line->primary_provider ?: $line->provider,
+                    'payer_name' => $isPrinciple ? $line->responsible_payer : ($line->payer_name ?: $line->payer),
+                    'primary_provider' => $isPrinciple ? $line->rendering_provider : ($line->primary_provider ?: $line->provider),
                     'modmed_claim_status_id' => $line->modmed_claim_status_id,
                     'modmed_claim_status' => $this->configurationValue($line->modMedClaimStatusOption, $line->modmed_claim_status),
                     'modmed_claim_status_label' => $this->configurationLabel($line->modMedClaimStatusOption, $line->modmed_claim_status, $modMedStatusLabels),
@@ -521,7 +550,7 @@ class ClaimController extends Controller
                     'credit_reason_id' => $line->credit_reason_id,
                     'credit_reason' => $this->configurationValue($line->creditReasonOption, $line->credit_reason),
                     'credit_reason_label' => $this->configurationLabel($line->creditReasonOption, $line->credit_reason, $creditReasonLabels),
-                    'patient_id' => $line->patient_id,
+                    'patient_id' => $isPrinciple ? $line->chart_number : $line->patient_id,
                     'notes' => $line->notes,
                     'assigned_to' => $line->assignee?->only(['id', 'name', 'email']),
                 ])->all(),
@@ -793,13 +822,14 @@ class ClaimController extends Controller
         );
     }
 
-    private function filterExpression(string $filter): ?string
+    private function filterExpression(string $account, string $filter): ?string
     {
         return match ($filter) {
-            'modmed_claim_status' => "NULLIF(modmed_claim_status, '')",
-            'payer_name' => "COALESCE(NULLIF(payer_name, ''), NULLIF(payer, ''))",
-            'primary_provider' => "COALESCE(NULLIF(primary_provider, ''), NULLIF(provider, ''))",
-            'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
+            'modmed_claim_status' => ClaimWorkspace::supports($account, 'modmed_status') ? "NULLIF(modmed_claim_status, '')" : null,
+            'payer_name' => ClaimWorkspace::expression($account, 'payer'),
+            'primary_provider' => ClaimWorkspace::expression($account, 'provider'),
+            'location' => ClaimWorkspace::expression($account, 'location'),
+            'procedure_code' => ClaimWorkspace::expression($account, 'procedure'),
             default => null,
         };
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Claim;
 use App\Models\ClaimConfigurationOption;
 use App\Services\ClaimConfigurationService;
+use App\Support\ClaimWorkspace;
 use App\Support\CurrentAccount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,9 +23,11 @@ class SystemConfigurationController extends Controller
     public function index(Request $request): Response
     {
         $account = CurrentAccount::resolve($request);
+        $typeLabels = $this->availableTypeLabels($account->value);
         $options = ClaimConfigurationOption::query()
             ->with('addedBy:id,name,email')
             ->where('account_type', $account->value)
+            ->whereIn('option_type', array_keys($typeLabels))
             ->orderBy('option_type')
             ->orderBy('sort_order')
             ->orderBy('label')
@@ -33,7 +36,7 @@ class SystemConfigurationController extends Controller
             ->groupBy('option_type');
 
         return Inertia::render('system-configuration/index', [
-            'sections' => collect($this->configurations->typeLabels())
+            'sections' => collect($typeLabels)
                 ->map(fn (string $label, string $type): array => [
                     'type' => $type,
                     'label' => $label,
@@ -51,7 +54,7 @@ class SystemConfigurationController extends Controller
         $requestedType = (string) $request->input('option_type');
         $this->normalizeConfigurationColor($request, $requestedType);
         $validated = $request->validate([
-            'option_type' => ['required', 'string', Rule::in(array_keys($this->configurations->typeLabels()))],
+            'option_type' => ['required', 'string', Rule::in(array_keys($this->availableTypeLabels($account->value)))],
             'label' => ['required', 'string', 'max:255'],
             'color' => $this->colorRules($requestedType, $account->value),
         ], $this->colorValidationMessages($requestedType));
@@ -78,6 +81,7 @@ class SystemConfigurationController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         abort_unless($configurationOption->account_type === $account->value, 404);
+        $this->ensureTypeIsAvailable($account->value, $configurationOption->option_type);
         $this->ensureOptionIsEditable($configurationOption);
         $this->normalizeConfigurationColor($request, $configurationOption->option_type);
         $validated = $request->validate([
@@ -107,6 +111,7 @@ class SystemConfigurationController extends Controller
     {
         $account = CurrentAccount::resolve($request);
         abort_unless($configurationOption->account_type === $account->value, 404);
+        $this->ensureTypeIsAvailable($account->value, $configurationOption->option_type);
         $this->ensureOptionIsDeletable($configurationOption);
         $request->validate([
             'confirmation' => ['required', Rule::in(['confirm'])],
@@ -142,6 +147,7 @@ class SystemConfigurationController extends Controller
     public function restoreDefaults(Request $request, string $type): RedirectResponse
     {
         $account = CurrentAccount::resolve($request);
+        $this->ensureTypeIsAvailable($account->value, $type);
         abort_unless($this->configurations->canRestoreDefaults($type), 404);
         $request->validate([
             'confirmation' => ['required', Rule::in(['restore'])],
@@ -150,6 +156,20 @@ class SystemConfigurationController extends Controller
         $typeLabel = $this->configurations->typeLabels()[$type];
 
         return back()->with('success', "System {$typeLabel} defaults restored. Administrator-created options were not changed.");
+    }
+
+    /** @return array<string, string> */
+    private function availableTypeLabels(string $account): array
+    {
+        return collect($this->configurations->typeLabels())
+            ->reject(fn (string $label, string $type): bool => $type === ClaimConfigurationService::MODMED_CLAIM_STATUS
+                && ! ClaimWorkspace::supports($account, 'modmed_status'))
+            ->all();
+    }
+
+    private function ensureTypeIsAvailable(string $account, string $type): void
+    {
+        abort_unless(array_key_exists($type, $this->availableTypeLabels($account)), 404);
     }
 
     private function ensureUniqueLabel(string $account, string $type, string $label, ?int $ignoreId = null): void
@@ -218,7 +238,7 @@ class SystemConfigurationController extends Controller
             'required',
             'string',
             'regex:/^#[0-9A-F]{6}$/',
-            Rule::unique('claim_configuration_options', 'color')
+            Rule::unique((new ClaimConfigurationOption)->getTable(), 'color')
                 ->where(fn ($query) => $query
                     ->where('account_type', $account)
                     ->where('option_type', $type))

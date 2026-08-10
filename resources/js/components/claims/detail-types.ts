@@ -11,6 +11,14 @@ export interface ClaimDetailLine {
     units: number | null;
     true_charge: number;
     true_balance: number;
+    claim_cpt: string | null;
+    charge_amount: number | null;
+    cf_invoice_amount: number | null;
+    total_payment: number | null;
+    true_charge_per_unit: number | null;
+    insurance_balance: number | null;
+    patient_balance: number | null;
+    total_balance: number | null;
     work_status: string;
     work_status_label: string;
     work_status_color: string | null;
@@ -48,7 +56,7 @@ export interface ClaimDetail {
     line_count: number;
     total_true_charge: number;
     total_payments: number;
-    total_true_balance: number;
+    total_true_balance: number | null;
     lines: ClaimDetailLine[];
 }
 

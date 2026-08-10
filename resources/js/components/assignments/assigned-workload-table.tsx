@@ -1,6 +1,7 @@
 import type { AssigneeWorkload } from '@/components/assignments/types';
 import { DataLoadingOverlay } from '@/components/data-loading-overlay';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 
 interface AssignedWorkloadTableProps {
     workloads: AssigneeWorkload[];
@@ -9,6 +10,7 @@ interface AssignedWorkloadTableProps {
 }
 
 export function AssignedWorkloadTable({ workloads, isLoading, formatCurrency }: AssignedWorkloadTableProps) {
+    const workspace = useClaimWorkspace();
     const totalClaimGroups = workloads.reduce((total, workload) => total + workload.claim_groups, 0);
     const totalClaimLines = workloads.reduce((total, workload) => total + workload.claim_lines, 0);
     const totalBalance = workloads.reduce((total, workload) => total + (workload.total_true_balance ?? 0), 0);
@@ -18,7 +20,9 @@ export function AssignedWorkloadTable({ workloads, isLoading, formatCurrency }: 
         <Card className="overflow-hidden">
             <CardHeader className="border-b">
                 <CardTitle>Assigned workload</CardTitle>
-                <CardDescription>Current Bill ID and CPT-line counts for each available assignee.</CardDescription>
+                <CardDescription>
+                    Current {workspace.identifierLabel} and {workspace.procedureLabel}-line counts for each available assignee.
+                </CardDescription>
             </CardHeader>
             <DataLoadingOverlay isLoading={isLoading} label="Refreshing assigned counts...">
                 <div className="overflow-x-auto">
@@ -26,9 +30,9 @@ export function AssignedWorkloadTable({ workloads, isLoading, formatCurrency }: 
                         <thead className="bg-muted/60 text-muted-foreground text-left text-xs uppercase">
                             <tr>
                                 <th className="p-4">Assignee</th>
-                                <th className="p-4 text-right">Bill IDs</th>
-                                <th className="p-4 text-right">CPT lines</th>
-                                <th className="p-4 text-right">True Balance</th>
+                                <th className="p-4 text-right">{workspace.identifierLabel}s</th>
+                                <th className="p-4 text-right">{workspace.procedureLabel} lines</th>
+                                {workspace.showTrueBalance && <th className="p-4 text-right">True Balance</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -40,12 +44,14 @@ export function AssignedWorkloadTable({ workloads, isLoading, formatCurrency }: 
                                     </td>
                                     <td className="p-4 text-right tabular-nums">{workload.claim_groups.toLocaleString()}</td>
                                     <td className="p-4 text-right tabular-nums">{workload.claim_lines.toLocaleString()}</td>
-                                    <td className="p-4 text-right font-medium tabular-nums">{formatCurrency(workload.total_true_balance)}</td>
+                                    {workspace.showTrueBalance && (
+                                        <td className="p-4 text-right font-medium tabular-nums">{formatCurrency(workload.total_true_balance)}</td>
+                                    )}
                                 </tr>
                             ))}
                             {workloads.length === 0 && (
                                 <tr>
-                                    <td className="text-muted-foreground p-12 text-center" colSpan={4}>
+                                    <td className="text-muted-foreground p-12 text-center" colSpan={workspace.showTrueBalance ? 4 : 3}>
                                         No assignees are available for this account.
                                     </td>
                                 </tr>
@@ -57,7 +63,9 @@ export function AssignedWorkloadTable({ workloads, isLoading, formatCurrency }: 
                                     <td className="p-4">Total assigned</td>
                                     <td className="p-4 text-right tabular-nums">{totalClaimGroups.toLocaleString()}</td>
                                     <td className="p-4 text-right tabular-nums">{totalClaimLines.toLocaleString()}</td>
-                                    <td className="p-4 text-right tabular-nums">{formatCurrency(hasBalance ? totalBalance : null)}</td>
+                                    {workspace.showTrueBalance && (
+                                        <td className="p-4 text-right tabular-nums">{formatCurrency(hasBalance ? totalBalance : null)}</td>
+                                    )}
                                 </tr>
                             </tfoot>
                         )}

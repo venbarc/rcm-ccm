@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AccountType;
+use App\Models\Concerns\UsesAccountScopedTable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Claim extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesAccountScopedTable;
 
     protected $attributes = [
         'work_status' => 'draft',
@@ -34,6 +35,9 @@ class Claim extends Model
         'place_of_service_code', 'posted_date', 'practice_location', 'primary_biller',
         'primary_biller_role', 'primary_modifier', 'primary_provider_role', 'quick_code',
         'recorded_by', 'supervising_provider', 'transaction_date',
+        'primary_claim_id', 'location_name', 'patient_date_of_birth', 'chart_number',
+        'responsible_payer', 'charge_amount', 'total_payment', 'insurance_balance',
+        'patient_balance', 'total_balance', 'claim_cpt', 'true_charge_per_unit',
     ];
 
     protected function casts(): array
@@ -66,6 +70,13 @@ class Claim extends Model
             'posted_date' => 'date:Y-m-d',
             'transaction_date' => 'date:Y-m-d',
             'work_status_manually_set' => 'boolean',
+            'patient_date_of_birth' => 'date:Y-m-d',
+            'charge_amount' => 'decimal:2',
+            'total_payment' => 'decimal:2',
+            'insurance_balance' => 'decimal:2',
+            'patient_balance' => 'decimal:2',
+            'total_balance' => 'decimal:2',
+            'true_charge_per_unit' => 'decimal:2',
         ];
     }
 
@@ -74,8 +85,8 @@ class Claim extends Model
         static::saving(function (Claim $claim): void {
             $claim->syncConfigurationReferences();
 
-            if ($claim->account_type !== AccountType::Tricity->value) {
-                return;
+            if ($claim->account_type === AccountType::Principle->value && blank($claim->bill_id) && filled($claim->primary_claim_id)) {
+                $claim->bill_id = $claim->primary_claim_id;
             }
 
             if (blank($claim->bill_id) && filled($claim->external_id)) {
@@ -86,8 +97,13 @@ class Claim extends Model
                 $claim->external_id = $claim->bill_id;
             }
 
-            $claim->invoiced_status = 'invoiced';
-            $claim->invoiced_status_date = $claim->cf_invoice_date;
+            if ($claim->account_type === AccountType::Principle->value) {
+                $claim->invoiced_status = null;
+                $claim->invoiced_status_date = null;
+            } else {
+                $claim->invoiced_status = 'invoiced';
+                $claim->invoiced_status_date = $claim->cf_invoice_date;
+            }
         });
     }
 

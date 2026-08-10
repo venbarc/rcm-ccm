@@ -22,6 +22,15 @@ export interface ClaimLine {
     service_date_end: string | null;
     true_charge: number | string | null;
     true_balance: number | string | null;
+    units: number | string | null;
+    claim_cpt: string | null;
+    charge_amount: number | string | null;
+    cf_invoice_amount: number | string | null;
+    total_payment: number | string | null;
+    true_charge_per_unit: number | string | null;
+    insurance_balance: number | string | null;
+    patient_balance: number | string | null;
+    total_balance: number | string | null;
     primary_provider: string | null;
     payer_name: string | null;
     patient_id: string | null;
@@ -121,7 +130,7 @@ export interface ClaimPage {
 
 export interface Summary {
     totalCount: number;
-    totalTrueBalance: number;
+    totalTrueBalance: number | null;
     totalTrueCharge: number;
     totalPayments: number;
 }
@@ -146,6 +155,7 @@ export interface Filters {
     credit_status_from: string;
     credit_status_to: string;
     procedure_code: string;
+    location: string;
     expanded: string;
     sort_by: string;
     sort_direction: string;

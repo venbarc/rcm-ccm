@@ -281,7 +281,7 @@ export function ClaimsExportDialog({
                         )}
 
                         {activeExport && (
-                            <div className="space-y-2 rounded-lg bg-sky-50 p-3 text-sky-950">
+                            <div className="bg-secondary text-secondary-foreground space-y-2 rounded-lg p-3">
                                 <div className="flex items-center justify-between gap-3 text-sm">
                                     <span className="font-medium">
                                         {running ? 'Export in progress' : activeExport.status === 'completed' ? 'Export ready' : 'Export failed'}
@@ -289,13 +289,13 @@ export function ClaimsExportDialog({
                                     <span className="tabular-nums">{activeExport.progress}%</span>
                                 </div>
                                 <div
-                                    className="h-1.5 overflow-hidden rounded-full bg-sky-100"
+                                    className="bg-secondary-foreground/15 h-1.5 overflow-hidden rounded-full"
                                     role="progressbar"
                                     aria-valuemin={0}
                                     aria-valuemax={100}
                                     aria-valuenow={activeExport.progress}
                                 >
-                                    <div className="h-full bg-sky-600 transition-[width]" style={{ width: `${activeExport.progress}%` }} />
+                                    <div className="bg-primary h-full transition-[width]" style={{ width: `${activeExport.progress}%` }} />
                                 </div>
                                 <p className="text-xs">
                                     {activeExport.processed_rows.toLocaleString()} of {activeExport.total_rows.toLocaleString()} claim lines

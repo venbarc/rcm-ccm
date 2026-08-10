@@ -42,7 +42,7 @@ class ClaimImportController extends Controller
             ->whereIn('status', ['queued', 'processing'])
             ->exists();
         if ($hasActiveImport) {
-            return back()->withErrors(['file' => 'A Tricity import is already in progress.']);
+            return back()->withErrors(['file' => "A {$account->label()} import is already in progress."]);
         }
 
         $import = $this->imports->queue($validated['file'], $account->value, $request->user());

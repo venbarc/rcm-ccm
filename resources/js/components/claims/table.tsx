@@ -14,6 +14,7 @@ import { Pagination } from '@/components/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { useInertiaLoading } from '@/hooks/use-inertia-loading';
 import { cn } from '@/lib/utils';
 import { Link } from '@inertiajs/react';
@@ -73,6 +74,8 @@ interface ClaimsTableProps {
 
 export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, onSort, onEditLine }: ClaimsTableProps) {
     const isLoading = useInertiaLoading();
+    const workspace = useClaimWorkspace();
+    const parentColumnCount = workspace.showTrueBalance ? 13 : 12;
     const claimViewUrl = (claim: ClaimGroup) => {
         const params = new URLSearchParams();
 
@@ -98,17 +101,19 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                         <thead className="bg-muted/30 text-muted-foreground border-b">
                             <tr>
                                 <th className="w-12 px-2 py-3 text-left font-medium">#</th>
-                                <SortHeader column="bill_id" label="Bill ID" filters={filters} onSort={onSort} />
-                                <SortHeader column="patient_name" label="Patient" filters={filters} onSort={onSort} />
-                                <SortHeader column="payer_name" label="Payer" filters={filters} onSort={onSort} />
-                                <SortHeader column="primary_provider" label="Primary Provider" filters={filters} onSort={onSort} />
-                                <SortHeader column="location" label="Location" filters={filters} onSort={onSort} />
+                                <SortHeader column="bill_id" label={workspace.identifierLabel} filters={filters} onSort={onSort} />
+                                <SortHeader column="patient_name" label={workspace.patientLabel} filters={filters} onSort={onSort} />
+                                <SortHeader column="payer_name" label={workspace.payerLabel} filters={filters} onSort={onSort} />
+                                <SortHeader column="primary_provider" label={workspace.providerLabel} filters={filters} onSort={onSort} />
+                                <SortHeader column="location" label={workspace.locationLabel} filters={filters} onSort={onSort} />
                                 <th className="px-4 py-3 text-center font-medium">Modified By</th>
-                                <SortHeader column="service_date_start" label="Service Date" filters={filters} onSort={onSort} />
-                                <SortHeader column="line_count" label="CPT Lines" filters={filters} onSort={onSort} right />
+                                <SortHeader column="service_date_start" label={workspace.serviceDateLabel} filters={filters} onSort={onSort} />
+                                <SortHeader column="line_count" label={workspace.procedureLinesLabel} filters={filters} onSort={onSort} right />
                                 <SortHeader column="true_charge" label="True Charge" filters={filters} onSort={onSort} right />
-                                <SortHeader column="payments" label="Payments" filters={filters} onSort={onSort} right />
-                                <SortHeader column="true_balance" label="True Balance" filters={filters} onSort={onSort} right />
+                                <SortHeader column="payments" label={workspace.paymentsLabel} filters={filters} onSort={onSort} right />
+                                {workspace.showTrueBalance && (
+                                    <SortHeader column="true_balance" label="True Balance" filters={filters} onSort={onSort} right />
+                                )}
                                 <th className="bg-muted sticky right-0 z-20 w-20 min-w-20 border-l px-4 py-3 text-right font-medium">Actions</th>
                             </tr>
                         </thead>
@@ -122,14 +127,16 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                             <td className="text-muted-foreground px-2 py-3">{(claims.from ?? 1) + index}</td>
                                             <td className="px-4 py-3">
                                                 <button
-                                                    className="font-medium text-blue-600 hover:underline"
+                                                    className="text-primary font-medium hover:underline"
                                                     onClick={() => onToggleClaim(claim.id)}
                                                     type="button"
                                                 >
                                                     {claim.bill_id}
                                                 </button>
                                             </td>
-                                            <td className="px-4 py-3 font-medium">{claim.patient_name}</td>
+                                            <td className="px-4 py-3 font-medium">
+                                                <p>{claim.patient_name}</p>
+                                            </td>
                                             <td className="max-w-56 px-4 py-3">
                                                 <p className="truncate" title={claim.payer_name || undefined}>
                                                     {claim.payer_name || EMPTY_VALUE}
@@ -176,12 +183,22 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                             <td className="px-4 py-3 text-right font-medium text-green-600 tabular-nums">
                                                 {currency(claim.payments)}
                                             </td>
-                                            <td className="px-4 py-3 text-right font-medium text-orange-600 tabular-nums">
-                                                {currency(claim.true_balance)}
-                                            </td>
+                                            {workspace.showTrueBalance && (
+                                                <td className="px-4 py-3 text-right font-medium text-orange-600 tabular-nums">
+                                                    {currency(claim.true_balance)}
+                                                </td>
+                                            )}
                                             <td className="bg-card group-hover:bg-muted sticky right-0 z-10 w-20 min-w-20 border-l px-4 py-3 text-right">
-                                                <Button asChild size="icon" title={`View Bill ID ${claim.bill_id}`} variant="ghost">
-                                                    <Link aria-label={`View Bill ID ${claim.bill_id}`} href={claimViewUrl(claim)}>
+                                                <Button
+                                                    asChild
+                                                    size="icon"
+                                                    title={`View ${workspace.identifierLabel} ${claim.bill_id}`}
+                                                    variant="ghost"
+                                                >
+                                                    <Link
+                                                        aria-label={`View ${workspace.identifierLabel} ${claim.bill_id}`}
+                                                        href={claimViewUrl(claim)}
+                                                    >
                                                         <Eye className="size-4" />
                                                     </Link>
                                                 </Button>
@@ -189,7 +206,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                         </tr>
                                         {isExpanded && (
                                             <tr className="bg-muted/40">
-                                                <td className="max-w-0 p-0" colSpan={13}>
+                                                <td className="max-w-0 p-0" colSpan={parentColumnCount}>
                                                     <div className="w-full max-w-full min-w-0 px-8 py-3">
                                                         <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain [contain:inline-size]">
                                                             <table className="w-full min-w-[2070px] text-sm">
@@ -238,10 +255,10 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                             </td>
                                                                             <td className="sticky right-0 z-10 w-20 min-w-20 border-l bg-inherit px-3 py-3 text-right">
                                                                                 <Button
-                                                                                    aria-label={`Edit CPT ${lineProcedureCode(line.procedure_code, line.cpt_code)}`}
+                                                                                    aria-label={`Edit ${workspace.procedureLabel} ${lineProcedureCode(line.procedure_code, line.cpt_code)}`}
                                                                                     onClick={() => onEditLine(claim, line)}
                                                                                     size="icon"
-                                                                                    title="Edit CPT line"
+                                                                                    title={`Edit ${workspace.procedureLabel} line`}
                                                                                     variant="ghost"
                                                                                 >
                                                                                     <Pencil className="size-4" />
@@ -261,7 +278,7 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                             })}
                             {claims.data.length === 0 && (
                                 <tr>
-                                    <td className="text-muted-foreground p-14 text-center" colSpan={13}>
+                                    <td className="text-muted-foreground p-14 text-center" colSpan={parentColumnCount}>
                                         No claims match these filters.
                                     </td>
                                 </tr>

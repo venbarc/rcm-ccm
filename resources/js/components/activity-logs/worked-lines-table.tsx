@@ -5,29 +5,32 @@ import { Pagination } from '@/components/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { Link } from '@inertiajs/react';
 import { Eye } from 'lucide-react';
 
 export function WorkedLinesTable({ lines, returnTo }: { lines: PaginatedData<WorkedLine>; returnTo: string }) {
+    const workspace = useClaimWorkspace();
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="text-base">Worked Bill Lines</CardTitle>
+                <CardTitle className="text-base">Worked {workspace.identifierLabel} Lines</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[1100px] text-sm">
                         <thead className="bg-muted/50 border-b text-left">
                             <tr>
-                                <th className="px-3 py-3 font-semibold">Bill ID</th>
-                                <th className="px-3 py-3 font-semibold">Patient</th>
-                                <th className="px-3 py-3 font-semibold">CPT</th>
+                                <th className="px-3 py-3 font-semibold">{workspace.identifierLabel}</th>
+                                <th className="px-3 py-3 font-semibold">{workspace.patientLabel}</th>
+                                <th className="px-3 py-3 font-semibold">{workspace.procedureLabel}</th>
                                 <th className="px-3 py-3 font-semibold">Status</th>
-                                <th className="px-3 py-3 font-semibold">Service Date</th>
+                                <th className="px-3 py-3 font-semibold">{workspace.serviceDateLabel}</th>
                                 <th className="px-3 py-3 font-semibold">Last Worked</th>
                                 <th className="px-3 py-3 text-right font-semibold">True Charge</th>
-                                <th className="px-3 py-3 text-right font-semibold">Payments</th>
-                                <th className="px-3 py-3 text-right font-semibold">True Balance</th>
+                                <th className="px-3 py-3 text-right font-semibold">{workspace.paymentsLabel}</th>
+                                {workspace.showTrueBalance && <th className="px-3 py-3 text-right font-semibold">True Balance</th>}
                                 <th className="px-3 py-3 text-center font-semibold">Action</th>
                             </tr>
                         </thead>
@@ -46,11 +49,13 @@ export function WorkedLinesTable({ lines, returnTo }: { lines: PaginatedData<Wor
                                     <td className="px-3 py-3">{line.worked_at ? new Date(line.worked_at).toLocaleString() : '-'}</td>
                                     <td className="px-3 py-3 text-right">{formatCurrency(line.charges)}</td>
                                     <td className="px-3 py-3 text-right text-green-600">{formatCurrency(line.paid)}</td>
-                                    <td className="px-3 py-3 text-right font-semibold text-rose-600">{formatCurrency(line.balance)}</td>
+                                    {workspace.showTrueBalance && (
+                                        <td className="px-3 py-3 text-right font-semibold text-rose-600">{formatCurrency(line.balance)}</td>
+                                    )}
                                     <td className="px-3 py-3 text-center">
                                         <Button asChild size="icon" variant="ghost">
                                             <Link
-                                                aria-label={`View Bill ID ${line.claim_number}`}
+                                                aria-label={`View ${workspace.identifierLabel} ${line.claim_number}`}
                                                 href={`/claims/${line.claim_id}?return_to=${encodeURIComponent(returnTo)}`}
                                             >
                                                 <Eye />
@@ -61,7 +66,7 @@ export function WorkedLinesTable({ lines, returnTo }: { lines: PaginatedData<Wor
                             ))}
                             {lines.data.length === 0 && (
                                 <tr>
-                                    <td className="text-muted-foreground p-12 text-center" colSpan={10}>
+                                    <td className="text-muted-foreground p-12 text-center" colSpan={workspace.showTrueBalance ? 10 : 9}>
                                         No worked claim lines found.
                                     </td>
                                 </tr>

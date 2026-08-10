@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesAccountScopedTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClaimActivity extends Model
 {
+    use UsesAccountScopedTable;
+
     protected $fillable = ['account_type', 'claim_id', 'user_id', 'action', 'description', 'before', 'after'];
 
     protected function casts(): array

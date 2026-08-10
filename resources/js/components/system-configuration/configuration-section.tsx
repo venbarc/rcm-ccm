@@ -20,7 +20,7 @@ export function ConfigurationSection({ section, onCreate, onDelete, onEdit, onRe
     const hasFixedValues = section.type === 'credit_status';
 
     return (
-        <Card className="border-blue-100">
+        <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
                 <div>
                     <CardTitle className="text-lg">{section.label}</CardTitle>
@@ -71,12 +71,18 @@ export function ConfigurationSection({ section, onCreate, onDelete, onEdit, onRe
                                                     value={option.label}
                                                 />
                                                 {isDefaultDraft && (
-                                                    <Badge className="shrink-0 border-blue-200 bg-blue-50 text-blue-800" variant="outline">
+                                                    <Badge
+                                                        className="border-border bg-secondary text-secondary-foreground shrink-0"
+                                                        variant="outline"
+                                                    >
                                                         Default
                                                     </Badge>
                                                 )}
                                                 {hasFixedValues && (
-                                                    <Badge className="shrink-0 border-blue-200 bg-blue-50 text-blue-800" variant="outline">
+                                                    <Badge
+                                                        className="border-border bg-secondary text-secondary-foreground shrink-0"
+                                                        variant="outline"
+                                                    >
                                                         Required
                                                     </Badge>
                                                 )}

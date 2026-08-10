@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesAccountScopedTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClaimExport extends Model
 {
+    use UsesAccountScopedTable;
+
     protected $fillable = [
         'account_type', 'user_id', 'file_name', 'file_path', 'status',
         'total_rows', 'processed_rows', 'total_chunks', 'processed_chunks',

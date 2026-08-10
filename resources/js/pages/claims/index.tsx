@@ -6,6 +6,8 @@ import type { ClaimGroup, ClaimLine, ClaimPage, Filters, SortColumn, StatusOptio
 import { currency } from '@/components/claims/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useActiveAccount } from '@/hooks/use-active-account';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -49,6 +51,8 @@ function ClaimsIndexContent({
     canEditClaims,
 }: ClaimsIndexProps) {
     const { auth } = usePage<SharedData>().props;
+    const { claimsTitle } = useActiveAccount();
+    const workspace = useClaimWorkspace();
     const [local, setLocal] = useState(filters);
     const [expandedClaimId, setExpandedClaimId] = useState<number | null>(() => {
         const expanded = Number(filters.expanded);
@@ -336,12 +340,12 @@ function ClaimsIndexContent({
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Claims', href: '/claims' }]}>
-            <Head title="Tricity Claims" />
+            <Head title={claimsTitle} />
             <div className="flex w-full max-w-full min-w-0 flex-1 flex-col gap-5 overflow-x-clip p-4 md:p-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
                         <p className="text-muted-foreground mb-1 text-xs font-semibold tracking-[0.2em] uppercase">RCM workspace</p>
-                        <h1 className="text-3xl font-semibold tracking-tight">Tricity Claims</h1>
+                        <h1 className="text-3xl font-semibold tracking-tight">{claimsTitle}</h1>
                         <p className="text-muted-foreground text-sm">Billing inventory, work status, and follow-up notes in one queue.</p>
                     </div>
                     <div className="flex gap-2">
@@ -369,10 +373,10 @@ function ClaimsIndexContent({
                     {[
                         ['Total claims', summary.totalCount.toLocaleString()],
                         ['True Charge', currency(summary.totalTrueCharge)],
-                        ['True Balance', currency(summary.totalTrueBalance)],
-                        ['Payments', currency(summary.totalPayments)],
+                        ...(workspace.showTrueBalance ? [['True Balance', currency(summary.totalTrueBalance)] as [string, string]] : []),
+                        [workspace.paymentsLabel, currency(summary.totalPayments)],
                     ].map(([label, value], index) => (
-                        <Card className={index === 0 ? 'border-l-4 border-l-sky-500' : ''} key={label}>
+                        <Card className={index === 0 ? 'border-l-primary border-l-4' : ''} key={label}>
                             <CardContent className="p-4">
                                 <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{label}</p>
                                 <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>

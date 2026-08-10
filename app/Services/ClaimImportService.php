@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AccountType;
 use App\Imports\ChunkReadFilter;
 use App\Jobs\FinalizeClaimImport;
 use App\Jobs\ProcessClaimImportChunk;
@@ -11,6 +12,7 @@ use App\Models\ClaimImport;
 use App\Models\ClaimImportSnapshot;
 use App\Models\ClaimRawRow;
 use App\Models\User;
+use App\Support\AccountContext;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
@@ -83,6 +85,23 @@ class ClaimImportService
         'denial_reason' => ['Denial Reason'],
     ];
 
+    /** @var array<string, array<int, string>> */
+    private const PRINCIPLE_FIELD_ALIASES = [
+        'primary_claim_id' => ['Primary Claim ID'],
+        'location_name' => ['Location Name'],
+        'patient_date_of_birth' => ['Patient Date of Birth'],
+        'chart_number' => ['Chart Number'],
+        'responsible_payer' => ['Responsible Payer'],
+        'date_of_service' => ['Date of Service'],
+        'charge_amount' => ['Charge Amount'],
+        'total_payment' => ['Total Payment'],
+        'insurance_balance' => ['Insurance Balance'],
+        'patient_balance' => ['Patient Balance'],
+        'total_balance' => ['Total Balance'],
+        'claim_cpt' => ['claim-cpt'],
+        'true_charge_per_unit' => ['True Charge Per Unit'],
+    ];
+
     /** @var array<int, string> */
     private const IMPORTED_FIELDS = [
         'uid', 'bill_id', 'payer_name', 'cpt_code', 'primary_provider', 'rendering_provider', 'payments',
@@ -97,18 +116,24 @@ class ClaimImportService
         'primary_biller', 'primary_biller_role', 'primary_modifier',
         'primary_provider_role', 'quick_code', 'recorded_by', 'supervising_provider',
         'transaction_date',
+        'primary_claim_id', 'location_name', 'patient_date_of_birth', 'chart_number',
+        'responsible_payer', 'date_of_service', 'charge_amount', 'total_payment',
+        'insurance_balance', 'patient_balance', 'total_balance', 'claim_cpt',
+        'true_charge_per_unit',
     ];
 
     /** @var array<int, string> */
     private const DECIMAL_FIELDS = [
         'payments', 'new_payments', 'true_balance', 'true_charge', 'adjustments',
-        'claimed_amount', 'units', 'cf_invoice_amount',
+        'claimed_amount', 'units', 'cf_invoice_amount', 'charge_amount', 'total_payment',
+        'insurance_balance', 'patient_balance', 'total_balance', 'true_charge_per_unit',
     ];
 
     /** @var array<int, string> */
     private const DATE_FIELDS = [
         'patient_dob', 'service_date_start', 'service_date_end', 'posted_date',
         'transaction_date', 'cf_invoice_date',
+        'patient_date_of_birth', 'date_of_service',
     ];
 
     public function __construct(
@@ -118,6 +143,10 @@ class ClaimImportService
 
     public function queue(UploadedFile $file, string $account, User $user): ClaimImport
     {
+        if (AccountContext::activeAccountType() !== $account) {
+            return AccountContext::runWith($account, fn (): ClaimImport => $this->queue($file, $account, $user));
+        }
+
         if (ClaimExport::query()
             ->where('account_type', $account)
             ->whereIn('status', ['queued', 'processing'])
@@ -131,9 +160,9 @@ class ClaimImportService
 
         try {
             [$headers, $totalRows] = $this->inspect(Storage::path($storedPath));
-            $this->validateHeaders($headers);
+            $this->validateHeaders($headers, $account);
             if ($totalRows === 0) {
-                throw new RuntimeException('The Tricity file does not contain any claim rows.');
+                throw new RuntimeException('The billing file does not contain any claim rows.');
             }
         } catch (Throwable $exception) {
             Storage::delete($storedPath);
@@ -155,9 +184,9 @@ class ClaimImportService
 
         $jobs = [];
         for ($chunk = 1; $chunk <= $totalChunks; $chunk++) {
-            $jobs[] = new ProcessClaimImportChunk($import->id, $chunk);
+            $jobs[] = new ProcessClaimImportChunk($import->id, $chunk, $account);
         }
-        $jobs[] = new FinalizeClaimImport($import->id);
+        $jobs[] = new FinalizeClaimImport($import->id, $account);
 
         Bus::chain($jobs)->dispatch();
 
@@ -171,8 +200,8 @@ class ClaimImportService
         }
 
         [$headers, $rows, $startRow] = $this->readChunk($import, $chunkNumber);
-        $columnMap = $this->mapColumns($headers);
-        $this->validateHeaders($headers);
+        $columnMap = $this->mapColumns($headers, $import->account_type);
+        $this->validateHeaders($headers, $import->account_type);
 
         $created = 0;
         $updated = 0;
@@ -189,14 +218,14 @@ class ClaimImportService
                     continue;
                 }
 
-                $billId = $this->string($data['bill_id'] ?? null);
+                $billId = $this->string($data[$this->isPrinciple($import->account_type) ? 'primary_claim_id' : 'bill_id'] ?? null);
                 if ($billId === null) {
                     $skipped++;
 
                     continue;
                 }
 
-                $payload = $this->normalizePayload($data);
+                $payload = $this->normalizePayload($data, $import->account_type);
                 $denialReasonOption = $this->configurations->resolveDenialReasonOption(
                     $import->account_type,
                     $payload['denial_reason'] ?? null,
@@ -274,9 +303,9 @@ class ClaimImportService
                     'source_hash' => $sourceHash,
                     'external_id' => $billId,
                     'patient_name' => $patientName,
-                    'date_of_service' => $payload['service_date_start'],
-                    'payer' => $payload['payer_name'],
-                    'provider' => $payload['primary_provider'],
+                    'date_of_service' => $payload['date_of_service'] ?? $payload['service_date_start'],
+                    'payer' => $payload['responsible_payer'] ?? $payload['payer_name'],
+                    'provider' => $payload['rendering_provider'] ?? $payload['primary_provider'],
                     'cpt_code' => $payload['cpt_code'] ?? $payload['procedure_code'],
                     'last_import_id' => $import->id,
                 ])->save();
@@ -535,10 +564,14 @@ class ClaimImportService
     }
 
     /** @param array<int, mixed> $headers @return array<string, int> */
-    private function mapColumns(array $headers): array
+    private function mapColumns(array $headers, ?string $account = null): array
     {
         $lookup = [];
-        foreach (self::FIELD_ALIASES as $field => $aliases) {
+        $aliasesByField = $this->isPrinciple($account)
+            ? [...self::FIELD_ALIASES, ...self::PRINCIPLE_FIELD_ALIASES]
+            : self::FIELD_ALIASES;
+
+        foreach ($aliasesByField as $field => $aliases) {
             foreach ($aliases as $alias) {
                 $lookup[$this->normalizeHeader($alias)] = $field;
             }
@@ -556,10 +589,13 @@ class ClaimImportService
     }
 
     /** @param array<int, mixed> $headers */
-    private function validateHeaders(array $headers): void
+    private function validateHeaders(array $headers, ?string $account = null): void
     {
-        if (! array_key_exists('bill_id', $this->mapColumns($headers))) {
-            throw new RuntimeException('Missing required Tricity column: Bill ID.');
+        $requiredField = $this->isPrinciple($account) ? 'primary_claim_id' : 'bill_id';
+        if (! array_key_exists($requiredField, $this->mapColumns($headers, $account))) {
+            $requiredHeader = $this->isPrinciple($account) ? 'Primary Claim ID' : 'Bill ID';
+
+            throw new RuntimeException("Missing required billing column: {$requiredHeader}.");
         }
     }
 
@@ -575,7 +611,7 @@ class ClaimImportService
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
-    private function normalizePayload(array $data): array
+    private function normalizePayload(array $data, ?string $account = null): array
     {
         $payload = [];
         foreach (self::IMPORTED_FIELDS as $field) {
@@ -586,7 +622,28 @@ class ClaimImportService
         }
         $payload['denial_reason'] = $this->string($data['denial_reason'] ?? null);
 
+        if ($this->isPrinciple($account)) {
+            // Source-named Principle columns are authoritative. These compatibility
+            // values keep the shared grouping, assignment, and activity workflows reusable.
+            $payload['bill_id'] = $payload['primary_claim_id'];
+            $payload['payer_name'] = $payload['responsible_payer'];
+            $payload['location'] = $payload['location_name'];
+            $payload['service_date_start'] = $payload['date_of_service'];
+            $payload['patient_dob'] = $payload['patient_date_of_birth'];
+            $payload['patient_id'] = $payload['chart_number'];
+            $payload['payments'] = $payload['total_payment'];
+            $payload['billed_amount'] = $payload['charge_amount'];
+            $payload['cpt_code'] = $payload['procedure_code'];
+            $payload['provider'] = $payload['rendering_provider'];
+            $payload['true_balance'] = null;
+        }
+
         return $payload;
+    }
+
+    private function isPrinciple(?string $account): bool
+    {
+        return $account === AccountType::Principle->value;
     }
 
     /** @param array<string, mixed> $payload */

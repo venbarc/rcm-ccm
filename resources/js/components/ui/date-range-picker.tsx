@@ -153,9 +153,9 @@ export function DateRangePicker({
                                 isSelected
                                     ? 'bg-primary text-primary-foreground'
                                     : isInRange
-                                      ? 'bg-sky-100 text-sky-700'
+                                      ? 'bg-secondary text-secondary-foreground'
                                       : 'text-slate-700 hover:bg-slate-200',
-                                todayIso === isoValue && !isSelected && 'border border-sky-200',
+                                todayIso === isoValue && !isSelected && 'border border-border',
                             )}
                         >
                             {date.getDate()}

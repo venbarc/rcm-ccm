@@ -1,21 +1,24 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { Link } from '@inertiajs/react';
 import type { RecentClaim } from './types';
 import { formatCurrency } from './types';
 
 export function RecentClaimsTable({ claims }: { claims: RecentClaim[] }) {
+    const workspace = useClaimWorkspace();
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="text-xl">Recent Claims</CardTitle>
-                <CardDescription>Latest Bill IDs added to the system</CardDescription>
+                <CardDescription>Latest {workspace.identifierLabel}s added to the system</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
                 <table className="w-full min-w-[560px] text-sm">
                     <thead>
                         <tr className="text-muted-foreground border-b text-left">
-                            <th className="h-10 px-2 font-medium">Bill ID</th>
+                            <th className="h-10 px-2 font-medium">{workspace.identifierLabel}</th>
                             <th className="h-10 px-2 font-medium">Patient</th>
                             <th className="h-10 px-2 font-medium">Lines</th>
                             <th className="h-10 px-2 text-right font-medium">Balance</th>

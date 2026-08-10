@@ -2,6 +2,7 @@ import type { StatusSummaryItem, WorkedLine } from '@/components/activity-logs/t
 import { formatCurrency } from '@/components/activity-logs/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { Link } from '@inertiajs/react';
 import { Eye } from 'lucide-react';
 
@@ -16,6 +17,8 @@ interface StatusDetailsDialogProps {
 }
 
 export function StatusDetailsDialog({ status, lines, hasMore, isLoading, returnTo, onClose, onLoadMore }: StatusDetailsDialogProps) {
+    const workspace = useClaimWorkspace();
+
     return (
         <Dialog open={status !== null} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-5xl">
@@ -28,12 +31,12 @@ export function StatusDetailsDialog({ status, lines, hasMore, isLoading, returnT
                         <div className="grid gap-2 border-b p-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto_auto] md:items-center" key={line.id}>
                             <div>
                                 <p className="font-semibold">
-                                    {line.claim_number} - CPT {line.cpt_code || '-'}
+                                    {line.claim_number} - {workspace.procedureLabel} {line.cpt_code || '-'}
                                 </p>
                                 <p className="text-muted-foreground text-xs">{line.patient_name || 'Unknown patient'}</p>
                             </div>
                             <p className="text-muted-foreground">{line.denial_reason || 'No denial reason'}</p>
-                            <p className="font-semibold text-rose-600">{formatCurrency(line.balance)}</p>
+                            {workspace.showTrueBalance && <p className="font-semibold text-rose-600">{formatCurrency(line.balance)}</p>}
                             <Button asChild size="sm" variant="outline">
                                 <Link href={`/claims/${line.claim_id}?return_to=${encodeURIComponent(returnTo)}`}>
                                     <Eye />

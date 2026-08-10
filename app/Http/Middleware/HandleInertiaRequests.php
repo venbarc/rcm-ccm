@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\AccountType;
+use App\Support\AccountContext;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -39,7 +40,19 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
         $user = $request->user();
-        $activeAccount = AccountType::tryFrom((string) $request->session()->get('account_type'))?->value;
+        $activeAccount = $request->session()->get('account_type', $user?->defaultAccountType());
+
+        if ($user && $activeAccount && ! $user->canAccessAccount($activeAccount)) {
+            $activeAccount = $user->defaultAccountType();
+
+            if ($activeAccount) {
+                $request->session()->put('account_type', $activeAccount);
+            } else {
+                $request->session()->forget('account_type');
+            }
+        }
+
+        $activeAccount = $user ? AccountContext::activeAccountType($request) : null;
 
         return array_merge(parent::share($request), [
             'name' => config('app.name'),

@@ -5,6 +5,7 @@ import { currency, date, serviceDateRange, statusLabel, workStatusBadgeStyle } f
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link } from '@inertiajs/react';
 import { Activity, ArrowLeft, StickyNote } from 'lucide-react';
@@ -26,6 +27,7 @@ const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) 
 );
 
 export default function ClaimShow({ claim, activities, activitiesPage, activitiesHasMore, returnTo }: ClaimShowProps) {
+    const workspace = useClaimWorkspace();
     const [activityItems, setActivityItems] = useState(activities);
     const [activityPage, setActivityPage] = useState(activitiesPage);
     const [hasMoreActivities, setHasMoreActivities] = useState(activitiesHasMore);
@@ -61,7 +63,7 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                 { title: claim.bill_id, href: `/claims/${claim.id}` },
             ]}
         >
-            <Head title={`Bill ${claim.bill_id}`} />
+            <Head title={`${workspace.identifierLabel} ${claim.bill_id}`} />
             <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
@@ -71,9 +73,11 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                             </Link>
                         </Button>
                         <div>
-                            <h1 className="text-2xl font-bold">Bill ID {claim.bill_id}</h1>
+                            <h1 className="text-2xl font-bold">
+                                {workspace.identifierLabel} {claim.bill_id}
+                            </h1>
                             <p className="text-muted-foreground text-sm">
-                                {claim.line_count} CPT line{claim.line_count === 1 ? '' : 's'}
+                                {claim.line_count} {workspace.procedureLabel} line{claim.line_count === 1 ? '' : 's'}
                             </p>
                         </div>
                         {statuses.map((status) => (
@@ -87,17 +91,21 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                 <div className="grid gap-4 md:grid-cols-2">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Patient</CardTitle>
+                            <CardTitle>{workspace.patientLabel}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-1">
                             <p className="font-medium">{claim.patient_name || '-'}</p>
-                            <p className="text-muted-foreground text-sm">MRN: {claim.patient_id || '-'}</p>
-                            <p className="text-muted-foreground text-sm">DOB: {date(claim.patient_dob)}</p>
+                            <p className="text-muted-foreground text-sm">
+                                {workspace.patientIdLabel}: {claim.patient_id || '-'}
+                            </p>
+                            <p className="text-muted-foreground text-sm">
+                                {workspace.patientDobLabel}: {date(claim.patient_dob)}
+                            </p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Facility</CardTitle>
+                            <CardTitle>{workspace.locationLabel}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="font-medium">{claim.facility || '-'}</p>
@@ -111,9 +119,12 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                             <CardTitle>Claim Details</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-2 text-sm">
-                            <DetailRow label="DOS" value={serviceDateRange(claim.service_date_start, claim.service_date_end)} />
-                            <DetailRow label="Service Type" value={claim.service_type || '-'} />
-                            <DetailRow label="Dx Codes" value={claim.diagnosis_codes.join(', ') || '-'} />
+                            <DetailRow
+                                label={workspace.serviceDateLabel}
+                                value={serviceDateRange(claim.service_date_start, claim.service_date_end)}
+                            />
+                            {!workspace.isPrinciple && <DetailRow label="Service Type" value={claim.service_type || '-'} />}
+                            {!workspace.isPrinciple && <DetailRow label="Dx Codes" value={claim.diagnosis_codes.join(', ') || '-'} />}
                         </CardContent>
                     </Card>
                     <Card>
@@ -122,8 +133,16 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                         </CardHeader>
                         <CardContent className="grid gap-2 text-sm">
                             <DetailRow label="True Charge" value={currency(claim.total_true_charge)} />
-                            <DetailRow label="Payments" value={<span className="text-green-600">{currency(claim.total_payments)}</span>} />
-                            <DetailRow label="True Balance" value={<span className="text-orange-600">{currency(claim.total_true_balance)}</span>} />
+                            <DetailRow
+                                label={workspace.paymentsLabel}
+                                value={<span className="text-green-600">{currency(claim.total_payments)}</span>}
+                            />
+                            {workspace.showTrueBalance && (
+                                <DetailRow
+                                    label="True Balance"
+                                    value={<span className="text-orange-600">{currency(claim.total_true_balance)}</span>}
+                                />
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -169,7 +188,7 @@ export default function ClaimShow({ claim, activities, activitiesPage, activitie
                                     {notes.map((line) => (
                                         <div className="bg-muted/20 rounded-md border p-3 text-sm" key={line.id}>
                                             <Badge className="mb-2" variant="secondary">
-                                                CPT {line.cpt_code || '-'}
+                                                {workspace.procedureLabel} {line.cpt_code || '-'}
                                             </Badge>
                                             <p className="whitespace-pre-wrap">{line.notes}</p>
                                         </div>

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Claim;
+use App\Support\ClaimWorkspace;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -29,6 +30,7 @@ class ClaimFilterService
         'credit_status_from',
         'credit_status_to',
         'procedure_code',
+        'location',
     ];
 
     /** @param array<string, mixed> $filters */
@@ -38,26 +40,33 @@ class ClaimFilterService
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $query->where(function (Builder $nested) use ($search): void {
-                $nested->where('bill_id', 'like', "%{$search}%")
+            $query->where(function (Builder $nested) use ($account, $search): void {
+                $nested->where(ClaimWorkspace::field($account, 'identifier'), 'like', "%{$search}%")
                     ->orWhere('patient_name', 'like', "%{$search}%")
-                    ->orWhere('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('patient_id', 'like', "%{$search}%")
-                    ->orWhereRaw($this->expression('payer_name').' LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw($this->expression('primary_provider').' LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw($this->expression('procedure_code').' LIKE ?', ["%{$search}%"]);
+                    ->orWhere(ClaimWorkspace::field($account, 'patient_id'), 'like', "%{$search}%")
+                    ->orWhereRaw(ClaimWorkspace::expression($account, 'payer').' LIKE ?', ["%{$search}%"])
+                    ->orWhereRaw(ClaimWorkspace::expression($account, 'provider').' LIKE ?', ["%{$search}%"])
+                    ->orWhereRaw(ClaimWorkspace::expression($account, 'procedure').' LIKE ?', ["%{$search}%"]);
+
+                if (! ClaimWorkspace::isPrinciple($account)) {
+                    $nested->orWhere('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%");
+                }
             });
         }
 
-        $this->applyConfigurationFilter(
-            $query,
-            $account,
-            ClaimConfigurationService::MODMED_CLAIM_STATUS,
-            'modmed_claim_status',
-            $filters['modmed_claim_status'] ?? null,
-        );
-        $this->applyExactFilter($query, 'invoiced_status', $filters['invoiced_status'] ?? null);
+        if (ClaimWorkspace::supports($account, 'modmed_status')) {
+            $this->applyConfigurationFilter(
+                $query,
+                $account,
+                ClaimConfigurationService::MODMED_CLAIM_STATUS,
+                'modmed_claim_status',
+                $filters['modmed_claim_status'] ?? null,
+            );
+        }
+        if (ClaimWorkspace::supports($account, 'invoice_status')) {
+            $this->applyExactFilter($query, 'invoiced_status', $filters['invoiced_status'] ?? null);
+        }
         $this->applyCreditStatusFilter($query, $account, $filters['credit_status'] ?? null);
         $this->applyConfigurationFilter(
             $query,
@@ -66,8 +75,9 @@ class ClaimFilterService
             'credit_reason',
             $filters['credit_reason'] ?? null,
         );
-        $this->applyExpressionValuesFilter($query, $this->expression('payer_name'), $filters['payer_name'] ?? null);
-        $this->applyExpressionExactFilter($query, $this->expression('primary_provider'), $filters['primary_provider'] ?? null);
+        $this->applyExpressionValuesFilter($query, ClaimWorkspace::expression($account, 'payer'), $filters['payer_name'] ?? null);
+        $this->applyExpressionExactFilter($query, ClaimWorkspace::expression($account, 'provider'), $filters['primary_provider'] ?? null);
+        $this->applyExpressionExactFilter($query, ClaimWorkspace::expression($account, 'location'), $filters['location'] ?? null);
         $this->applyConfigurationFilter(
             $query,
             $account,
@@ -82,7 +92,7 @@ class ClaimFilterService
             'work_status',
             $filters['work_status'] ?? null,
         );
-        $this->applyExpressionExactFilter($query, $this->expression('procedure_code'), $filters['procedure_code'] ?? null);
+        $this->applyExpressionExactFilter($query, ClaimWorkspace::expression($account, 'procedure'), $filters['procedure_code'] ?? null);
 
         $assignedTo = $filters['assigned_to'] ?? null;
         if ($assignedTo === 'unassigned') {
@@ -95,15 +105,17 @@ class ClaimFilterService
 
         $this->applyDateFilter($query, 'updated_at', '>=', $filters['worked_from'] ?? null);
         $this->applyDateFilter($query, 'updated_at', '<=', $filters['worked_to'] ?? null);
-        $this->applyDateFilter($query, 'cf_invoice_date', '>=', $filters['cf_invoice_from'] ?? null);
-        $this->applyDateFilter($query, 'cf_invoice_date', '<=', $filters['cf_invoice_to'] ?? null);
+        if (ClaimWorkspace::supports($account, 'cf_invoice_date')) {
+            $this->applyDateFilter($query, 'cf_invoice_date', '>=', $filters['cf_invoice_from'] ?? null);
+            $this->applyDateFilter($query, 'cf_invoice_date', '<=', $filters['cf_invoice_to'] ?? null);
+        }
         $this->applyDateFilter($query, 'credit_status_date', '>=', $filters['credit_status_from'] ?? null);
         $this->applyDateFilter($query, 'credit_status_date', '<=', $filters['credit_status_to'] ?? null);
 
         $serviceMonth = trim((string) ($filters['service_month'] ?? ''));
         if (preg_match('/^\d{4}-\d{2}$/', $serviceMonth) === 1) {
             $month = Carbon::createFromFormat('!Y-m', $serviceMonth);
-            $query->whereBetween('service_date_start', [
+            $query->whereBetween(ClaimWorkspace::field($account, 'service_date'), [
                 $month->copy()->startOfMonth()->toDateString(),
                 $month->copy()->endOfMonth()->toDateString(),
             ]);
@@ -226,15 +238,5 @@ class ClaimFilterService
         } catch (\Throwable) {
             // Ignore malformed query-string dates and keep filtering available.
         }
-    }
-
-    private function expression(string $filter): ?string
-    {
-        return match ($filter) {
-            'payer_name' => "COALESCE(NULLIF(payer_name, ''), NULLIF(payer, ''))",
-            'primary_provider' => "COALESCE(NULLIF(primary_provider, ''), NULLIF(provider, ''))",
-            'procedure_code' => "COALESCE(NULLIF(procedure_code, ''), NULLIF(cpt_code, ''))",
-            default => null,
-        };
     }
 }

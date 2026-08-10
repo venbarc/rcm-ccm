@@ -11,7 +11,7 @@ export default function Welcome() {
                         <AppLogoIcon className="size-9" />
                     </div>
                     <h1 className="mt-6 text-3xl font-extrabold tracking-tight text-slate-900">RCM CCM</h1>
-                    <p className="mt-2 text-sm text-slate-600">Tricity claims management</p>
+                    <p className="mt-2 text-sm text-slate-600">Multi-account claims management</p>
                     <Link
                         href="/dashboard"
                         className="mt-8 inline-flex h-11 items-center justify-center rounded-xl bg-[#1b516f] px-6 text-sm font-semibold text-white transition hover:bg-[#143d54]"

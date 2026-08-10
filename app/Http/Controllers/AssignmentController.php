@@ -34,7 +34,7 @@ class AssignmentController extends Controller
         return Inertia::render('assignments/index', [
             'summary' => $snapshot['summary'],
             'assignmentWorkloads' => $snapshot['workloads'],
-            'groupDefinitions' => $this->assignments->groupDefinitions(),
+            'groupDefinitions' => $this->assignments->groupDefinitions($account->value),
             'assignees' => $assignees,
         ]);
     }
@@ -100,7 +100,7 @@ class AssignmentController extends Controller
             ->unique()
             ->values();
 
-        abort_if($billIds->isEmpty(), 422, 'Choose at least one Tricity Bill ID.');
+        abort_if($billIds->isEmpty(), 422, 'Choose at least one Bill ID.');
 
         $lineCount = DB::transaction(function () use ($billIds, $assignee, $account, $request): int {
             $claims = Claim::query()

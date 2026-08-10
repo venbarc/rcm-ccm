@@ -37,7 +37,7 @@ export default function SystemConfigurationIndex({ sections }: SystemConfigurati
             <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
-                        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-[0.2em] text-blue-700 uppercase">
+                        <p className="text-primary mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-[0.2em] uppercase">
                             <Settings2 className="size-3.5" />
                             Administration
                         </p>
@@ -46,14 +46,14 @@ export default function SystemConfigurationIndex({ sections }: SystemConfigurati
                     </div>
                 </div>
 
-                <Card className="border-blue-100 bg-blue-50/60">
-                    <CardContent className="flex items-start gap-3 p-4 text-sm text-blue-950">
-                        <div className="rounded-lg bg-white p-2 text-blue-800">
+                <Card className="border-border bg-secondary/60">
+                    <CardContent className="text-secondary-foreground flex items-start gap-3 p-4 text-sm">
+                        <div className="text-primary rounded-lg bg-white p-2">
                             <SlidersHorizontal className="size-5" />
                         </div>
                         <div>
                             <p className="font-semibold">Account-specific configuration</p>
-                            <p className="text-blue-900/80">
+                            <p className="text-secondary-foreground/80">
                                 Changes apply to the active account. System entries were created during migration; administrator-created entries
                                 retain the creator in the Added By column.
                             </p>

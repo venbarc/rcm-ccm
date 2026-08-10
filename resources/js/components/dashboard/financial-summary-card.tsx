@@ -3,6 +3,7 @@ import type { DashboardFinancialSummary, DashboardFinancialSummaryRow } from '@/
 import { formatCount, formatCurrency, formatNumber, formatPercent } from '@/components/dashboard/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import { ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -36,6 +37,8 @@ function GroupValue({ kind, row }: { kind: FinancialSummaryCardProps['groupKind'
 }
 
 function FinancialCells({ row }: { row: DashboardFinancialSummaryRow }) {
+    const workspace = useClaimWorkspace();
+
     return (
         <>
             <td className="px-3 py-3 text-right tabular-nums">{formatCount(row.billCount)}</td>
@@ -43,14 +46,18 @@ function FinancialCells({ row }: { row: DashboardFinancialSummaryRow }) {
             <td className="px-3 py-3 text-right tabular-nums">{formatNumber(row.units)}</td>
             <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(row.trueCharge)}</td>
             <td className="px-3 py-3 text-right font-medium text-green-700 tabular-nums">{formatCurrency(row.payments)}</td>
-            <td className="px-3 py-3 text-right font-medium text-orange-700 tabular-nums">{formatCurrency(row.trueBalance)}</td>
-            <td className="px-3 py-3 text-right font-medium tabular-nums">{formatPercent(row.collectionPercent)}</td>
+            {workspace.showTrueBalance && (
+                <td className="px-3 py-3 text-right font-medium text-orange-700 tabular-nums">{formatCurrency(row.trueBalance)}</td>
+            )}
+            {workspace.showTrueBalance && <td className="px-3 py-3 text-right font-medium tabular-nums">{formatPercent(row.collectionPercent)}</td>}
             <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(row.cfInvoiceAmount)}</td>
         </>
     );
 }
 
 export function FinancialSummaryCard({ description, filters, groupHeading, groupKind, summary, title }: FinancialSummaryCardProps) {
+    const workspace = useClaimWorkspace();
+
     return (
         <Card className="w-full max-w-full min-w-0 overflow-hidden">
             <CardHeader className="space-y-4">
@@ -59,7 +66,7 @@ export function FinancialSummaryCard({ description, filters, groupHeading, group
                         <CardTitle className="text-xl">{title}</CardTitle>
                         <CardDescription className="mt-1">{description}</CardDescription>
                     </div>
-                    <Badge className="w-fit gap-1.5 border-blue-200 bg-blue-50 text-blue-800" variant="outline">
+                    <Badge className="border-border bg-secondary text-secondary-foreground w-fit gap-1.5" variant="outline">
                         <ShieldCheck className="size-3.5" />
                         Admin only
                     </Badge>
@@ -72,13 +79,13 @@ export function FinancialSummaryCard({ description, filters, groupHeading, group
                         <thead className="bg-muted/60 text-muted-foreground border-y">
                             <tr>
                                 <th className="w-56 px-3 py-3 text-left font-semibold">{groupHeading}</th>
-                                <th className="px-3 py-3 text-right font-semibold">Distinct Bill IDs</th>
-                                <th className="px-3 py-3 text-right font-semibold">CPT Lines</th>
+                                <th className="px-3 py-3 text-right font-semibold">Distinct {workspace.identifierLabel}s</th>
+                                <th className="px-3 py-3 text-right font-semibold">{workspace.procedureLinesLabel}</th>
                                 <th className="px-3 py-3 text-right font-semibold">Units</th>
                                 <th className="px-3 py-3 text-right font-semibold">True Charge</th>
-                                <th className="px-3 py-3 text-right font-semibold">Payments</th>
-                                <th className="px-3 py-3 text-right font-semibold">True Balance</th>
-                                <th className="px-3 py-3 text-right font-semibold">Collection %</th>
+                                <th className="px-3 py-3 text-right font-semibold">{workspace.paymentsLabel}</th>
+                                {workspace.showTrueBalance && <th className="px-3 py-3 text-right font-semibold">True Balance</th>}
+                                {workspace.showTrueBalance && <th className="px-3 py-3 text-right font-semibold">Collection %</th>}
                                 <th className="px-3 py-3 text-right font-semibold">CF Invoice Amount</th>
                             </tr>
                         </thead>
@@ -93,7 +100,7 @@ export function FinancialSummaryCard({ description, filters, groupHeading, group
                             ))}
                             {summary.rows.length === 0 && (
                                 <tr>
-                                    <td className="text-muted-foreground px-4 py-10 text-center" colSpan={9}>
+                                    <td className="text-muted-foreground px-4 py-10 text-center" colSpan={workspace.showTrueBalance ? 9 : 7}>
                                         No summary data found for the selected date range.
                                     </td>
                                 </tr>

@@ -13,7 +13,7 @@ const statusClasses: Record<string, string> = {
 const creditReasonClasses = [
     'border-amber-300 bg-amber-50 text-amber-800',
     'border-violet-300 bg-violet-50 text-violet-800',
-    'border-sky-300 bg-sky-50 text-sky-800',
+    'border-border bg-secondary text-secondary-foreground',
     'border-emerald-300 bg-emerald-50 text-emerald-800',
 ];
 
@@ -66,7 +66,7 @@ export function CreditStatusBadge({ className, credited, label }: { className?: 
         <Badge
             className={cn(
                 'gap-1.5 px-2 py-0.5 font-medium whitespace-nowrap',
-                credited ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-slate-300 bg-slate-50 text-slate-700',
+                credited ? 'border-border bg-secondary text-secondary-foreground' : 'border-slate-300 bg-slate-50 text-slate-700',
                 className,
             )}
             variant="outline"

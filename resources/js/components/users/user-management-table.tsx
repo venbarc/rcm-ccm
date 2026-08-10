@@ -28,11 +28,11 @@ const role = (user: ManagedUser) => (user.is_admin ? 'Administrator' : 'User');
 
 export function UserManagementTable({ accountTypes, currentUserId, isLoading, onEdit, users }: UserManagementTableProps) {
     return (
-        <Card className="overflow-hidden border-blue-100">
+        <Card className="border-border overflow-hidden">
             <DataLoadingOverlay isLoading={isLoading} label="Loading users...">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[900px] text-sm">
-                        <thead className="bg-blue-950 text-left text-xs tracking-wide text-blue-100 uppercase">
+                        <thead className="bg-primary text-primary-foreground text-left text-xs tracking-wide uppercase">
                             <tr>
                                 <th className="px-5 py-3">User</th>
                                 <th className="px-5 py-3">Role</th>
@@ -42,15 +42,15 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                                 <th className="w-20 px-5 py-3" />
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-blue-50">
+                        <tbody className="divide-border divide-y">
                             {users.data.map((user) => {
                                 const teamOwner = user.admins?.[0];
 
                                 return (
-                                    <tr className="bg-white hover:bg-blue-50/60" key={user.id}>
+                                    <tr className="hover:bg-secondary/60 bg-white" key={user.id}>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center gap-3">
-                                                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-900">
+                                                <span className="bg-secondary text-secondary-foreground flex size-10 shrink-0 items-center justify-center rounded-full font-semibold">
                                                     {initials(user.name)}
                                                 </span>
                                                 <div>
@@ -66,7 +66,7 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                                             <Badge
                                                 className={
                                                     user.is_admin
-                                                        ? 'border-blue-200 bg-blue-50 text-blue-900'
+                                                        ? 'border-border bg-secondary text-secondary-foreground'
                                                         : 'border-slate-200 bg-slate-50 text-slate-700'
                                                 }
                                                 variant="outline"
@@ -81,7 +81,7 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                                                 </span>
                                             ) : teamOwner ? (
                                                 teamOwner.id === currentUserId ? (
-                                                    <Badge className="border-blue-200 bg-blue-50 text-blue-900" variant="outline">
+                                                    <Badge className="border-border bg-secondary text-secondary-foreground" variant="outline">
                                                         Yes
                                                     </Badge>
                                                 ) : (
@@ -132,7 +132,7 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                         </tbody>
                     </table>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-blue-100 p-4">
+                <div className="border-border flex flex-wrap items-center justify-between gap-3 border-t p-4">
                     <p className="text-muted-foreground text-sm">
                         Showing {users.from ?? 0}-{users.to ?? 0} of {users.total}
                     </p>

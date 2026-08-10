@@ -7,9 +7,10 @@ interface DataLoadingOverlayProps {
     isLoading: boolean;
     label?: string;
     className?: string;
+    contentClassName?: string;
 }
 
-export function DataLoadingOverlay({ children, isLoading, label = 'Loading data...', className }: DataLoadingOverlayProps) {
+export function DataLoadingOverlay({ children, isLoading, label = 'Loading data...', className, contentClassName }: DataLoadingOverlayProps) {
     return (
         <div aria-busy={isLoading} className={cn('relative', className)}>
             {isLoading && (
@@ -20,7 +21,7 @@ export function DataLoadingOverlay({ children, isLoading, label = 'Loading data.
                     </div>
                 </div>
             )}
-            <div className={cn('transition-opacity duration-150', isLoading && 'pointer-events-none opacity-50')}>{children}</div>
+            <div className={cn('transition-opacity duration-150', contentClassName, isLoading && 'pointer-events-none opacity-50')}>{children}</div>
         </div>
     );
 }
