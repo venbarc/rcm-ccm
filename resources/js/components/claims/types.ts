@@ -22,6 +22,7 @@ export interface ClaimLine {
     service_date_end: string | null;
     true_charge: number | string | null;
     true_balance: number | string | null;
+    payments: number | string | null;
     units: number | string | null;
     claim_cpt: string | null;
     charge_amount: number | string | null;

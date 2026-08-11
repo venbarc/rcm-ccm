@@ -21,6 +21,7 @@ export interface ClaimSourceLine {
     patient_id: string | null;
     true_charge: number | string | null;
     true_balance: number | string | null;
+    payments?: number | string | null;
     units?: number | string | null;
     claim_cpt?: string | null;
     charge_amount?: number | string | null;
@@ -72,6 +73,7 @@ export function ClaimSourceLineHeaders({ showPayer = true, showPrimaryProvider =
             <th className="px-3 py-3 text-left font-medium">Credit Reason</th>
             <th className="px-3 py-3 text-left font-medium">Patient MRN</th>
             <th className="px-3 py-3 text-right font-medium">True Charge</th>
+            <th className="px-3 py-3 text-right font-medium">Payments</th>
             <th className="px-3 py-3 text-right font-medium">True Balance</th>
         </>
     );
@@ -124,6 +126,7 @@ export function ClaimSourceLineCells({ line, showPayer = true, showPrimaryProvid
             </td>
             <td className="px-3 py-3">{line.patient_id || EMPTY_VALUE}</td>
             <td className="px-3 py-3 text-right tabular-nums">{currency(line.true_charge)}</td>
+            <td className="px-3 py-3 text-right font-medium text-green-600 tabular-nums">{currency(line.payments ?? null)}</td>
             <td className="px-3 py-3 text-right font-medium text-orange-600 tabular-nums">{currency(line.true_balance)}</td>
         </>
     );

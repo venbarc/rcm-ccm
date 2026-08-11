@@ -543,6 +543,32 @@ class ClaimsWorkflowTest extends TestCase
             ->has('claims.data.0.lines', 2));
     }
 
+    public function test_tricity_claim_lines_expose_payments_on_index_and_detail_views(): void
+    {
+        $user = User::factory()->create();
+        $claim = Claim::create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-PAYMENTS-1',
+            'patient_name' => 'Payment Patient',
+            'procedure_code' => '99490',
+            'payments' => 25.75,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get('/claims')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('claims.data.0.lines.0.payments', fn ($value) => (float) $value === 25.75));
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get("/claims/{$claim->id}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('claim.lines.0.payments', fn ($value) => (float) $value === 25.75));
+    }
+
     public function test_claim_view_groups_cpt_lines_and_their_activity_logs(): void
     {
         $user = User::factory()->create(['name' => 'Claim Editor']);
