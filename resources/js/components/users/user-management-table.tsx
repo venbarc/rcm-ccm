@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { ManagedUser, UserPage } from '@/components/users/types';
+import { formatBusinessDate } from '@/lib/date-time';
 import type { AccountTypeOption } from '@/types';
 import { Pencil } from 'lucide-react';
 
@@ -111,7 +112,7 @@ export function UserManagementTable({ accountTypes, currentUserId, isLoading, on
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="text-muted-foreground px-5 py-4">{new Date(user.created_at).toLocaleDateString()}</td>
+                                        <td className="text-muted-foreground px-5 py-4">{formatBusinessDate(user.created_at)}</td>
                                         <td className="px-5 py-4">
                                             {user.can_manage && (
                                                 <Button aria-label={`Edit ${user.name}`} onClick={() => onEdit(user)} size="icon" variant="ghost">

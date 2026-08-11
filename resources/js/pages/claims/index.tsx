@@ -373,7 +373,7 @@ function ClaimsIndexContent({
                     {[
                         ['Total claims', summary.totalCount.toLocaleString()],
                         ['True Charge', currency(summary.totalTrueCharge)],
-                        ...(workspace.showTrueBalance ? [['True Balance', currency(summary.totalTrueBalance)] as [string, string]] : []),
+                        ['True Balance', currency(summary.totalTrueBalance)],
                         [workspace.paymentsLabel, currency(summary.totalPayments)],
                     ].map(([label, value], index) => (
                         <Card className={index === 0 ? 'border-l-primary border-l-4' : ''} key={label}>

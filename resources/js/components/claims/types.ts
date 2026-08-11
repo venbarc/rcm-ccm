@@ -22,6 +22,7 @@ export interface ClaimLine {
     service_date_end: string | null;
     true_charge: number | string | null;
     true_balance: number | string | null;
+    payments: number | string | null;
     units: number | string | null;
     claim_cpt: string | null;
     charge_amount: number | string | null;
@@ -130,7 +131,7 @@ export interface ClaimPage {
 
 export interface Summary {
     totalCount: number;
-    totalTrueBalance: number | null;
+    totalTrueBalance: number;
     totalTrueCharge: number;
     totalPayments: number;
 }
@@ -149,6 +150,8 @@ export interface Filters {
     assigned_to: string;
     worked_from: string;
     worked_to: string;
+    service_date_from: string;
+    service_date_to: string;
     service_month: string;
     cf_invoice_from: string;
     cf_invoice_to: string;

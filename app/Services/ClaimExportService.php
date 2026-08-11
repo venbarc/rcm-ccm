@@ -9,6 +9,7 @@ use App\Models\ClaimExport;
 use App\Models\ClaimImport;
 use App\Models\User;
 use App\Support\AccountContext;
+use App\Support\BusinessTime;
 use App\Support\ClaimWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Bus;
@@ -98,7 +99,7 @@ class ClaimExportService
             'assignee' => 'assigned_',
             default => '',
         };
-        $fileName = $prefix.'claims_export_'.now()->format('Y-m-d_His').'.csv';
+        $fileName = $prefix.'claims_export_'.BusinessTime::now()->format('Y-m-d_His').'.csv';
         $filePath = 'claim-exports/'.Str::slug($account).'/'.Str::uuid().'_'.$fileName;
 
         Storage::makeDirectory(dirname($filePath));
@@ -377,7 +378,7 @@ class ClaimExportService
                 $claim->credit_status_date?->format('Y-m-d'),
                 $claim->creditReasonOption?->label
                     ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_REASON, $claim->credit_reason),
-                $claim->updated_at?->format('Y-m-d H:i:s'),
+                $claim->updated_at ? BusinessTime::display($claim->updated_at)->format('Y-m-d H:i:s') : null,
             ]);
         }
 
@@ -432,7 +433,7 @@ class ClaimExportService
             $claim->credit_status_date?->format('Y-m-d'),
             $claim->creditReasonOption?->label
                 ?? $this->configurationLabel($claim->account_type, ClaimConfigurationService::CREDIT_REASON, $claim->credit_reason),
-            $claim->updated_at?->format('Y-m-d H:i:s'),
+            $claim->updated_at ? BusinessTime::display($claim->updated_at)->format('Y-m-d H:i:s') : null,
         ];
 
         return array_map($this->sanitizeCsvValue(...), $row);

@@ -11,6 +11,7 @@ export interface ClaimDetailLine {
     units: number | null;
     true_charge: number;
     true_balance: number;
+    payments: number | null;
     claim_cpt: string | null;
     charge_amount: number | null;
     cf_invoice_amount: number | null;

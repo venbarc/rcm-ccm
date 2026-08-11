@@ -21,6 +21,7 @@ export interface ClaimSourceLine {
     patient_id: string | null;
     true_charge: number | string | null;
     true_balance: number | string | null;
+    payments?: number | string | null;
     units?: number | string | null;
     claim_cpt?: string | null;
     charge_amount?: number | string | null;
@@ -46,10 +47,8 @@ export function ClaimSourceLineHeaders({ showPayer = true, showPrimaryProvider =
                 <th className="px-3 py-3 text-left font-medium">Procedure Code</th>
                 {showPrimaryProvider && <th className="px-3 py-3 text-left font-medium">Rendering Provider</th>}
                 {showPayer && <th className="px-3 py-3 text-left font-medium">Responsible Payer</th>}
-                <th className="px-3 py-3 text-left font-medium">claim-cpt</th>
                 <th className="px-3 py-3 text-right font-medium">Units</th>
                 <th className="px-3 py-3 text-right font-medium">Charge Amount</th>
-                <th className="px-3 py-3 text-right font-medium">CF Invoice Amount</th>
                 <th className="px-3 py-3 text-right font-medium">Total Payment</th>
                 <th className="px-3 py-3 text-right font-medium">True Charge</th>
                 <th className="px-3 py-3 text-right font-medium">True Charge Per Unit</th>
@@ -74,6 +73,7 @@ export function ClaimSourceLineHeaders({ showPayer = true, showPrimaryProvider =
             <th className="px-3 py-3 text-left font-medium">Credit Reason</th>
             <th className="px-3 py-3 text-left font-medium">Patient MRN</th>
             <th className="px-3 py-3 text-right font-medium">True Charge</th>
+            <th className="px-3 py-3 text-right font-medium">Payments</th>
             <th className="px-3 py-3 text-right font-medium">True Balance</th>
         </>
     );
@@ -88,10 +88,8 @@ export function ClaimSourceLineCells({ line, showPayer = true, showPrimaryProvid
                 <td className="px-3 py-3 font-semibold">{line.cpt_code || EMPTY_VALUE}</td>
                 {showPrimaryProvider && <td className="px-3 py-3">{line.primary_provider || EMPTY_VALUE}</td>}
                 {showPayer && <td className="px-3 py-3">{line.payer_name || EMPTY_VALUE}</td>}
-                <td className="px-3 py-3 whitespace-nowrap">{line.claim_cpt || EMPTY_VALUE}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{line.units ?? EMPTY_VALUE}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{currency(line.charge_amount ?? null)}</td>
-                <td className="px-3 py-3 text-right tabular-nums">{currency(line.cf_invoice_amount ?? null)}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{currency(line.total_payment ?? null)}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{currency(line.true_charge)}</td>
                 <td className="px-3 py-3 text-right tabular-nums">{currency(line.true_charge_per_unit ?? null)}</td>
@@ -128,6 +126,7 @@ export function ClaimSourceLineCells({ line, showPayer = true, showPrimaryProvid
             </td>
             <td className="px-3 py-3">{line.patient_id || EMPTY_VALUE}</td>
             <td className="px-3 py-3 text-right tabular-nums">{currency(line.true_charge)}</td>
+            <td className="px-3 py-3 text-right font-medium text-green-600 tabular-nums">{currency(line.payments ?? null)}</td>
             <td className="px-3 py-3 text-right font-medium text-orange-600 tabular-nums">{currency(line.true_balance)}</td>
         </>
     );

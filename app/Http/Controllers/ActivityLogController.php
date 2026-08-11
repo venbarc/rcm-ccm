@@ -6,6 +6,7 @@ use App\Models\Claim;
 use App\Models\User;
 use App\Services\ClaimConfigurationService;
 use App\Services\TeamService;
+use App\Support\BusinessTime;
 use App\Support\ClaimWorkspace;
 use App\Support\CurrentAccount;
 use Illuminate\Database\Eloquent\Builder;
@@ -148,11 +149,13 @@ class ActivityLogController extends Controller
                 if (! $isPrinciple) {
                     $row[] = (float) ($line->true_balance ?? $line->balance ?? 0);
                 }
-                $row[] = $line->updated_at?->toIso8601String();
+                $row[] = $line->updated_at
+                    ? BusinessTime::display($line->updated_at)->toIso8601String()
+                    : null;
                 fputcsv($stream, $row);
             }
             fclose($stream);
-        }, 'activity-logs-'.now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);
+        }, 'activity-logs-'.BusinessTime::now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);
     }
 
     public function workedClaimLines(Request $request, User $user): Response
@@ -276,15 +279,25 @@ class ActivityLogController extends Controller
 
     private function applyWorkedDateFilters(Builder $query, Request $request, string $fromKey = 'date_from', string $toKey = 'date_to'): void
     {
-        $dateColumn = $request->input('date_filter_type') === 'date_of_service'
-            ? 'service_date_start'
-            : 'updated_at';
+        if ($request->input('date_filter_type') === 'date_of_service') {
+            if ($request->filled($fromKey)) {
+                $query->whereDate('service_date_start', '>=', (string) $request->input($fromKey));
+            }
+            if ($request->filled($toKey)) {
+                $query->whereDate('service_date_start', '<=', (string) $request->input($toKey));
+            }
 
-        if ($request->filled($fromKey)) {
-            $query->whereDate($dateColumn, '>=', (string) $request->input($fromKey));
+            return;
         }
-        if ($request->filled($toKey)) {
-            $query->whereDate($dateColumn, '<=', (string) $request->input($toKey));
+
+        $from = BusinessTime::dayStart($request->input($fromKey));
+        $toExclusive = BusinessTime::dayStart($request->input($toKey))?->addDay();
+
+        if ($from) {
+            $query->where('updated_at', '>=', $from);
+        }
+        if ($toExclusive) {
+            $query->where('updated_at', '<', $toExclusive);
         }
     }
 

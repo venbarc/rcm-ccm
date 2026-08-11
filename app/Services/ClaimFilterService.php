@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Claim;
+use App\Support\BusinessTime;
 use App\Support\ClaimWorkspace;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +25,8 @@ class ClaimFilterService
         'assigned_to',
         'worked_from',
         'worked_to',
+        'service_date_from',
+        'service_date_to',
         'service_month',
         'cf_invoice_from',
         'cf_invoice_to',
@@ -103,8 +106,13 @@ class ClaimFilterService
             $query->where('assigned_to', (int) $assignedTo);
         }
 
-        $this->applyDateFilter($query, 'updated_at', '>=', $filters['worked_from'] ?? null);
-        $this->applyDateFilter($query, 'updated_at', '<=', $filters['worked_to'] ?? null);
+        $this->applyWorkedDateFilter(
+            $query,
+            $filters['worked_from'] ?? null,
+            $filters['worked_to'] ?? null,
+        );
+        $this->applyDateFilter($query, ClaimWorkspace::field($account, 'service_date'), '>=', $filters['service_date_from'] ?? null);
+        $this->applyDateFilter($query, ClaimWorkspace::field($account, 'service_date'), '<=', $filters['service_date_to'] ?? null);
         if (ClaimWorkspace::supports($account, 'cf_invoice_date')) {
             $this->applyDateFilter($query, 'cf_invoice_date', '>=', $filters['cf_invoice_from'] ?? null);
             $this->applyDateFilter($query, 'cf_invoice_date', '<=', $filters['cf_invoice_to'] ?? null);
@@ -238,5 +246,21 @@ class ClaimFilterService
         } catch (\Throwable) {
             // Ignore malformed query-string dates and keep filtering available.
         }
+    }
+
+    private function applyWorkedDateFilter(Builder $query, mixed $fromValue, mixed $toValue): void
+    {
+        $from = BusinessTime::dayStart($fromValue);
+        $toExclusive = BusinessTime::dayStart($toValue)?->addDay();
+
+        if ($from === null && $toExclusive === null) {
+            return;
+        }
+
+        $query->whereHas('activities', function (Builder $activities) use ($from, $toExclusive): void {
+            $activities->where('action', 'claim_updated')
+                ->when($from, fn (Builder $query) => $query->where('created_at', '>=', $from))
+                ->when($toExclusive, fn (Builder $query) => $query->where('created_at', '<', $toExclusive));
+        });
     }
 }

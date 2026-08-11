@@ -1,3 +1,4 @@
+import { formatBusinessDateTime } from '@/lib/date-time';
 import type { CSSProperties } from 'react';
 
 export const EMPTY_VALUE = '-';
@@ -16,7 +17,7 @@ export const longDate = (value: string | null) =>
           })
         : EMPTY_VALUE;
 
-export const dateTime = (value: string | null) => (value ? new Date(value).toLocaleString() : EMPTY_VALUE);
+export const dateTime = (value: string | null) => formatBusinessDateTime(value, EMPTY_VALUE);
 
 export const serviceDateRange = (start: string | null, end: string | null) => {
     if (!start && !end) {

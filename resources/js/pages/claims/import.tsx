@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useActiveAccount } from '@/hooks/use-active-account';
 import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import AppLayout from '@/layouts/app-layout';
+import { formatBusinessDateTime } from '@/lib/date-time';
 import { Head, router, useForm } from '@inertiajs/react';
 import { CheckCircle2, ChevronDown, ChevronUp, FileSpreadsheet, History, Loader2, Upload } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
@@ -205,7 +206,7 @@ export default function ClaimImport({ imports, activeImportId }: { imports: Impo
                                                 <div>
                                                     <p className="font-medium">{item.file_name}</p>
                                                     <p className="text-muted-foreground text-xs">
-                                                        {item.importer.name} · {new Date(item.created_at).toLocaleString()}
+                                                        {item.importer.name} · {formatBusinessDateTime(item.created_at)}
                                                     </p>
                                                     {item.error_message && <p className="text-destructive mt-1 text-xs">{item.error_message}</p>}
                                                 </div>

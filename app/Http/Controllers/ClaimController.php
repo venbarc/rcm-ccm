@@ -245,6 +245,7 @@ class ClaimController extends Controller
                     'service_date_end' => $claim->service_date_end?->toDateString(),
                     'true_charge' => $claim->true_charge !== null ? (float) $claim->true_charge : null,
                     'true_balance' => $claim->true_balance !== null ? (float) $claim->true_balance : null,
+                    'payments' => $claim->payments !== null ? (float) $claim->payments : null,
                     'primary_provider' => $isPrinciple ? $claim->rendering_provider : ($claim->primary_provider ?: $claim->provider),
                     'payer_name' => $isPrinciple ? $claim->responsible_payer : ($claim->payer_name ?: $claim->payer),
                     'patient_id' => $isPrinciple ? $claim->chart_number : $claim->patient_id,
@@ -317,6 +318,8 @@ class ClaimController extends Controller
                 'assigned_to' => is_scalar($assignedTo) ? (string) $assignedTo : '',
                 'worked_from' => (string) $request->input('worked_from', ''),
                 'worked_to' => (string) $request->input('worked_to', ''),
+                'service_date_from' => (string) $request->input('service_date_from', ''),
+                'service_date_to' => (string) $request->input('service_date_to', ''),
                 'service_month' => $serviceMonth,
                 'cf_invoice_from' => (string) $request->input('cf_invoice_from', ''),
                 'cf_invoice_to' => (string) $request->input('cf_invoice_to', ''),
@@ -329,7 +332,9 @@ class ClaimController extends Controller
             ],
             'summary' => [
                 'totalCount' => (clone $summaryQuery)->count(),
-                'totalTrueBalance' => $isPrinciple ? null : (float) ((clone $summaryQuery)->where('true_balance', '>', 0)->sum('true_balance') ?? 0),
+                'totalTrueBalance' => $isPrinciple
+                    ? 0.0
+                    : (float) ((clone $summaryQuery)->where('true_balance', '>', 0)->sum('true_balance') ?? 0),
                 'totalTrueCharge' => (float) ((clone $summaryQuery)->sum('true_charge') ?? 0),
                 'totalPayments' => (float) ((clone $summaryQuery)->where($paymentsField, '>', 0)->sum($paymentsField) ?? 0),
             ],
@@ -519,6 +524,7 @@ class ClaimController extends Controller
                     'units' => $line->units !== null ? (float) $line->units : null,
                     'true_charge' => (float) ($line->true_charge ?? $line->billed_amount ?? 0),
                     'true_balance' => (float) ($line->true_balance ?? $line->balance ?? 0),
+                    'payments' => $line->payments !== null ? (float) $line->payments : null,
                     'claim_cpt' => $line->claim_cpt,
                     'charge_amount' => $line->charge_amount !== null ? (float) $line->charge_amount : null,
                     'cf_invoice_amount' => $line->cf_invoice_amount !== null ? (float) $line->cf_invoice_amount : null,

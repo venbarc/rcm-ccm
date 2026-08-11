@@ -193,7 +193,48 @@ class PrincipleWorkspaceTest extends TestCase
                 ->where('claims.data.0.primary_provider', 'ALCARAZ, ERIC')
                 ->where('claims.data.0.payer_name', 'Medicare Part B Texas *')
                 ->where('claims.data.0.lines.0.claim_cpt', '567781492-99439')
-                ->where('summary.totalTrueBalance', null));
+                ->where('summary.totalTrueBalance', fn ($value): bool => (float) $value === 0.0));
+    }
+
+    public function test_principle_claims_filter_by_date_of_service_range_and_show_zero_true_balance(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        AccountContext::runWith(AccountType::Principle->value, function (): void {
+            foreach ([
+                ['id' => 'PRINCIPLE-DOS-JULY', 'date' => '2026-07-31'],
+                ['id' => 'PRINCIPLE-DOS-MATCH', 'date' => '2026-08-10'],
+                ['id' => 'PRINCIPLE-DOS-LATE', 'date' => '2026-08-20'],
+            ] as $claim) {
+                Claim::query()->create([
+                    'account_type' => AccountType::Principle->value,
+                    'external_id' => $claim['id'],
+                    'primary_claim_id' => $claim['id'],
+                    'patient_name' => 'DOS Filter Patient',
+                    'procedure_code' => '99490',
+                    'date_of_service' => $claim['date'],
+                    'true_charge' => 50,
+                    'true_balance' => null,
+                ]);
+            }
+        });
+
+        $query = http_build_query([
+            'service_date_from' => '2026-08-01',
+            'service_date_to' => '2026-08-15',
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Principle->value])
+            ->get("/claims?{$query}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.service_date_from', '2026-08-01')
+                ->where('filters.service_date_to', '2026-08-15')
+                ->where('claims.total', 1)
+                ->where('claims.data.0.bill_id', 'PRINCIPLE-DOS-MATCH')
+                ->where('summary.totalCount', 1)
+                ->where('summary.totalTrueBalance', fn ($value): bool => (float) $value === 0.0));
     }
 
     public function test_principle_exposes_every_shared_tricity_workspace_page(): void

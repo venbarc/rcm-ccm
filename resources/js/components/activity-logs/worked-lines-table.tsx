@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
+import { formatBusinessDateTime } from '@/lib/date-time';
 import { Link } from '@inertiajs/react';
 import { Eye } from 'lucide-react';
 
@@ -46,7 +47,7 @@ export function WorkedLinesTable({ lines, returnTo }: { lines: PaginatedData<Wor
                                         </Badge>
                                     </td>
                                     <td className="px-3 py-3">{date(line.date_of_service)}</td>
-                                    <td className="px-3 py-3">{line.worked_at ? new Date(line.worked_at).toLocaleString() : '-'}</td>
+                                    <td className="px-3 py-3">{formatBusinessDateTime(line.worked_at)}</td>
                                     <td className="px-3 py-3 text-right">{formatCurrency(line.charges)}</td>
                                     <td className="px-3 py-3 text-right text-green-600">{formatCurrency(line.paid)}</td>
                                     {workspace.showTrueBalance && (

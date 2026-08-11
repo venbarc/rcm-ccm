@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { businessTimeZone } from '@/lib/date-time';
 import { Clock3, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -53,6 +54,8 @@ const exportFilterKeys: Array<keyof Filters> = [
     'assigned_to',
     'worked_from',
     'worked_to',
+    'service_date_from',
+    'service_date_to',
     'service_month',
     'cf_invoice_from',
     'cf_invoice_to',
@@ -76,6 +79,7 @@ const formatDate = (value: string | null) => {
     return new Intl.DateTimeFormat(undefined, {
         dateStyle: 'medium',
         timeStyle: 'short',
+        timeZone: businessTimeZone,
     }).format(new Date(value));
 };
 

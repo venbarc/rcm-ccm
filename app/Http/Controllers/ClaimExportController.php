@@ -44,6 +44,8 @@ class ClaimExportController extends Controller
             'filters.assigned_to' => ['nullable', 'string', 'max:30'],
             'filters.worked_from' => ['nullable', 'date_format:Y-m-d'],
             'filters.worked_to' => ['nullable', 'date_format:Y-m-d'],
+            'filters.service_date_from' => ['nullable', 'date_format:Y-m-d'],
+            'filters.service_date_to' => ['nullable', 'date_format:Y-m-d'],
             'filters.service_month' => ['nullable', 'date_format:Y-m'],
             'filters.cf_invoice_from' => ['nullable', 'date_format:Y-m-d'],
             'filters.cf_invoice_to' => ['nullable', 'date_format:Y-m-d'],
