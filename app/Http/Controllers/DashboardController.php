@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Claim;
 use App\Services\ClaimConfigurationService;
+use App\Support\BusinessTime;
 use App\Support\ClaimWorkspace;
 use App\Support\CurrentAccount;
 use Carbon\Carbon;
@@ -402,7 +403,7 @@ class DashboardController extends Controller
             $preset = 'all';
         }
 
-        $today = Carbon::today();
+        $today = BusinessTime::today();
         $startDate = null;
         $endDate = null;
         $presetLabels = [

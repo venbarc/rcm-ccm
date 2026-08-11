@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { businessTodayIso } from '@/lib/date-time';
 import { cn } from '@/lib/utils';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -79,7 +80,8 @@ function formatTriggerLabel(from?: string, to?: string): string | null {
     return longDateFormatter.format(fromDate ?? toDate!);
 }
 
-const resolveInitialMonth = (from?: string, to?: string) => startOfMonth(parseIsoDate(from) ?? parseIsoDate(to) ?? new Date());
+const resolveInitialMonth = (from?: string, to?: string) =>
+    startOfMonth(parseIsoDate(from) ?? parseIsoDate(to) ?? parseIsoDate(businessTodayIso())!);
 
 export function DateRangePicker({
     from,
@@ -98,7 +100,7 @@ export function DateRangePicker({
     const rangeStart = draftFrom;
     const rangeEnd = draftTo ?? draftFrom;
     const secondMonth = useMemo(() => addMonths(visibleMonth, 1), [visibleMonth]);
-    const todayIso = useMemo(() => formatIsoDate(new Date()), []);
+    const todayIso = useMemo(() => businessTodayIso(), []);
 
     const handleOpenChange = (nextOpen: boolean) => {
         setDraftFrom(from);
@@ -181,10 +183,11 @@ export function DateRangePicker({
             </PopoverTrigger>
             <PopoverContent
                 align="start"
-                avoidCollisions={false}
+                collisionPadding={16}
                 side="bottom"
                 sideOffset={8}
-                className="w-[min(720px,calc(100vw-2rem))] rounded-3xl border border-slate-200 p-0 shadow-2xl"
+                sticky="always"
+                className="max-h-[calc(100vh-2rem)] w-[min(720px,calc(100vw-2rem))] overflow-y-auto rounded-3xl border border-slate-200 p-0 shadow-2xl"
             >
                 <div className="space-y-4 p-4">
                     <div className="flex items-center justify-between">
@@ -201,7 +204,7 @@ export function DateRangePicker({
                         {renderMonth(secondMonth)}
                     </div>
 
-                    <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="bg-popover sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-3 border-t border-slate-200 px-4 pt-4 pb-4 sm:flex-row sm:items-center sm:justify-between">
                         <Button
                             type="button"
                             variant="outline"

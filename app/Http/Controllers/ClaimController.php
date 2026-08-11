@@ -317,6 +317,8 @@ class ClaimController extends Controller
                 'assigned_to' => is_scalar($assignedTo) ? (string) $assignedTo : '',
                 'worked_from' => (string) $request->input('worked_from', ''),
                 'worked_to' => (string) $request->input('worked_to', ''),
+                'service_date_from' => (string) $request->input('service_date_from', ''),
+                'service_date_to' => (string) $request->input('service_date_to', ''),
                 'service_month' => $serviceMonth,
                 'cf_invoice_from' => (string) $request->input('cf_invoice_from', ''),
                 'cf_invoice_to' => (string) $request->input('cf_invoice_to', ''),
@@ -329,7 +331,9 @@ class ClaimController extends Controller
             ],
             'summary' => [
                 'totalCount' => (clone $summaryQuery)->count(),
-                'totalTrueBalance' => $isPrinciple ? null : (float) ((clone $summaryQuery)->where('true_balance', '>', 0)->sum('true_balance') ?? 0),
+                'totalTrueBalance' => $isPrinciple
+                    ? 0.0
+                    : (float) ((clone $summaryQuery)->where('true_balance', '>', 0)->sum('true_balance') ?? 0),
                 'totalTrueCharge' => (float) ((clone $summaryQuery)->sum('true_charge') ?? 0),
                 'totalPayments' => (float) ((clone $summaryQuery)->where($paymentsField, '>', 0)->sum($paymentsField) ?? 0),
             ],

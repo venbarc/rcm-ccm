@@ -22,6 +22,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Inertia::share('app', fn () => [
             'timezone' => config('app.timezone'),
+            'businessTimezone' => config('app.business_timezone'),
         ]);
     }
 }

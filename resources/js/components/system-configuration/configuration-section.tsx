@@ -3,6 +3,7 @@ import type { ConfigurationOption, ConfigurationSectionData } from '@/components
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatBusinessDateTime } from '@/lib/date-time';
 import { Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 
 interface ConfigurationSectionProps {
@@ -12,8 +13,6 @@ interface ConfigurationSectionProps {
     onEdit: (section: ConfigurationSectionData, option: ConfigurationOption) => void;
     onRestoreDefaults: () => void;
 }
-
-const dateTime = (value: string | null) => (value ? new Date(value).toLocaleString() : '-');
 
 export function ConfigurationSection({ section, onCreate, onDelete, onEdit, onRestoreDefaults }: ConfigurationSectionProps) {
     const showsColor = section.type === 'work_status' || section.type === 'modmed_claim_status';
@@ -122,7 +121,9 @@ export function ConfigurationSection({ section, onCreate, onDelete, onEdit, onRe
                                                 </Badge>
                                             )}
                                         </td>
-                                        <td className="text-muted-foreground px-4 py-3 whitespace-nowrap">{dateTime(option.created_at)}</td>
+                                        <td className="text-muted-foreground px-4 py-3 whitespace-nowrap">
+                                            {formatBusinessDateTime(option.created_at)}
+                                        </td>
                                         <td className="px-4 py-3">
                                             <div className="flex justify-end gap-1">
                                                 <Button

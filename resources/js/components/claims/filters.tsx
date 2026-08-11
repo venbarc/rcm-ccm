@@ -130,7 +130,7 @@ export function ClaimsFilters({
                             emptyMessage={`No ${workspace.procedureLabel.toLowerCase()}s found.`}
                         />
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                    <div className={`grid gap-3 sm:grid-cols-2 ${workspace.isPrinciple ? 'xl:grid-cols-4' : 'xl:grid-cols-3 2xl:grid-cols-5'}`}>
                         {workspace.showInvoiceFields && (
                             <select
                                 className="bg-background h-10 min-w-0 rounded-md border px-3 text-sm"
@@ -190,7 +190,11 @@ export function ClaimsFilters({
                             emptyMessage={`No ${workspace.serviceDateLabel.toLowerCase()} months found.`}
                         />
                     </div>
-                    <div className="grid items-end gap-3 md:grid-cols-2 2xl:grid-cols-[repeat(3,minmax(240px,1fr))_auto]">
+                    <div
+                        className={`grid items-end gap-3 md:grid-cols-2 ${
+                            workspace.isPrinciple ? 'xl:grid-cols-[repeat(3,minmax(0,1fr))_auto]' : '2xl:grid-cols-[repeat(4,minmax(220px,1fr))_auto]'
+                        }`}
+                    >
                         {workspace.showInvoiceFields && (
                             <DateRangeFilterField
                                 from={local.cf_invoice_from}
@@ -200,6 +204,13 @@ export function ClaimsFilters({
                                 to={local.cf_invoice_to}
                             />
                         )}
+                        <DateRangeFilterField
+                            from={local.service_date_from}
+                            label={`${workspace.serviceDateLabel} Range`}
+                            onApply={({ from, to }) => onFilterChange({ service_date_from: from, service_date_to: to })}
+                            placeholder={`${workspace.serviceDateLabel.toLowerCase()} range`}
+                            to={local.service_date_to}
+                        />
                         <DateRangeFilterField
                             from={local.credit_status_from}
                             label="Credit Status Date Range"

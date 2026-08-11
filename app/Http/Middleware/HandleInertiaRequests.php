@@ -58,6 +58,7 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'app' => [
                 'timezone' => config('app.timezone'),
+                'businessTimezone' => config('app.business_timezone'),
             ],
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [

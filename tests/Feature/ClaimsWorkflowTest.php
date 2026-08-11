@@ -9,12 +9,78 @@ use App\Models\ClaimConfigurationOption;
 use App\Models\GroupMember;
 use App\Models\User;
 use App\Services\ClaimConfigurationService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ClaimsWorkflowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_worked_date_filter_uses_claim_edits_and_pacific_calendar_days(): void
+    {
+        $user = User::factory()->create();
+
+        try {
+            Carbon::setTestNow(Carbon::parse('2026-08-11 18:00:00', 'UTC'));
+            $pacificAugustEleventh = Claim::query()->create([
+                'account_type' => AccountType::Tricity->value,
+                'external_id' => 'TC-WORKED-AUG-11',
+                'patient_name' => 'Pacific August Eleven',
+                'procedure_code' => '11111',
+            ]);
+            $pacificAugustTwelfth = Claim::query()->create([
+                'account_type' => AccountType::Tricity->value,
+                'external_id' => 'TC-WORKED-AUG-12',
+                'patient_name' => 'Pacific August Twelve',
+                'procedure_code' => '22222',
+            ]);
+            Claim::query()->create([
+                'account_type' => AccountType::Tricity->value,
+                'external_id' => 'TC-IMPORT-ONLY',
+                'patient_name' => 'Import Timestamp Only',
+                'procedure_code' => '33333',
+            ]);
+
+            // 06:30 UTC is still August 11 in Los Angeles during daylight saving time.
+            Carbon::setTestNow(Carbon::parse('2026-08-12 06:30:00', 'UTC'));
+            ClaimActivity::query()->create([
+                'account_type' => AccountType::Tricity->value,
+                'claim_id' => $pacificAugustEleventh->id,
+                'user_id' => $user->id,
+                'action' => 'claim_updated',
+                'description' => 'Worked late on August 11 Pacific time',
+            ]);
+
+            // 07:30 UTC has crossed into August 12 in Los Angeles.
+            Carbon::setTestNow(Carbon::parse('2026-08-12 07:30:00', 'UTC'));
+            ClaimActivity::query()->create([
+                'account_type' => AccountType::Tricity->value,
+                'claim_id' => $pacificAugustTwelfth->id,
+                'user_id' => $user->id,
+                'action' => 'claim_updated',
+                'description' => 'Worked on August 12 Pacific time',
+            ]);
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $query = http_build_query([
+            'worked_from' => '2026-08-11',
+            'worked_to' => '2026-08-11',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get("/claims?{$query}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.worked_from', '2026-08-11')
+                ->where('filters.worked_to', '2026-08-11')
+                ->where('claims.total', 1)
+                ->where('claims.data.0.bill_id', 'TC-WORKED-AUG-11')
+                ->where('summary.totalCount', 1));
+    }
 
     public function test_claims_can_filter_by_multiple_payers_selected_from_a_keyword_search(): void
     {

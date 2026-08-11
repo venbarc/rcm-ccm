@@ -130,7 +130,7 @@ export interface ClaimPage {
 
 export interface Summary {
     totalCount: number;
-    totalTrueBalance: number | null;
+    totalTrueBalance: number;
     totalTrueCharge: number;
     totalPayments: number;
 }
@@ -149,6 +149,8 @@ export interface Filters {
     assigned_to: string;
     worked_from: string;
     worked_to: string;
+    service_date_from: string;
+    service_date_to: string;
     service_month: string;
     cf_invoice_from: string;
     cf_invoice_to: string;

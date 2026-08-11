@@ -2,6 +2,7 @@ import { DataLoadingOverlay } from '@/components/data-loading-overlay';
 import { Pagination, type PaginationLink } from '@/components/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { formatBusinessDateTime } from '@/lib/date-time';
 
 export interface ActivityLogItem {
     id: number;
@@ -35,7 +36,7 @@ export function ActivityLogList({ activities, isLoading }: ActivityLogListProps)
                                 <div className="grid gap-3 p-4 md:grid-cols-[170px_1fr_auto] md:items-center" key={activity.id}>
                                     <div>
                                         <p className="text-sm font-medium">{activity.user?.name ?? 'System'}</p>
-                                        <p className="text-muted-foreground text-xs">{new Date(activity.created_at).toLocaleString()}</p>
+                                        <p className="text-muted-foreground text-xs">{formatBusinessDateTime(activity.created_at)}</p>
                                     </div>
                                     <div>
                                         <p className="text-sm">{activity.description}</p>
