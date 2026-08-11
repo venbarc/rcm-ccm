@@ -13,7 +13,7 @@ interface DateRangePickerProps {
     disabled?: boolean;
 }
 
-const weekdayLabels = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+const weekdayLabels = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 const monthFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     year: 'numeric',
@@ -54,10 +54,10 @@ function buildMonthGrid(month: Date): Array<Date | null> {
     const monthIndex = month.getMonth();
     const firstDayOfMonth = new Date(year, monthIndex, 1);
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const mondayFirstOffset = (firstDayOfMonth.getDay() + 6) % 7;
+    const sundayFirstOffset = firstDayOfMonth.getDay();
     const cells: Array<Date | null> = [];
 
-    for (let index = 0; index < mondayFirstOffset; index++) cells.push(null);
+    for (let index = 0; index < sundayFirstOffset; index++) cells.push(null);
     for (let day = 1; day <= daysInMonth; day++) cells.push(new Date(year, monthIndex, day));
     while (cells.length < 42) cells.push(null);
 
