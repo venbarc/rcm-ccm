@@ -207,9 +207,9 @@ class ClaimController extends Controller
                 'modmed_claim_status_color' => $this->configurationColor($representative?->modMedClaimStatusOption, $modMedStatus, $modMedStatusColors),
                 'cf_invoice_date' => $representative?->cf_invoice_date?->toDateString()
                     ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
-                'invoiced_status' => 'invoiced',
-                'invoiced_status_date' => $representative?->cf_invoice_date?->toDateString()
-                    ?? ($group->cf_invoice_date ? Carbon::parse($group->cf_invoice_date)->toDateString() : null),
+                'invoiced_status' => $representative?->invoiced_status ?: $group->invoiced_status,
+                'invoiced_status_date' => $representative?->invoiced_status_date?->toDateString()
+                    ?? ($group->invoiced_status_date ? Carbon::parse($group->invoiced_status_date)->toDateString() : null),
                 'credit_status_id' => $reviewedCreditLine?->credit_status_id,
                 'credit_status' => $reviewedCreditLine?->credit_status,
                 'credit_status_label' => $reviewedCreditLine?->creditStatusOption?->label
@@ -263,8 +263,8 @@ class ClaimController extends Controller
                     'modmed_claim_status_label' => $this->configurationLabel($claim->modMedClaimStatusOption, $claim->modmed_claim_status, $modMedStatusLabels),
                     'modmed_claim_status_color' => $this->configurationColor($claim->modMedClaimStatusOption, $claim->modmed_claim_status, $modMedStatusColors),
                     'cf_invoice_date' => $claim->cf_invoice_date?->toDateString(),
-                    'invoiced_status' => 'invoiced',
-                    'invoiced_status_date' => $claim->cf_invoice_date?->toDateString(),
+                    'invoiced_status' => $claim->invoiced_status,
+                    'invoiced_status_date' => $claim->invoiced_status_date?->toDateString(),
                     'credit_status_id' => $claim->credit_status_id,
                     'credit_status' => $claim->credit_status,
                     'credit_status_label' => $claim->creditStatusOption?->label ?? $this->creditStatusLabel($creditStatusLabels, $claim->credit_status),
@@ -547,8 +547,8 @@ class ClaimController extends Controller
                     'modmed_claim_status_label' => $this->configurationLabel($line->modMedClaimStatusOption, $line->modmed_claim_status, $modMedStatusLabels),
                     'modmed_claim_status_color' => $this->configurationColor($line->modMedClaimStatusOption, $line->modmed_claim_status, $modMedStatusColors),
                     'cf_invoice_date' => $line->cf_invoice_date?->toDateString(),
-                    'invoiced_status' => 'invoiced',
-                    'invoiced_status_date' => $line->cf_invoice_date?->toDateString(),
+                    'invoiced_status' => $line->invoiced_status,
+                    'invoiced_status_date' => $line->invoiced_status_date?->toDateString(),
                     'credit_status_id' => $line->credit_status_id,
                     'credit_status' => $line->credit_status,
                     'credit_status_label' => $line->creditStatusOption?->label ?? $this->creditStatusLabel($creditStatusLabels, $line->credit_status),

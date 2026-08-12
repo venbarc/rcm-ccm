@@ -81,6 +81,44 @@ class PrincipleWorkspaceTest extends TestCase
         $this->assertSame(1, AccountContext::runWith(AccountType::Principle->value, fn (): int => Claim::query()->count()));
     }
 
+    public function test_principle_claims_receive_the_system_invoice_date(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $claim = AccountContext::runWith(AccountType::Principle->value, fn () => Claim::query()->create([
+            'account_type' => AccountType::Principle->value,
+            'external_id' => 'PRINCIPLE-INVOICE-DATE',
+            'primary_claim_id' => 'PRINCIPLE-INVOICE-DATE',
+            'patient_name' => 'Principle Invoice Patient',
+            'procedure_code' => '99490',
+        ]));
+
+        $this->assertSame('invoiced', $claim->invoiced_status);
+        $this->assertSame('2026-07-31', $claim->invoiced_status_date?->toDateString());
+        $this->assertNull($claim->cf_invoice_date);
+
+        DB::table('principle_claims')->where('id', $claim->id)->update([
+            'invoiced_status' => null,
+            'invoiced_status_date' => null,
+        ]);
+        $migration = require database_path('migrations/2026_08_12_000001_default_principle_invoice_date.php');
+        $migration->up();
+
+        $this->assertDatabaseHas('principle_claims', [
+            'id' => $claim->id,
+            'invoiced_status' => 'invoiced',
+            'invoiced_status_date' => '2026-07-31',
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Principle->value])
+            ->get('/claims')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('claims.data.0.lines.0.invoiced_status', 'invoiced')
+                ->where('claims.data.0.lines.0.invoiced_status_date', '2026-07-31')
+                ->where('claims.data.0.lines.0.cf_invoice_date', null));
+    }
+
     public function test_principle_source_column_migration_is_safe_when_cloned_columns_already_exist(): void
     {
         $migration = require database_path('migrations/2026_08_10_000002_add_principle_source_columns_to_principle_claims.php');

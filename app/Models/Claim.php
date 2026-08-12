@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AccountType;
 use App\Models\Concerns\UsesAccountScopedTable;
+use App\Support\ClaimWorkspace;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -98,8 +99,8 @@ class Claim extends Model
             }
 
             if ($claim->account_type === AccountType::Principle->value) {
-                $claim->invoiced_status = null;
-                $claim->invoiced_status_date = null;
+                $claim->invoiced_status = 'invoiced';
+                $claim->invoiced_status_date = ClaimWorkspace::PRINCIPLE_DEFAULT_INVOICE_DATE;
             } else {
                 $claim->invoiced_status = 'invoiced';
                 $claim->invoiced_status_date = $claim->cf_invoice_date;

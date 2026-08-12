@@ -6,6 +6,8 @@ use App\Enums\AccountType;
 
 final class ClaimWorkspace
 {
+    public const PRINCIPLE_DEFAULT_INVOICE_DATE = '2026-07-31';
+
     /** @var array<string, string> */
     private const PRINCIPLE_FIELDS = [
         'identifier' => 'primary_claim_id',
