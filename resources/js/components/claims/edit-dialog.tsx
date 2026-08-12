@@ -110,18 +110,16 @@ export function ClaimEditDialog({
                             </select>
                         </label>
                     )}
-                    {workspace.showInvoiceFields && (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="grid gap-1.5 text-sm font-medium">
-                                Invoiced Status
-                                <Input className="bg-muted text-muted-foreground" readOnly value="Invoiced" />
-                            </label>
-                            <label className="grid gap-1.5 text-sm font-medium">
-                                Invoiced Status Date
-                                <Input className="bg-muted text-muted-foreground" readOnly type="date" value={line?.cf_invoice_date ?? ''} />
-                            </label>
-                        </div>
-                    )}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="grid gap-1.5 text-sm font-medium">
+                            Invoiced Status
+                            <Input className="bg-muted text-muted-foreground" readOnly value="Invoiced" />
+                        </label>
+                        <label className="grid gap-1.5 text-sm font-medium">
+                            Invoiced Status Date
+                            <Input className="bg-muted text-muted-foreground" readOnly type="date" value={line?.invoiced_status_date ?? ''} />
+                        </label>
+                    </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                         <label className="grid gap-1.5 text-sm font-medium">
                             Credit Status
