@@ -32,8 +32,22 @@ interface ClaimsIndexProps {
     canEditClaims: boolean;
 }
 
+interface ClaimsIndexContentProps extends ClaimsIndexProps {
+    filtersVisible: boolean;
+    onFiltersVisibilityChange: (visible: boolean) => void;
+}
+
 export default function ClaimsIndex(props: ClaimsIndexProps) {
-    return <ClaimsIndexContent {...props} key={JSON.stringify(props.filters)} />;
+    const [filtersVisible, setFiltersVisible] = useState(true);
+
+    return (
+        <ClaimsIndexContent
+            {...props}
+            filtersVisible={filtersVisible}
+            key={JSON.stringify(props.filters)}
+            onFiltersVisibilityChange={setFiltersVisible}
+        />
+    );
 }
 
 function ClaimsIndexContent({
@@ -49,7 +63,9 @@ function ClaimsIndexContent({
     assignees,
     hasActiveImport,
     canEditClaims,
-}: ClaimsIndexProps) {
+    filtersVisible,
+    onFiltersVisibilityChange,
+}: ClaimsIndexContentProps) {
     const { auth } = usePage<SharedData>().props;
     const { claimsTitle } = useActiveAccount();
     const workspace = useClaimWorkspace();
@@ -390,12 +406,14 @@ function ClaimsIndexContent({
                     creditReasons={creditReasons}
                     creditStatuses={creditStatuses}
                     denialReasons={denialReasons}
+                    filtersVisible={filtersVisible}
                     invoicedStatuses={invoicedStatuses}
                     local={local}
                     modMedClaimStatuses={modMedClaimStatuses}
                     onClear={clearFilters}
                     onFilterChange={updateFilters}
                     onSearchChange={updateSearch}
+                    onVisibilityChange={onFiltersVisibilityChange}
                     workStatuses={workStatuses}
                 />
                 <ClaimsTable

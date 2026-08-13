@@ -5,8 +5,10 @@ import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 
 interface ClaimsFiltersProps {
+    filtersVisible: boolean;
     local: Filters;
     workStatuses: StatusOption[];
     modMedClaimStatuses: StatusOption[];
@@ -17,10 +19,12 @@ interface ClaimsFiltersProps {
     assignees: UserOption[];
     onFilterChange: (values: Record<string, string>) => void;
     onSearchChange: (value: string) => void;
+    onVisibilityChange: (visible: boolean) => void;
     onClear: () => void;
 }
 
 export function ClaimsFilters({
+    filtersVisible,
     local,
     workStatuses,
     modMedClaimStatuses,
@@ -31,6 +35,7 @@ export function ClaimsFilters({
     assignees,
     onFilterChange,
     onSearchChange,
+    onVisibilityChange,
     onClear,
 }: ClaimsFiltersProps) {
     const workspace = useClaimWorkspace();
@@ -38,7 +43,25 @@ export function ClaimsFilters({
     return (
         <Card className="w-full max-w-full min-w-0">
             <CardContent className="min-w-0 p-4">
-                <div className="min-w-0 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                        <SlidersHorizontal className="text-muted-foreground size-4" />
+                        <span>Filters</span>
+                    </div>
+                    <Button
+                        aria-controls="claims-filters"
+                        aria-expanded={filtersVisible}
+                        className="gap-2"
+                        onClick={() => onVisibilityChange(!filtersVisible)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                    >
+                        {filtersVisible ? 'Hide filters' : 'Show filters'}
+                        <ChevronDown className={`size-4 transition-transform ${filtersVisible ? 'rotate-180' : ''}`} />
+                    </Button>
+                </div>
+                <div className={filtersVisible ? 'min-w-0 space-y-4 pt-4' : 'hidden'} id="claims-filters">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                         <div className="md:col-span-2">
                             <SearchInput
