@@ -5,6 +5,7 @@ import { InvoicedSummaryCard } from '@/components/dashboard/invoiced-summary-car
 import { RadialMetricCard } from '@/components/dashboard/radial-metric-card';
 import { DashboardRangeFilter } from '@/components/dashboard/range-filter';
 import { SummaryDateFilters } from '@/components/dashboard/summary-date-filters';
+import { SummaryExportButton } from '@/components/dashboard/summary-export-button';
 import type {
     ClaimByStatus,
     DashboardCreditStatusSummary,
@@ -114,6 +115,13 @@ export default function Dashboard({
                                     <InvoicedSummaryCard
                                         filters={
                                             <SummaryDateFilters
+                                                action={
+                                                    <SummaryExportButton
+                                                        filters={panelFilters.invoicedSummary}
+                                                        panel="invoiced-summary"
+                                                        prefix="invoiced"
+                                                    />
+                                                }
                                                 filters={panelFilters.invoicedSummary}
                                                 prefix="invoiced"
                                                 serviceDateLabel={`${workspace.serviceDateLabel} Range`}
@@ -127,6 +135,13 @@ export default function Dashboard({
                                 <CreditStatusSummaryCard
                                     filters={
                                         <SummaryDateFilters
+                                            action={
+                                                <SummaryExportButton
+                                                    filters={panelFilters.creditStatusSummary}
+                                                    panel="credit-status-summary"
+                                                    prefix="credit_status"
+                                                />
+                                            }
                                             filters={panelFilters.creditStatusSummary}
                                             invoiceDateLabel="Credit Status Date Range"
                                             invoiceDatePlaceholder="Select credit status date range"

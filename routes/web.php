@@ -9,6 +9,7 @@ use App\Http\Controllers\ClaimExportController;
 use App\Http\Controllers\ClaimImportController;
 use App\Http\Controllers\CurrentAccountController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardSummaryExportController;
 use App\Http\Controllers\SystemConfigurationController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
@@ -58,6 +59,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/activity-logs/users/{user}/worked-claim-lines', [ActivityLogController::class, 'workedClaimLines'])->name('activity-logs.worked-claim-lines');
 
     Route::middleware('admin')->group(function (): void {
+        Route::get('/dashboard-export/{panel}', DashboardSummaryExportController::class)
+            ->whereIn('panel', DashboardSummaryExportController::PANELS)
+            ->name('dashboard.export');
+
         Route::get('/system-configuration', [SystemConfigurationController::class, 'index'])->name('system-configuration.index');
         Route::post('/system-configuration', [SystemConfigurationController::class, 'store'])->name('system-configuration.store');
         Route::post('/system-configuration/{type}/restore-defaults', [SystemConfigurationController::class, 'restoreDefaults'])->name('system-configuration.restore-defaults');

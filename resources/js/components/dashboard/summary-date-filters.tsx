@@ -2,11 +2,14 @@ import { DateRangeFilterField } from '@/components/date-range-filter-field';
 import { Button } from '@/components/ui/button';
 import { router } from '@inertiajs/react';
 import { X } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { DashboardPanelDateFilters } from './types';
 
 type FilterPrefix = 'claims_status' | 'cpt' | 'modmed' | 'invoiced' | 'credit_status';
 
 interface SummaryDateFiltersProps {
+    /** Rendered at the end of the filter row, e.g. the panel's export button. */
+    action?: ReactNode;
     filters: DashboardPanelDateFilters;
     prefix: FilterPrefix;
     showServiceDate?: boolean;
@@ -25,6 +28,7 @@ function currentDashboardParams(): Record<string, string> {
 }
 
 export function SummaryDateFilters({
+    action,
     filters,
     prefix,
     showServiceDate = true,
@@ -105,6 +109,7 @@ export function SummaryDateFilters({
                 <X className="size-4" />
                 Clear filters
             </Button>
+            {action && <div className="ml-auto shrink-0">{action}</div>}
         </div>
     );
 }

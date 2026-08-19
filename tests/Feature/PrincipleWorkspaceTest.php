@@ -410,7 +410,7 @@ class PrincipleWorkspaceTest extends TestCase
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Principle->value])
-            ->postJson('/claims-export/start', ['type' => 'all'])
+            ->postJson('/claims-export/start', [])
             ->assertAccepted()
             ->assertJsonPath('export.status', 'completed')
             ->assertJsonPath('export.total_rows', 1);

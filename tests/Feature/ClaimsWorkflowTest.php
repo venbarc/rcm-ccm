@@ -212,6 +212,60 @@ class ClaimsWorkflowTest extends TestCase
                 ->where('creditReasons.0.value', 'inactive_insurance'));
     }
 
+    public function test_claims_page_counts_only_the_cpt_lines_that_match_the_filters(): void
+    {
+        $user = User::factory()->create();
+        $yesStatus = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_STATUS,
+            'value' => 'yes',
+        ], [
+            'label' => 'Yes',
+            'sort_order' => 0,
+        ]);
+
+        foreach ([
+            ['procedure_code' => '99490', 'credit_status_date' => '2026-07-31', 'true_charge' => 50.46],
+            ['procedure_code' => '99439', 'credit_status_date' => '2026-08-07', 'true_charge' => 41.34],
+        ] as $line) {
+            Claim::query()->create([
+                'account_type' => AccountType::Tricity->value,
+                'external_id' => 'TC-MIXED-CREDIT-1',
+                'patient_name' => 'Mixed Credit Patient',
+                'credit_status' => true,
+                'credit_status_id' => $yesStatus->id,
+                ...$line,
+            ]);
+        }
+        Claim::query()->create([
+            'account_type' => AccountType::Tricity->value,
+            'external_id' => 'TC-MIXED-CREDIT-1',
+            'patient_name' => 'Mixed Credit Patient',
+            'procedure_code' => 'G0511',
+            'true_charge' => 95,
+        ]);
+
+        $query = http_build_query([
+            'credit_status_from' => '2026-07-01',
+            'credit_status_to' => '2026-07-31',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->get("/claims?{$query}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('claims.total', 1)
+                ->where('claims.data.0.bill_id', 'TC-MIXED-CREDIT-1')
+                ->where('claims.data.0.line_count', 1)
+                ->where('claims.data.0.cpt_codes', ['99490'])
+                ->where('claims.data.0.true_charge', fn ($value): bool => (float) $value === 50.46)
+                ->has('claims.data.0.lines', 1)
+                ->where('claims.data.0.lines.0.credit_status_date', '2026-07-31')
+                ->where('summary.totalCount', 1)
+                ->where('summary.totalTrueCharge', fn ($value): bool => (float) $value === 50.46));
+    }
+
     public function test_authorized_user_can_assign_a_tricity_claim(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);

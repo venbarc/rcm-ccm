@@ -6,6 +6,7 @@ import ClaimExportController from './ClaimExportController'
 import ClaimImportController from './ClaimImportController'
 import AssignmentController from './AssignmentController'
 import ActivityLogController from './ActivityLogController'
+import DashboardSummaryExportController from './DashboardSummaryExportController'
 import SystemConfigurationController from './SystemConfigurationController'
 import UserManagementController from './UserManagementController'
 import Settings from './Settings'
@@ -18,6 +19,7 @@ ClaimExportController: Object.assign(ClaimExportController, ClaimExportControlle
 ClaimImportController: Object.assign(ClaimImportController, ClaimImportController),
 AssignmentController: Object.assign(AssignmentController, AssignmentController),
 ActivityLogController: Object.assign(ActivityLogController, ActivityLogController),
+DashboardSummaryExportController: Object.assign(DashboardSummaryExportController, DashboardSummaryExportController),
 SystemConfigurationController: Object.assign(SystemConfigurationController, SystemConfigurationController),
 UserManagementController: Object.assign(UserManagementController, UserManagementController),
 Settings: Object.assign(Settings, Settings),

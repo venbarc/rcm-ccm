@@ -4,13 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Claim;
 use App\Services\ClaimConfigurationService;
+use App\Services\DashboardSummaryService;
 use App\Support\BusinessTime;
-use App\Support\ClaimWorkspace;
 use App\Support\CurrentAccount;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,34 +27,31 @@ class DashboardController extends Controller
 
     private const BILL_ID_EXPRESSION = "COALESCE(NULLIF(TRIM(bill_id), ''), NULLIF(TRIM(external_id), ''))";
 
-    private const CPT_EXPRESSION = "COALESCE(NULLIF(TRIM(procedure_code), ''), NULLIF(TRIM(cpt_code), ''))";
+    private const CPT_EXPRESSION = DashboardSummaryService::CPT_EXPRESSION;
 
-    public function __construct(private readonly ClaimConfigurationService $configurations) {}
+    public function __construct(
+        private readonly ClaimConfigurationService $configurations,
+        private readonly DashboardSummaryService $summaries,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
         $account = CurrentAccount::resolve($request);
-        $hasCfInvoiceDate = ClaimWorkspace::supports($account->value, 'cf_invoice_date');
         $filters = $this->resolveDateRange($request);
         $baseClaims = Claim::query()->where('account_type', $account->value);
         $workSummaryClaims = clone $baseClaims;
-        $this->applyServiceDateRange($workSummaryClaims, $filters['startDate'], $filters['endDate']);
+        $this->summaries->applyServiceDateRange($workSummaryClaims, $filters['startDate'], $filters['endDate']);
 
         $panelFilters = [
-            'claimsByStatus' => $this->resolvePanelDateFilters($request, 'claims_status'),
-            'cptSummary' => $this->resolvePanelDateFilters($request, 'cpt'),
-            'modmedStatusSummary' => $this->resolvePanelDateFilters($request, 'modmed'),
-            'invoicedSummary' => $this->resolvePanelDateFilters(
-                $request,
-                'invoiced',
-                includeService: ! $hasCfInvoiceDate,
-                includeInvoice: $hasCfInvoiceDate,
-            ),
-            'creditStatusSummary' => $this->resolvePanelDateFilters($request, 'credit_status', false),
+            'claimsByStatus' => $this->summaries->panelDateFilters($request, 'claims_status'),
+            'cptSummary' => $this->summaries->panelDateFilters($request, 'cpt'),
+            'modmedStatusSummary' => $this->summaries->panelDateFilters($request, 'modmed'),
+            'invoicedSummary' => $this->summaries->invoicedPanelFilters($request, $account->value),
+            'creditStatusSummary' => $this->summaries->creditStatusPanelFilters($request),
         ];
 
         $claimsByStatusQuery = clone $baseClaims;
-        $this->applyPanelDateFilters($claimsByStatusQuery, $panelFilters['claimsByStatus']);
+        $this->summaries->applyPanelDateFilters($claimsByStatusQuery, $panelFilters['claimsByStatus']);
         $isAdmin = (bool) $request->user()?->is_admin;
         $workStatuses = $this->configurations->selectOptions($account->value, ClaimConfigurationService::WORK_STATUS);
         $draftStatusId = $this->configurations->idForValue($account->value, ClaimConfigurationService::WORK_STATUS, 'draft');
@@ -94,15 +90,10 @@ class DashboardController extends Controller
 
         if ($isAdmin) {
             $cptSummaryClaims = clone $baseClaims;
-            $this->applyPanelDateFilters($cptSummaryClaims, $panelFilters['cptSummary']);
+            $this->summaries->applyPanelDateFilters($cptSummaryClaims, $panelFilters['cptSummary']);
 
             $modmedStatusSummaryClaims = clone $baseClaims;
-            $this->applyPanelDateFilters($modmedStatusSummaryClaims, $panelFilters['modmedStatusSummary']);
-
-            $invoicedSummaryClaims = (clone $baseClaims)->whereNotNull(
-                $hasCfInvoiceDate ? 'cf_invoice_date' : 'cf_invoice_amount',
-            );
-            $this->applyPanelDateFilters($invoicedSummaryClaims, $panelFilters['invoicedSummary']);
+            $this->summaries->applyPanelDateFilters($modmedStatusSummaryClaims, $panelFilters['modmedStatusSummary']);
 
             $adminSummaryProps = [
                 'cptSummary' => $this->financialSummary($cptSummaryClaims, self::CPT_EXPRESSION),
@@ -112,10 +103,11 @@ class DashboardController extends Controller
                     $modMedStatusLabels,
                     $modMedStatusColors,
                 ),
-                'invoicedSummary' => $this->invoicedSummary($invoicedSummaryClaims),
-                'creditStatusSummary' => $this->creditStatusSummary(
-                    $baseClaims,
-                    $panelFilters['creditStatusSummary'],
+                'invoicedSummary' => $this->summaries->invoicedSummary(
+                    $this->summaries->invoicedSummaryQuery($account->value, $panelFilters['invoicedSummary']),
+                ),
+                'creditStatusSummary' => $this->summaries->creditStatusSummary(
+                    $this->summaries->creditStatusSummaryQuery($account->value, $panelFilters['creditStatusSummary']),
                 ),
             ];
         }
@@ -209,77 +201,6 @@ class DashboardController extends Controller
                 $groupColors,
             ),
             'total' => $this->financialSummaryRow($total),
-        ];
-    }
-
-    /** @return array{rows: array<int, array{cpt: string|null, units: float}>, totalUnits: float} */
-    private function invoicedSummary(Builder $query): array
-    {
-        $rows = (clone $query)
-            ->selectRaw(self::CPT_EXPRESSION.' as cpt')
-            ->selectRaw('SUM(COALESCE(units, 0)) as units')
-            ->groupByRaw(self::CPT_EXPRESSION)
-            ->orderByDesc('units')
-            ->orderBy('cpt')
-            ->get()
-            ->map(fn ($row): array => [
-                'cpt' => filled($row->cpt) ? (string) $row->cpt : null,
-                'units' => (float) ($row->units ?? 0),
-            ])
-            ->all();
-
-        return [
-            'rows' => $rows,
-            'totalUnits' => (float) collect($rows)->sum('units'),
-        ];
-    }
-
-    /**
-     * @param  array{invoiceStart: Carbon|null, invoiceEnd: Carbon|null, serviceStart: Carbon|null, serviceEnd: Carbon|null}  $filters
-     * @return array{
-     *     rows: array<int, array{cpt: string|null, count: int, units: float, trueCharge: float, cfInvoiceAmount: float}>,
-     *     totalCount: int,
-     *     totalUnits: float,
-     *     totalTrueCharge: float,
-     *     totalCfInvoiceAmount: float
-     * }
-     */
-    private function creditStatusSummary(Builder $query, array $filters): array
-    {
-        $rows = (clone $query)
-            ->where('credit_status', true)
-            ->when(
-                $filters['invoiceStart'],
-                fn (Builder $inner) => $inner->where('credit_status_date', '>=', $filters['invoiceStart']->toDateString()),
-            )
-            ->when(
-                $filters['invoiceEnd'],
-                fn (Builder $inner) => $inner->where('credit_status_date', '<=', $filters['invoiceEnd']->toDateString()),
-            )
-            ->selectRaw(self::CPT_EXPRESSION.' as cpt')
-            ->selectRaw('COUNT(*) as line_count')
-            ->selectRaw('SUM(COALESCE(units, 0)) as units')
-            ->selectRaw('SUM('.self::TRUE_CHARGE_EXPRESSION.') as true_charge')
-            ->selectRaw('SUM('.self::CF_INVOICE_AMOUNT_EXPRESSION.') as cf_invoice_amount')
-            ->groupByRaw(self::CPT_EXPRESSION)
-            ->orderByDesc('line_count')
-            ->orderBy('cpt')
-            ->get()
-            ->map(fn ($row): array => [
-                'cpt' => filled($row->cpt) ? (string) $row->cpt : null,
-                'count' => (int) ($row->line_count ?? 0),
-                'units' => (float) ($row->units ?? 0),
-                'trueCharge' => (float) ($row->true_charge ?? 0),
-                'cfInvoiceAmount' => (float) ($row->cf_invoice_amount ?? 0),
-            ])
-            ->all();
-
-        return [
-            'rows' => $rows,
-            'totalCount' => (int) collect($rows)->sum('count'),
-            'totalUnits' => (float) collect($rows)->sum('units'),
-            'totalTrueCharge' => (float) collect($rows)->sum('trueCharge'),
-            'totalCfInvoiceAmount' => (float) collect($rows)->sum('cfInvoiceAmount'),
         ];
     }
 
@@ -415,8 +336,8 @@ class DashboardController extends Controller
         ];
 
         if ($preset === 'custom') {
-            $startDate = $this->parseDate($request->input('start'));
-            $endDate = $this->parseDate($request->input('end'));
+            $startDate = $this->summaries->parseDate($request->input('start'));
+            $endDate = $this->summaries->parseDate($request->input('end'));
             if (! $startDate || ! $endDate) {
                 $preset = 'month';
             }
@@ -449,98 +370,5 @@ class DashboardController extends Controller
                 : 'All time',
             'presetLabel' => $presetLabels[$preset],
         ];
-    }
-
-    private function applyServiceDateRange(Builder $query, ?Carbon $startDate, ?Carbon $endDate): void
-    {
-        $serviceDateExpression = 'COALESCE(service_date_start, date_of_service)';
-
-        $query
-            ->when($startDate, fn (Builder $inner) => $inner->whereDate(DB::raw($serviceDateExpression), '>=', $startDate->toDateString()))
-            ->when($endDate, fn (Builder $inner) => $inner->whereDate(DB::raw($serviceDateExpression), '<=', $endDate->toDateString()));
-    }
-
-    /**
-     * @return array{
-     *     invoiceStart: Carbon|null,
-     *     invoiceEnd: Carbon|null,
-     *     serviceStart: Carbon|null,
-     *     serviceEnd: Carbon|null
-     * }
-     */
-    private function resolvePanelDateFilters(
-        Request $request,
-        string $prefix,
-        bool $includeService = true,
-        bool $includeInvoice = true,
-    ): array {
-        [$invoiceStart, $invoiceEnd] = $includeInvoice
-            ? $this->normalizedDateRange(
-                $request->input("{$prefix}_invoice_start"),
-                $request->input("{$prefix}_invoice_end"),
-            )
-            : [null, null];
-        [$serviceStart, $serviceEnd] = $includeService
-            ? $this->normalizedDateRange(
-                $request->input("{$prefix}_service_start"),
-                $request->input("{$prefix}_service_end"),
-            )
-            : [null, null];
-
-        return [
-            'invoiceStart' => $invoiceStart,
-            'invoiceEnd' => $invoiceEnd,
-            'serviceStart' => $serviceStart,
-            'serviceEnd' => $serviceEnd,
-        ];
-    }
-
-    /**
-     * @param  array{
-     *     invoiceStart: Carbon|null,
-     *     invoiceEnd: Carbon|null,
-     *     serviceStart: Carbon|null,
-     *     serviceEnd: Carbon|null
-     * }  $filters
-     */
-    private function applyPanelDateFilters(Builder $query, array $filters): void
-    {
-        $query
-            ->when(
-                $filters['invoiceStart'],
-                fn (Builder $inner) => $inner->whereDate('cf_invoice_date', '>=', $filters['invoiceStart']->toDateString()),
-            )
-            ->when(
-                $filters['invoiceEnd'],
-                fn (Builder $inner) => $inner->whereDate('cf_invoice_date', '<=', $filters['invoiceEnd']->toDateString()),
-            );
-
-        $this->applyServiceDateRange($query, $filters['serviceStart'], $filters['serviceEnd']);
-    }
-
-    /** @return array{0: Carbon|null, 1: Carbon|null} */
-    private function normalizedDateRange(mixed $start, mixed $end): array
-    {
-        $startDate = $this->parseDate($start);
-        $endDate = $this->parseDate($end);
-
-        if ($startDate && $endDate && $startDate->greaterThan($endDate)) {
-            return [$endDate, $startDate];
-        }
-
-        return [$startDate, $endDate];
-    }
-
-    private function parseDate(mixed $value): ?Carbon
-    {
-        if (! is_string($value) || $value === '') {
-            return null;
-        }
-
-        try {
-            return Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
-        } catch (\Throwable) {
-            return null;
-        }
     }
 }
