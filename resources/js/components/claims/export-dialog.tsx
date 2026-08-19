@@ -1,14 +1,11 @@
-import { type Filters, type StatusOption, type UserOption } from '@/components/claims/types';
+import { type Filters, type UserOption } from '@/components/claims/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { businessTimeZone } from '@/lib/date-time';
 import { Clock3, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-type ExportType = 'all' | 'status' | 'assignee';
 type ExportStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
 interface ClaimExport {
@@ -24,13 +21,10 @@ interface ClaimExport {
 }
 
 interface ClaimsExportDialogProps {
-    assignees: UserOption[];
-    canExportByAssignee: boolean;
     filters: Filters;
     hasActiveImport: boolean;
     onOpenChange: (open: boolean) => void;
     open: boolean;
-    statuses: StatusOption[];
 }
 
 interface ExportResponse {
@@ -41,28 +35,47 @@ interface ExportResponse {
 }
 
 const csrfToken = () => document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
-const exportFilterKeys: Array<keyof Filters> = [
-    'search',
-    'modmed_claim_status',
-    'invoiced_status',
-    'credit_status',
-    'credit_reason',
-    'payer_name',
-    'primary_provider',
-    'denial_reason',
-    'work_status',
-    'assigned_to',
-    'worked_from',
-    'worked_to',
-    'service_date_from',
-    'service_date_to',
-    'service_month',
-    'cf_invoice_from',
-    'cf_invoice_to',
-    'credit_status_from',
-    'credit_status_to',
-    'procedure_code',
-];
+
+// Every key here must stay in sync with ClaimFilterService::FILTER_KEYS so the export
+// mirrors the Claims page exactly.
+const exportFilterLabels: Record<string, string> = {
+    search: 'Search',
+    modmed_claim_status: 'ModMed status',
+    invoiced_status: 'Invoiced status',
+    credit_status: 'Credit status',
+    credit_reason: 'Credit reason',
+    payer_name: 'Payer',
+    primary_provider: 'Primary provider',
+    location: 'Location',
+    denial_reason: 'Denial reason',
+    work_status: 'Work status',
+    assigned_to: 'Assignee',
+    worked_from: 'Worked from',
+    worked_to: 'Worked to',
+    service_date_from: 'Service date from',
+    service_date_to: 'Service date to',
+    service_month: 'Service month',
+    cf_invoice_from: 'CF invoice date from',
+    cf_invoice_to: 'CF invoice date to',
+    credit_status_from: 'Credit status date from',
+    credit_status_to: 'Credit status date to',
+    procedure_code: 'CPT code',
+};
+const exportFilterKeys = Object.keys(exportFilterLabels);
+
+const filterValueText = (value: string) => {
+    try {
+        const parsed: unknown = JSON.parse(value);
+
+        if (Array.isArray(parsed)) {
+            return parsed.join(', ');
+        }
+    } catch {
+        // Plain filter values are not JSON encoded.
+    }
+
+    return value;
+};
 
 const responseMessage = (data: ExportResponse, fallback: string) =>
     data.message ??
@@ -83,18 +96,7 @@ const formatDate = (value: string | null) => {
     }).format(new Date(value));
 };
 
-export function ClaimsExportDialog({
-    assignees,
-    canExportByAssignee,
-    filters,
-    hasActiveImport,
-    onOpenChange,
-    open,
-    statuses,
-}: ClaimsExportDialogProps) {
-    const [exportType, setExportType] = useState<ExportType>('all');
-    const [selectedStatus, setSelectedStatus] = useState('');
-    const [selectedAssignee, setSelectedAssignee] = useState('');
+export function ClaimsExportDialog({ filters, hasActiveImport, onOpenChange, open }: ClaimsExportDialogProps) {
     const [activeExport, setActiveExport] = useState<ClaimExport | null>(null);
     const [history, setHistory] = useState<ClaimExport[]>([]);
     const [showHistory, setShowHistory] = useState(false);
@@ -172,13 +174,14 @@ export function ClaimsExportDialog({
         };
     }, [activeExport, open]);
 
+    const appliedFilters = exportFilterKeys
+        .map((key) => ({ key, value: typeof filters[key] === 'string' ? filters[key].trim() : '' }))
+        .filter((entry) => entry.value !== '');
+
     const startExport = async () => {
         setIsStarting(true);
 
         try {
-            const appliedFilters = Object.fromEntries(
-                exportFilterKeys.map((key) => [key, filters[key]]).filter(([, value]) => typeof value === 'string' && value !== ''),
-            );
             const response = await fetch('/claims-export/start', {
                 method: 'POST',
                 headers: {
@@ -187,10 +190,7 @@ export function ClaimsExportDialog({
                     'X-CSRF-TOKEN': csrfToken(),
                 },
                 body: JSON.stringify({
-                    type: exportType,
-                    status: exportType === 'status' ? selectedStatus : null,
-                    assigned_to: exportType === 'assignee' ? selectedAssignee : null,
-                    filters: appliedFilters,
+                    filters: Object.fromEntries(appliedFilters.map((entry) => [entry.key, entry.value])),
                 }),
             });
             const data = (await response.json()) as ExportResponse;
@@ -213,23 +213,14 @@ export function ClaimsExportDialog({
         }
     };
 
-    const changeExportType = (value: ExportType) => {
-        setExportType(value);
-        setSelectedStatus('');
-        setSelectedAssignee('');
-    };
     const changeOpen = (nextOpen: boolean) => {
         if (!nextOpen) {
-            setExportType('all');
-            setSelectedStatus('');
-            setSelectedAssignee('');
             setShowHistory(false);
         }
 
         onOpenChange(nextOpen);
     };
     const running = activeExport && ['queued', 'processing'].includes(activeExport.status);
-    const selectionMissing = (exportType === 'status' && !selectedStatus) || (exportType === 'assignee' && !selectedAssignee);
 
     return (
         <Dialog open={open} onOpenChange={changeOpen}>
@@ -318,56 +309,23 @@ export function ClaimsExportDialog({
                             </div>
                         )}
 
-                        <div className="space-y-2">
-                            <Label>Export Type</Label>
-                            <Select value={exportType} onValueChange={changeExportType} disabled={Boolean(running)}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Export Current Filtered Results</SelectItem>
-                                    <SelectItem value="status">Export by Status</SelectItem>
-                                    {canExportByAssignee && <SelectItem value="assignee">Export by Assigned To</SelectItem>}
-                                </SelectContent>
-                            </Select>
+                        <div className="rounded-lg border p-3">
+                            <p className="text-xs font-semibold tracking-wide uppercase">Filters applied</p>
+                            {appliedFilters.length === 0 ? (
+                                <p className="text-muted-foreground mt-2 text-sm">
+                                    No filters are applied, so every CPT line in this workspace will be exported.
+                                </p>
+                            ) : (
+                                <ul className="mt-2 space-y-1 text-sm">
+                                    {appliedFilters.map((entry) => (
+                                        <li className="flex flex-wrap gap-x-1" key={entry.key}>
+                                            <span className="text-muted-foreground">{exportFilterLabels[entry.key]}:</span>
+                                            <span className="font-medium break-all">{filterValueText(entry.value)}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
-
-                        {exportType === 'status' && (
-                            <div className="space-y-2">
-                                <Label>Status</Label>
-                                <Select value={selectedStatus} onValueChange={setSelectedStatus} disabled={Boolean(running)}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {statuses.map((status) => (
-                                            <SelectItem key={status.value} value={status.value}>
-                                                {status.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
-
-                        {exportType === 'assignee' && canExportByAssignee && (
-                            <div className="space-y-2">
-                                <Label>Assigned To</Label>
-                                <Select value={selectedAssignee} onValueChange={setSelectedAssignee} disabled={Boolean(running)}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select an assignee" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                                        {assignees.map((assignee) => (
-                                            <SelectItem key={assignee.id} value={String(assignee.id)}>
-                                                {assignee.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -387,10 +345,7 @@ export function ClaimsExportDialog({
                                 <Clock3 className="size-4" />
                                 Previous Exports
                             </Button>
-                            <Button
-                                onClick={() => void startExport()}
-                                disabled={isStarting || Boolean(running) || hasActiveImport || selectionMissing}
-                            >
+                            <Button onClick={() => void startExport()} disabled={isStarting || Boolean(running) || hasActiveImport}>
                                 {isStarting || running ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                                 {isStarting ? 'Starting...' : running ? 'Exporting...' : 'Export'}
                             </Button>

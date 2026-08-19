@@ -78,7 +78,6 @@ class ClaimController extends Controller
         $providerField = ClaimWorkspace::field($accountValue, 'provider');
         $payerField = ClaimWorkspace::field($accountValue, 'payer');
         $matchedClaims = $this->buildMatchedClaimGroupQuery($request, $accountValue);
-        $matchedBillIds = (clone $matchedClaims)->select('bill_id')->distinct();
 
         $search = trim($request->string('search')->toString());
         $serviceMonth = trim((string) $request->input('service_month', ''));
@@ -88,9 +87,7 @@ class ClaimController extends Controller
             : 'updated_at';
         $sortDirection = $request->input('sort_direction') === 'asc' ? 'asc' : 'desc';
 
-        $claimGroups = Claim::query()
-            ->where('account_type', $accountValue)
-            ->whereIn('bill_id', $matchedBillIds)
+        $claimGroups = (clone $matchedClaims)
             ->selectRaw('bill_id')
             ->selectRaw('MAX(NULLIF(patient_name, \'\')) as patient_name')
             ->selectRaw('MAX(NULLIF(first_name, \'\')) as first_name')
@@ -126,9 +123,8 @@ class ClaimController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        $claimLines = Claim::query()
+        $claimLines = (clone $matchedClaims)
             ->with(['assignee:id,name,email', ...self::CONFIGURATION_RELATIONS])
-            ->where('account_type', $accountValue)
             ->whereIn('bill_id', $claimGroups->getCollection()->pluck('bill_id')->all())
             ->orderBy($serviceDateField)
             ->orderBy('id')
@@ -298,9 +294,7 @@ class ClaimController extends Controller
             ];
         }));
 
-        $summaryQuery = Claim::query()
-            ->where('account_type', $accountValue)
-            ->whereIn('bill_id', $matchedBillIds);
+        $summaryQuery = clone $matchedClaims;
 
         return Inertia::render('claims/index', [
             'claims' => $claimGroups,

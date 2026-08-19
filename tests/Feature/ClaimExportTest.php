@@ -136,7 +136,7 @@ class ClaimExportTest extends TestCase
 
         $response = $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->postJson('/claims-export/start', ['type' => 'all']);
+            ->postJson('/claims-export/start', []);
 
         $response->assertAccepted()
             ->assertJsonPath('export.status', 'completed')
@@ -195,7 +195,7 @@ class ClaimExportTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_claims_export_supports_status_and_assignee_filters(): void
+    public function test_claims_export_supports_work_status_and_assignee_page_filters(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $agent = User::factory()->create(['name' => 'Assigned Agent']);
@@ -219,23 +219,71 @@ class ClaimExportTest extends TestCase
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->postJson('/claims-export/start', [
-                'type' => 'status',
-                'status' => 'paid',
-            ])
+            ->postJson('/claims-export/start', ['filters' => ['work_status' => 'paid']])
             ->assertAccepted()
             ->assertJsonPath('export.total_rows', 1);
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->postJson('/claims-export/start', [
-                'type' => 'assignee',
-                'assigned_to' => (string) $agent->id,
-            ])
+            ->postJson('/claims-export/start', ['filters' => ['assigned_to' => (string) $agent->id]])
             ->assertAccepted()
             ->assertJsonPath('export.total_rows', 1);
 
         $this->assertSame(2, ClaimExport::query()->where('status', 'completed')->count());
+    }
+
+    public function test_claims_export_only_writes_cpt_lines_that_match_the_page_filters(): void
+    {
+        config(['claims.export.chunk_size' => 100]);
+        $admin = User::factory()->create(['is_admin' => true]);
+        $yesStatus = ClaimConfigurationOption::query()->updateOrCreate([
+            'account_type' => AccountType::Tricity->value,
+            'option_type' => ClaimConfigurationService::CREDIT_STATUS,
+            'value' => 'yes',
+        ], [
+            'label' => 'Yes',
+            'sort_order' => 0,
+        ]);
+
+        // One Bill ID whose CPT lines were credited in different months, plus a line
+        // that was never credited at all.
+        $this->claim([
+            'external_id' => 'TC-MIXED-CREDIT-1',
+            'procedure_code' => '99490',
+            'credit_status' => true,
+            'credit_status_id' => $yesStatus->id,
+            'credit_status_date' => '2026-07-31',
+        ]);
+        $this->claim([
+            'external_id' => 'TC-MIXED-CREDIT-1',
+            'procedure_code' => '99439',
+            'credit_status' => true,
+            'credit_status_id' => $yesStatus->id,
+            'credit_status_date' => '2026-08-07',
+        ]);
+        $this->claim([
+            'external_id' => 'TC-MIXED-CREDIT-1',
+            'procedure_code' => 'G0511',
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['account_type' => AccountType::Tricity->value])
+            ->postJson('/claims-export/start', [
+                'filters' => [
+                    'credit_status_from' => '2026-07-01',
+                    'credit_status_to' => '2026-07-31',
+                ],
+            ])
+            ->assertAccepted()
+            ->assertJsonPath('export.total_rows', 1);
+
+        $export = ClaimExport::query()->firstOrFail();
+        $rows = array_map('str_getcsv', preg_split('/\r\n|\r|\n/', trim(Storage::get($export->file_path))));
+
+        $this->assertCount(2, $rows);
+        $creditStatusDate = array_search('Credit Status Date', $rows[0], true);
+        $this->assertSame(['99490'], array_column(array_slice($rows, 1), 0));
+        $this->assertSame(['2026-07-31'], array_column(array_slice($rows, 1), $creditStatusDate));
     }
 
     public function test_claims_export_applies_page_filters_to_all_matching_rows_beyond_pagination(): void
@@ -329,7 +377,6 @@ class ClaimExportTest extends TestCase
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
             ->postJson('/claims-export/start', [
-                'type' => 'all',
                 'filters' => [
                     'search' => 'Filtered Export Patient',
                     'payer_name' => $selectedPayers,
@@ -370,7 +417,7 @@ class ClaimExportTest extends TestCase
 
         $this->actingAs($admin)
             ->withSession(['account_type' => AccountType::Tricity->value])
-            ->postJson('/claims-export/start', ['type' => 'all'])
+            ->postJson('/claims-export/start', [])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('export');
 

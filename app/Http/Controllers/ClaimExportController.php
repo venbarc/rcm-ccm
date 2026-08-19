@@ -3,42 +3,34 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClaimExport;
-use App\Services\ClaimConfigurationService;
 use App\Services\ClaimExportService;
 use App\Services\ClaimFilterService;
 use App\Support\CurrentAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ClaimExportController extends Controller
 {
     public function __construct(
-        private readonly ClaimConfigurationService $configurations,
         private readonly ClaimExportService $exports,
     ) {}
 
     public function start(Request $request): JsonResponse
     {
         $account = CurrentAccount::resolve($request);
-        $workStatuses = $this->configurations->values($account->value, ClaimConfigurationService::WORK_STATUS);
         $pageFilterKeys = implode(',', ClaimFilterService::FILTER_KEYS);
         $validated = $request->validate([
-            'type' => ['required', Rule::in(['all', 'status', 'assignee'])],
-            'status' => [
-                'nullable',
-                'required_if:type,status',
-                Rule::in($workStatuses),
-            ],
-            'assigned_to' => ['nullable', 'required_if:type,assignee', 'string', 'max:30'],
             'filters' => ['nullable', "array:{$pageFilterKeys}"],
             'filters.search' => ['nullable', 'string', 'max:255'],
             'filters.modmed_claim_status' => ['nullable', 'string', 'max:255'],
             'filters.invoiced_status' => ['nullable', 'string', 'max:50'],
+            'filters.credit_status' => ['nullable', 'string', 'max:50'],
+            'filters.credit_reason' => ['nullable', 'string', 'max:255'],
             'filters.payer_name' => ['nullable', 'string', 'max:20000'],
             'filters.primary_provider' => ['nullable', 'string', 'max:255'],
+            'filters.location' => ['nullable', 'string', 'max:255'],
             'filters.denial_reason' => ['nullable', 'string', 'max:255'],
             'filters.work_status' => ['nullable', 'string', 'max:100'],
             'filters.assigned_to' => ['nullable', 'string', 'max:30'],
@@ -49,6 +41,8 @@ class ClaimExportController extends Controller
             'filters.service_month' => ['nullable', 'date_format:Y-m'],
             'filters.cf_invoice_from' => ['nullable', 'date_format:Y-m-d'],
             'filters.cf_invoice_to' => ['nullable', 'date_format:Y-m-d'],
+            'filters.credit_status_from' => ['nullable', 'date_format:Y-m-d'],
+            'filters.credit_status_to' => ['nullable', 'date_format:Y-m-d'],
             'filters.procedure_code' => ['nullable', 'string', 'max:100'],
         ]);
 

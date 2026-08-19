@@ -445,15 +445,7 @@ function ClaimsIndexContent({
                 setEditForm={setEditForm}
                 workStatuses={workStatuses}
             />
-            <ClaimsExportDialog
-                assignees={assignees}
-                canExportByAssignee={auth.user.is_admin}
-                filters={filters}
-                hasActiveImport={hasActiveImport}
-                onOpenChange={setExportOpen}
-                open={exportOpen}
-                statuses={workStatuses}
-            />
+            <ClaimsExportDialog filters={filters} hasActiveImport={hasActiveImport} onOpenChange={setExportOpen} open={exportOpen} />
         </AppLayout>
     );
 }

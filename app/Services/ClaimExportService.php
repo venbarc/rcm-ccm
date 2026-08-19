@@ -53,11 +53,10 @@ class ClaimExportService
     public function __construct(
         private readonly ClaimConfigurationService $configurations,
         private readonly ClaimFilterService $claimFilters,
-        private readonly TeamService $teams,
     ) {}
 
     /**
-     * @param  array{type:string,status?:string|null,assigned_to?:string|null,filters?:array<string, mixed>|null}  $filters
+     * @param  array{filters?:array<string, mixed>|null}  $filters
      */
     public function startExport(string $account, User $user, array $filters): ClaimExport
     {
@@ -83,7 +82,7 @@ class ClaimExportService
             ]);
         }
 
-        $normalizedFilters = $this->normalizeFilters($account, $user, $filters);
+        $normalizedFilters = $this->normalizeFilters($user, $filters);
         $totalRows = $this->buildQuery($account, $normalizedFilters)->count();
 
         if ($totalRows === 0) {
@@ -94,12 +93,7 @@ class ClaimExportService
 
         $chunkSize = max((int) config('claims.export.chunk_size', 1000), 1);
         $totalChunks = (int) ceil($totalRows / $chunkSize);
-        $prefix = match ($normalizedFilters['type']) {
-            'status' => Str::slug((string) $normalizedFilters['status'], '_').'_',
-            'assignee' => 'assigned_',
-            default => '',
-        };
-        $fileName = $prefix.'claims_export_'.BusinessTime::now()->format('Y-m-d_His').'.csv';
+        $fileName = 'claims_export_'.BusinessTime::now()->format('Y-m-d_His').'.csv';
         $filePath = 'claim-exports/'.Str::slug($account).'/'.Str::uuid().'_'.$fileName;
 
         Storage::makeDirectory(dirname($filePath));
@@ -237,86 +231,38 @@ class ClaimExportService
     }
 
     /**
+     * Every export mirrors the Claims page filters and stays line exact: only the
+     * CPT lines that match are written, never the other lines of the same Bill ID.
+     *
      * @param  array<string, mixed>  $filters
      */
     public function buildQuery(string $account, array $filters): Builder
     {
-        $query = Claim::query()->where('account_type', $account);
         $pageFilters = is_array($filters['page_filters'] ?? null) ? $filters['page_filters'] : [];
-        $statusId = ($filters['type'] ?? 'all') === 'status'
-            ? $this->configurations->idForValue($account, ClaimConfigurationService::WORK_STATUS, $filters['status'] ?? null)
-            : null;
 
-        if ($pageFilters !== []) {
-            $matchingBillIds = $this->claimFilters
-                ->matchingLines($account, $pageFilters, (int) ($filters['page_filter_user_id'] ?? 0))
-                ->select('bill_id')
-                ->distinct();
-
-            $query->whereIn('bill_id', $matchingBillIds);
-        }
-
-        return $query
-            ->when(
-                ($filters['type'] ?? 'all') === 'status',
-                fn (Builder $query) => $query->when(
-                    $statusId,
-                    fn (Builder $query) => $query->where('work_status_id', $statusId),
-                    fn (Builder $query) => $query->whereRaw('1 = 0'),
-                ),
-            )
-            ->when(
-                ($filters['type'] ?? 'all') === 'assignee' && ($filters['assigned_to'] ?? null) === 'unassigned',
-                fn (Builder $query) => $query->whereNull('assigned_to'),
-            )
-            ->when(
-                ($filters['type'] ?? 'all') === 'assignee' && is_numeric($filters['assigned_to'] ?? null),
-                fn (Builder $query) => $query->where('assigned_to', (int) $filters['assigned_to']),
-            );
+        return $this->claimFilters->matchingLines(
+            $account,
+            $pageFilters,
+            (int) ($filters['page_filter_user_id'] ?? 0),
+        );
     }
 
     /**
      * @param  array<string, mixed>  $filters
      * @return array{
-     *     type:string,
-     *     status:?string,
-     *     assigned_to:?string,
      *     page_filters:array<string, string>,
      *     page_filter_user_id:int
      * }
      */
-    private function normalizeFilters(string $account, User $user, array $filters): array
+    private function normalizeFilters(User $user, array $filters): array
     {
-        $type = (string) ($filters['type'] ?? 'all');
-        $status = $type === 'status' ? (string) ($filters['status'] ?? '') : null;
-        $assignedTo = $type === 'assignee' ? (string) ($filters['assigned_to'] ?? '') : null;
         $pageFilters = collect(is_array($filters['filters'] ?? null) ? $filters['filters'] : [])
             ->only(ClaimFilterService::FILTER_KEYS)
             ->filter(fn ($value): bool => is_scalar($value) && trim((string) $value) !== '')
             ->map(fn ($value): string => (string) $value)
             ->all();
 
-        if ($type === 'assignee') {
-            if (! $user->canAssignClaims()) {
-                throw ValidationException::withMessages([
-                    'assigned_to' => 'You do not have permission to export by assignee.',
-                ]);
-            }
-
-            if ($assignedTo !== 'unassigned') {
-                $candidateIds = $this->teams->assignmentCandidates($user, $account)->modelKeys();
-                if (! is_numeric($assignedTo) || ! in_array((int) $assignedTo, $candidateIds, true)) {
-                    throw ValidationException::withMessages([
-                        'assigned_to' => 'Choose an assignee from your active account team.',
-                    ]);
-                }
-            }
-        }
-
         return [
-            'type' => $type,
-            'status' => $status,
-            'assigned_to' => $assignedTo,
             'page_filters' => $pageFilters,
             'page_filter_user_id' => $user->id,
         ];
