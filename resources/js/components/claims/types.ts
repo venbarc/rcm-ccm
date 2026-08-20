@@ -56,6 +56,7 @@ export interface ClaimLine {
     denial_reason_id: number | null;
     denial_reason: string | null;
     denial_reason_label: string | null;
+    latest_denial_date: string | null;
     notes: string | null;
     source_notes: string | null;
     activity_type: string | null;
@@ -106,6 +107,7 @@ export interface ClaimGroup {
     denial_reason_id: number | null;
     denial_reason: string | null;
     denial_reason_label: string | null;
+    latest_denial_date: string | null;
     notes: string | null;
     activity_type: string | null;
     batch_name: string | null;

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AccountType;
 use App\Models\Concerns\UsesAccountScopedTable;
+use App\Support\BusinessTime;
 use App\Support\ClaimWorkspace;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +25,8 @@ class Claim extends Model
         'provider', 'cpt_code', 'billed_amount', 'balance', 'status', 'priority',
         'assigned_to', 'notes', 'last_import_id', 'source_hash', 'uid', 'bill_id',
         'payer_name', 'rendering_provider', 'primary_provider', 'payments', 'new_payments',
-        'true_balance', 'true_charge', 'adjustments', 'aging_days', 'denial_reason', 'denial_reason_id', 'claim_status',
+        'true_balance', 'true_charge', 'adjustments', 'aging_days', 'denial_reason', 'denial_reason_id',
+        'latest_denial_date', 'claim_status',
         'modmed_claim_status', 'modmed_claim_status_id', 'modmed_claim_status_manually_set', 'cf_invoice_date', 'cf_invoice_amount', 'invoiced_status',
         'invoiced_status_date', 'credit_status', 'credit_status_id', 'credit_status_date', 'credit_reason', 'credit_reason_id',
         'work_status', 'work_status_id', 'work_status_manually_set', 'claimed_amount', 'diagnosis_code',
@@ -62,6 +64,7 @@ class Claim extends Model
             'credit_status_id' => 'integer',
             'credit_reason_id' => 'integer',
             'denial_reason_id' => 'integer',
+            'latest_denial_date' => 'date:Y-m-d',
             'modmed_claim_status_manually_set' => 'boolean',
             'invoiced_status_date' => 'date:Y-m-d',
             'credit_status' => 'boolean',
@@ -85,6 +88,7 @@ class Claim extends Model
     {
         static::saving(function (Claim $claim): void {
             $claim->syncConfigurationReferences();
+            $claim->syncLatestDenialDate();
 
             if ($claim->account_type === AccountType::Principle->value && blank($claim->bill_id) && filled($claim->primary_claim_id)) {
                 $claim->bill_id = $claim->primary_claim_id;
@@ -202,6 +206,50 @@ class Claim extends Model
                 $this->setAttribute($idField, $option->id);
             }
         }
+    }
+
+    /**
+     * Stamp the day the denial reason was last applied. The column is never edited by
+     * hand, so it only moves when a different denial reason is picked. Comparing the
+     * resolved option instead of the raw column keeps renames and re-normalized legacy
+     * values from looking like a change the user made.
+     */
+    private function syncLatestDenialDate(): void
+    {
+        if ($this->isDirty('latest_denial_date')) {
+            return;
+        }
+
+        $current = $this->denialReasonKey($this->denial_reason_id, $this->denial_reason);
+        $previous = $this->exists
+            ? $this->denialReasonKey($this->getOriginal('denial_reason_id'), $this->getOriginal('denial_reason'))
+            : null;
+
+        if ($current === $previous) {
+            return;
+        }
+
+        $this->latest_denial_date = $current === null ? null : BusinessTime::today()->toDateString();
+    }
+
+    /**
+     * Identify a denial reason by the option it resolves to, so the same selection
+     * stored two different ways compares equal.
+     */
+    private function denialReasonKey(mixed $id, mixed $value): ?string
+    {
+        if (is_numeric($id)) {
+            return 'id:'.(int) $id;
+        }
+
+        $value = trim((string) ($value ?? ''));
+        if ($value === '') {
+            return null;
+        }
+
+        $option = $this->configurationOptionByValue($value, 'denial_reason');
+
+        return $option ? 'id:'.$option->id : 'value:'.mb_strtolower($value);
     }
 
     private function syncCreditStatusReference(): void

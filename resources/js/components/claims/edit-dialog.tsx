@@ -1,5 +1,5 @@
 import type { ClaimGroup, ClaimLine, StatusOption } from '@/components/claims/types';
-import { lineProcedureCode } from '@/components/claims/utils';
+import { lineProcedureCode, shortDate } from '@/components/claims/utils';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -53,14 +53,14 @@ export function ClaimEditDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
+            <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-xl">
+                <DialogHeader className="shrink-0">
                     <DialogTitle>Edit claim line</DialogTitle>
                     <DialogDescription>
                         Update only the selected {workspace.procedureLabel} line under {workspace.identifierLabel} {claim?.bill_id}.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
                             <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">{workspace.identifierLabel}</div>
@@ -76,7 +76,7 @@ export function ClaimEditDialog({
                     <label className="grid gap-1.5 text-sm font-medium">
                         Work status
                         <select
-                            className="bg-background h-10 rounded-md border px-3 font-normal"
+                            className="bg-background border-input h-10 w-full rounded-md border px-3 font-normal"
                             onChange={(event) => setEditForm({ ...editForm, work_status: event.target.value })}
                             value={editForm.work_status}
                         >
@@ -94,7 +94,7 @@ export function ClaimEditDialog({
                         <label className="grid gap-1.5 text-sm font-medium">
                             ModMed Claim Status
                             <select
-                                className="bg-background h-10 rounded-md border px-3 font-normal"
+                                className="bg-background border-input h-10 w-full rounded-md border px-3 font-normal"
                                 onChange={(event) => setEditForm({ ...editForm, modmed_claim_status: event.target.value })}
                                 value={editForm.modmed_claim_status}
                             >
@@ -124,7 +124,7 @@ export function ClaimEditDialog({
                         <label className="grid gap-1.5 text-sm font-medium">
                             Credit Status
                             <select
-                                className="bg-background h-10 rounded-md border px-3 font-normal"
+                                className="bg-background border-input h-10 w-full rounded-md border px-3 font-normal"
                                 onChange={(event) => {
                                     const status = event.target.value as '' | 'yes' | 'no';
                                     setEditForm({
@@ -184,8 +184,8 @@ export function ClaimEditDialog({
                             <select
                                 aria-invalid={isCreditReasonMissing}
                                 aria-required="true"
-                                className={`bg-background h-10 rounded-md border px-3 font-normal ${
-                                    isCreditReasonMissing ? 'border-destructive' : ''
+                                className={`bg-background h-10 w-full rounded-md border px-3 font-normal ${
+                                    isCreditReasonMissing ? 'border-destructive' : 'border-input'
                                 }`}
                                 onChange={(event) => setEditForm({ ...editForm, credit_reason: event.target.value })}
                                 required
@@ -208,35 +208,41 @@ export function ClaimEditDialog({
                             )}
                         </label>
                     )}
-                    <label className="grid gap-1.5 text-sm font-medium">
-                        Denial reason
-                        <select
-                            className="bg-background h-10 rounded-md border px-3 font-normal"
-                            onChange={(event) => setEditForm({ ...editForm, denial_reason: event.target.value })}
-                            value={editForm.denial_reason}
-                        >
-                            <option value="">No denial reason</option>
-                            {!denialReasons.some((item) => item.value === editForm.denial_reason) && editForm.denial_reason && (
-                                <option value={editForm.denial_reason}>{editForm.denial_reason}</option>
-                            )}
-                            {denialReasons.map((item) => (
-                                <option key={item.value} value={item.value}>
-                                    {item.label}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="grid gap-1.5 text-sm font-medium">
+                            Denial reason
+                            <select
+                                className="bg-background border-input h-10 w-full rounded-md border px-3 font-normal"
+                                onChange={(event) => setEditForm({ ...editForm, denial_reason: event.target.value })}
+                                value={editForm.denial_reason}
+                            >
+                                <option value="">No denial reason</option>
+                                {!denialReasons.some((item) => item.value === editForm.denial_reason) && editForm.denial_reason && (
+                                    <option value={editForm.denial_reason}>{editForm.denial_reason}</option>
+                                )}
+                                {denialReasons.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="grid gap-1.5 text-sm font-medium">
+                            Latest Denial Date
+                            <Input className="bg-muted text-muted-foreground" readOnly value={shortDate(line?.latest_denial_date ?? null)} />
+                        </label>
+                    </div>
                     <label className="grid gap-1.5 text-sm font-medium">
                         Notes
                         <textarea
-                            className="bg-background min-h-28 w-full rounded-md border px-3 py-2 font-normal"
+                            className="bg-background border-input min-h-28 w-full rounded-md border px-3 py-2 font-normal"
                             onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })}
                             rows={5}
                             value={editForm.notes}
                         />
                     </label>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="shrink-0">
                     <Button onClick={() => onOpenChange(false)} variant="outline">
                         Cancel
                     </Button>

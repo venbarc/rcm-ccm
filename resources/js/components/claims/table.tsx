@@ -5,6 +5,7 @@ import {
     currency,
     lineProcedureCode,
     serviceDateRange,
+    shortDate,
     statusLabel,
     workStatusBackgroundStyle,
     workStatusBadgeStyle,
@@ -209,12 +210,15 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                 <td className="max-w-0 p-0" colSpan={parentColumnCount}>
                                                     <div className="w-full max-w-full min-w-0 px-8 py-3">
                                                         <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain [contain:inline-size]">
-                                                            <table className="w-full min-w-[2070px] text-sm">
+                                                            <table className="w-full min-w-[2230px] text-sm">
                                                                 <thead className="text-muted-foreground">
                                                                     <tr className="border-b">
                                                                         <th className="px-3 py-3 text-left font-medium">Work Status</th>
                                                                         <ClaimSourceLineHeaders showPayer={false} showPrimaryProvider={false} />
                                                                         <th className="px-3 py-3 text-left font-medium">Denial Reason</th>
+                                                                        <th className="px-3 py-3 text-left font-medium whitespace-nowrap">
+                                                                            Latest Denial Date
+                                                                        </th>
                                                                         <th className="px-3 py-3 text-left font-medium">Assigned To</th>
                                                                         <th className="bg-muted sticky right-0 z-20 w-20 min-w-20 border-l px-3 py-3 text-right font-medium">
                                                                             Actions
@@ -247,6 +251,9 @@ export function ClaimsTable({ claims, filters, expandedClaimId, onToggleClaim, o
                                                                             />
                                                                             <td className="text-muted-foreground px-3 py-3">
                                                                                 {line.denial_reason_label || line.denial_reason || EMPTY_VALUE}
+                                                                            </td>
+                                                                            <td className="text-muted-foreground px-3 py-3 whitespace-nowrap">
+                                                                                {shortDate(line.latest_denial_date)}
                                                                             </td>
                                                                             <td className="px-3 py-3">
                                                                                 <div className="bg-background min-w-44 rounded-md border px-3 py-2">
