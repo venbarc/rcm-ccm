@@ -8,6 +8,15 @@ export const currency = (value: string | number | null) =>
 
 export const date = (value: string | null) => (value ? new Date(`${value}T00:00:00`).toLocaleDateString() : EMPTY_VALUE);
 
+export const shortDate = (value: string | null) =>
+    value
+        ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+          })
+        : EMPTY_VALUE;
+
 export const longDate = (value: string | null) =>
     value
         ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {

@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useActiveAccount } from '@/hooks/use-active-account';
 import { useClaimWorkspace } from '@/hooks/use-claim-workspace';
 import AppLayout from '@/layouts/app-layout';
+import { businessTodayIso } from '@/lib/date-time';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Download, FileSpreadsheet, Users } from 'lucide-react';
@@ -240,6 +241,8 @@ function ClaimsIndexContent({
         const workStatusColor = workStatusOption?.color ?? null;
         const denialReasonLabel = denialReasons.find((option) => option.value === denialReason)?.label ?? denialReason;
         const denialReasonId = denialReasons.find((option) => option.value === denialReason)?.id ?? null;
+        const denialReasonChanged = denialReason !== (editingLine.denial_reason || null);
+        const latestDenialDate = denialReason === null ? null : denialReasonChanged ? businessTodayIso() : editingLine.latest_denial_date;
         const creditReasonOption = creditReasons.find((option) => option.value === creditReason);
         const creditReasonId = creditReasonOption?.id ?? null;
         const creditReasonLabel = creditReasonOption?.label ?? creditReason;
@@ -289,6 +292,7 @@ function ClaimsIndexContent({
                                           denial_reason_id: denialReasonId,
                                           denial_reason: denialReason,
                                           denial_reason_label: denialReasonLabel,
+                                          latest_denial_date: latestDenialDate,
                                           notes,
                                           credit_status_id: creditStatusId,
                                           credit_status: creditStatus,
@@ -326,6 +330,7 @@ function ClaimsIndexContent({
                                 denial_reason_id: denialReasonId,
                                 denial_reason: denialReason,
                                 denial_reason_label: denialReasonLabel,
+                                latest_denial_date: latestDenialDate,
                                 notes,
                                 credit_status_id: reviewedLine?.credit_status_id ?? null,
                                 credit_status: reviewedLine?.credit_status ?? null,
